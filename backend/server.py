@@ -661,8 +661,48 @@ async def _act_deliverable(deliverable_id: str, user: dict, status: str, feedbac
     upd = {"status": status, "feedback": feedback or "", "reviewed_at": now().isoformat()}
     await db.deliverables.update_one({"id": deliverable_id}, {"$set": upd})
     if status == "approved" and d.get("hours_claimed"):
-        await db.engagements.update_one({"id": d["engagement_id"]},
-                                        {"$inc": {"hours_used": float(d["hours_claimed"])}})
+        hours = float(d["hours_claimed"])
+        await db.engagements.update_one({"id": d["engagement_id"]}, {"$inc": {"hours_used": hours}})
+        # ---- AUTO-PAYOUT trigger ----
+        talent = await db.users.find_one({"id": d["talent_id"]}) or {}
+        rate = float((talent.get("profile") or {}).get("hourly_rate") or 0)
+        # Rolling monthly volume for tier
+        month_start = (now() - timedelta(days=30)).isoformat()
+        prior = await db.deliverables.find({"talent_id": d["talent_id"], "status": "approved",
+                                             "reviewed_at": {"$gte": month_start, "$lte": now().isoformat()}},
+                                            {"_id": 0}).to_list(1000)
+        month_hours = sum(float(x.get("hours_claimed") or 0) for x in prior)
+        commission_pct = _pick_commission(month_hours)
+        # Referral discount: 1% off commission for 6 months if talent was referred
+        ref = await db.referrals.find_one({"referred_id": d["talent_id"], "status": "credited"})
+        discount_active = False
+        if ref and ref.get("credited_at"):
+            if (now() - datetime.fromisoformat(ref["credited_at"].replace("Z", "+00:00"))).days <= 183:
+                commission_pct = max(3, commission_pct - 1)
+                discount_active = True
+        # Multi-employer fee (once per month)
+        month_employers = {x.get("employer_id") for x in prior if x.get("employer_id")}
+        multi_fee_applied = 0.0
+        if len(month_employers) > 1:
+            already = await db.payouts.find_one({"talent_id": d["talent_id"], "multi_employer_fee": {"$gt": 0},
+                                                  "created_at": {"$gte": month_start}})
+            if not already:
+                multi_fee_applied = MULTI_EMPLOYER_FEE_USD
+        gross = round(rate * hours, 2)
+        commission = round(gross * commission_pct / 100.0, 2)
+        net = round(gross - commission - multi_fee_applied, 2)
+        payout = {
+            "id": new_id(), "run_id": None, "trigger": "deliverable_approved",
+            "deliverable_id": deliverable_id, "engagement_id": d["engagement_id"],
+            "talent_id": d["talent_id"], "talent_name": talent.get("name"),
+            "hourly_rate": rate, "hours": hours,
+            "employers_count": len(month_employers),
+            "commission_pct": commission_pct, "referral_discount": discount_active,
+            "gross": gross, "commission": commission,
+            "multi_employer_fee": multi_fee_applied, "net": net, "currency": "usd",
+            "status": "pending", "created_at": now().isoformat(),
+        }
+        await db.payouts.insert_one(payout)
     return await db.deliverables.find_one({"id": deliverable_id}, {"_id": 0})
 
 
@@ -999,6 +1039,63 @@ async def seo_hire(skill_slug: str):
         "description": f"Hire vetted {keyword} on TalentHub. Buy hours in bulk, sign contracts, integrate with Jira & Asana. From $29/mo.",
         "talent": talent,
     }
+
+
+@api.get("/employer/overview")
+async def employer_overview(user: dict = Depends(get_current_user)):
+    if user["role"] != "employer":
+        raise HTTPException(403, "Employers only")
+    uid = user["id"]
+    engs = await db.engagements.find({"employer_id": uid}, {"_id": 0}).to_list(500)
+    talent_map: Dict[str, Dict[str, Any]] = {}
+    hours_allocated_total = 0
+    hours_used_total = 0.0
+    for e in engs:
+        tid = e["talent_id"]
+        row = talent_map.setdefault(tid, {"talent_id": tid, "talent_name": e["talent_name"],
+                                          "engagements": 0, "hours_allocated": 0,
+                                          "hours_used": 0.0, "active": 0})
+        row["engagements"] += 1
+        row["hours_allocated"] += int(e.get("hours_allocated") or 0)
+        row["hours_used"] += float(e.get("hours_used") or 0)
+        if e.get("status") in ("contract_signed", "active"):
+            row["active"] += 1
+        hours_allocated_total += int(e.get("hours_allocated") or 0)
+        hours_used_total += float(e.get("hours_used") or 0)
+
+    pays = await db.payment_transactions.find({"user_id": uid, "payment_status": "paid"}, {"_id": 0}).to_list(500)
+    total_spent = round(sum(float(p.get("amount") or 0) / 100.0 for p in pays), 2)
+    total_hours_purchased = sum(int(p.get("hours") or 0) for p in pays)
+
+    payouts = await db.payouts.find({}, {"_id": 0}).to_list(1000)
+    triggered = [p for p in payouts if any(e["id"] == p.get("engagement_id") for e in engs)]
+    total_paid_out = round(sum(float(p.get("gross") or 0) for p in triggered), 2)
+
+    return {
+        "resources": sorted(talent_map.values(), key=lambda r: -r["hours_allocated"]),
+        "finances": {
+            "hours_purchased": total_hours_purchased,
+            "hours_allocated": hours_allocated_total,
+            "hours_used": round(hours_used_total, 1),
+            "hours_balance": int(user.get("hours_balance") or 0),
+            "total_spent_usd": total_spent,
+            "total_gross_paid_to_talent_usd": total_paid_out,
+            "engagements": len(engs),
+            "active_engagements": sum(1 for e in engs if e.get("status") in ("contract_signed", "active")),
+        },
+    }
+
+
+SEO_CITIES = ["london", "new-york", "san-francisco", "berlin", "singapore", "dubai", "sydney", "toronto", "remote"]
+
+
+@api.get("/seo/city-skills")
+async def seo_city_skills():
+    combos = []
+    for c in SEO_CITIES:
+        for s in SEO_SKILLS[:6]:
+            combos.append({"slug": f"{s}-{c}", "skill": s, "city": c})
+    return {"combos": combos}
 @api.get("/integrations/providers")
 async def integration_providers():
     return list_supported_providers()

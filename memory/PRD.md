@@ -32,7 +32,13 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
-## Implemented (2026-02-09, iteration 6 — payouts, growth, chat, SEO, walkthrough)
+## Implemented (2026-02-09, iteration 7 — auto-payout + employer overview)
+- **Deliverable → auto-payout trigger**: when the employer approves a deliverable, `_act_deliverable` now creates an individual `Payout` record instantly (rate × approved-hours minus tier commission minus multi-employer fee, applied once per month). No more waiting for a batch run — talent are paid as work is accepted.
+- **Talent referral discount**: referred talent get a permanent **1% commission discount for 6 months** from the time their referrer is credited. Applied automatically in the auto-payout calculation.
+- **Employer overview endpoint** `/api/employer/overview` returns per-resource breakdown (engagements, hours allocated/used, active) and finances (hours purchased/allocated/used/available, total spent, gross paid to talent).
+- **Employer Dashboard** now shows two new panels below the metrics: **Your resources** (list of every talent working with them, sorted by hours allocated) and **Your finances** (running P&L of hours + spend + gross paid out).
+- **Programmatic SEO combos**: `/api/seo/city-skills` returns 54 skill × city combos ready to become landing pages.
+
 - **Talent Payouts engine**: `/api/earnings/mine` (rolling 30-day statement), `/api/payouts/mine`, `/api/admin/payouts/run` (aggregates approved deliverables into per-talent payouts with commission tiers + multi-employer fee). Admin console has a new **Payouts** tab; talent has a `/talent/earnings` page with downloadable statement.
 - **Referral loop**: every user gets a `TH-XXXXXX` code. Invitees paste it at signup; on their first Stripe checkout the referrer is auto-credited 2% of purchased hours (`_credit_referral_bonus` hook). Page at `/referrals` with copy-to-share + claims table.
 - **SEO landing pages per skill**: `/hire/:slug` renders vetted talent for react-developers, python-developers, ui-designers, etc. Backend endpoints `/api/seo/skills` and `/api/seo/hire/{slug}` power them.

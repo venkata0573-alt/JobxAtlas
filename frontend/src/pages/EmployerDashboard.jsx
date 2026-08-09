@@ -12,6 +12,7 @@ export default function EmployerDashboard() {
   const [engs, setEngs] = useState([]);
   const [talent, setTalent] = useState([]);
   const [metrics, setMetrics] = useState(null);
+  const [overview, setOverview] = useState(null);
   const [selected, setSelected] = useState(null);
   const [hours, setHours] = useState(5);
   const [scope, setScope] = useState("");
@@ -24,8 +25,11 @@ export default function EmployerDashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const [a, b, m] = await Promise.all([api.get("/engagements"), api.get("/talent"), api.get("/dashboard/metrics")]);
-        setEngs(a.data); setTalent(b.data); setMetrics(m.data);
+        const [a, b, m, o] = await Promise.all([
+          api.get("/engagements"), api.get("/talent"),
+          api.get("/dashboard/metrics"), api.get("/employer/overview"),
+        ]);
+        setEngs(a.data); setTalent(b.data); setMetrics(m.data); setOverview(o.data);
       } catch (e) { toast.error(formatErr(e)); }
     })();
   }, []);
@@ -66,6 +70,50 @@ export default function EmployerDashboard() {
       </div>
 
       <div className="mb-10"><DashboardMetrics metrics={metrics} role="employer"/></div>
+
+      {/* Resources & Finances */}
+      {overview && (
+        <div className="grid lg:grid-cols-[1.4fr_1fr] gap-6 mb-10">
+          <section className="hard-border bg-white p-8 shadow-brutal">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-display font-extrabold text-2xl tracking-tight">Your resources</h2>
+              <span className="text-xs font-mono text-neutral-500">{overview.resources.length} people</span>
+            </div>
+            {overview.resources.length === 0 ? (
+              <p className="text-neutral-500 text-sm">Nobody engaged yet. Use the panel below to build your first team.</p>
+            ) : (
+              <div className="divide-y divide-black/10">
+                {overview.resources.map(r => (
+                  <div key={r.talent_id} className="py-3 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-display font-extrabold text-lg tracking-tight">{r.talent_name}</p>
+                      <p className="text-xs text-neutral-500 font-mono">{r.engagements} engagements · {r.active} active</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-mono text-sm">{r.hours_used}h / {r.hours_allocated}h</p>
+                      <p className="text-xs text-neutral-500">used / allocated</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+          <section className="hard-border bg-[#FDFCF0] p-8 shadow-brutal">
+            <h2 className="font-display font-extrabold text-2xl tracking-tight mb-6">Your finances</h2>
+            <dl className="space-y-3 font-mono text-sm">
+              <Fin label="Total spent"                       v={`$${overview.finances.total_spent_usd.toLocaleString()}`}/>
+              <Fin label="Hours purchased"                   v={`${overview.finances.hours_purchased}h`}/>
+              <Fin label="Hours allocated to engagements"    v={`${overview.finances.hours_allocated}h`}/>
+              <Fin label="Hours actually used"               v={`${overview.finances.hours_used}h`}/>
+              <Fin label="Hours available"                   v={`${overview.finances.hours_balance}h`} bold/>
+              <div className="h-px bg-black/10 my-2"/>
+              <Fin label="Gross paid to talent (approved)"   v={`$${overview.finances.total_gross_paid_to_talent_usd.toLocaleString()}`}/>
+              <Fin label="Active engagements"                v={overview.finances.active_engagements}/>
+            </dl>
+            <p className="text-xs text-neutral-500 mt-6">Talent are auto-paid the moment you approve a deliverable. Rate × approved-hours minus platform commission.</p>
+          </section>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-[1.4fr_1fr] gap-6">
         {/* Mix & Match — create engagement */}
@@ -200,6 +248,14 @@ function Stat({ k, label }) {
     <div className="p-8 border-r border-b border-black/10 bg-white">
       <div className="font-display font-extrabold text-4xl md:text-5xl tracking-tight">{k}</div>
       <p className="overline text-neutral-500 mt-2">{label}</p>
+    </div>
+  );
+}
+
+function Fin({ label, v, bold }) {
+  return (
+    <div className={`flex justify-between ${bold ? "font-bold text-base" : ""}`}>
+      <dt className="text-neutral-600">{label}</dt><dd>{v}</dd>
     </div>
   );
 }
