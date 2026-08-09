@@ -15,6 +15,21 @@ export default function TalentProfile() {
   const [suggest, setSuggest] = useState(null);
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const uploadAvatar = async (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    if (f.size > 3 * 1024 * 1024) return toast.error("Avatar must be under 3 MB");
+    const form = new FormData(); form.append("file", f); form.append("kind", "avatar");
+    setUploadingAvatar(true);
+    try {
+      const r = await api.post("/files/upload", form, { headers: { "Content-Type": "multipart/form-data" } });
+      setP((prev) => ({ ...prev, avatar_url: r.data.url }));
+      await refresh();
+      toast.success("Avatar updated");
+    } catch (err) { toast.error(formatErr(err)); }
+    finally { setUploadingAvatar(false); }
+  };
 
   useEffect(() => {
     if (user && user.profile) {
@@ -60,6 +75,29 @@ export default function TalentProfile() {
       </h1>
 
       <form onSubmit={save} className="hard-border bg-white p-8 md:p-12 shadow-brutal space-y-6">
+        {/* Avatar uploader */}
+        <div className="flex items-center gap-5">
+          <div className="w-20 h-20 hard-border bg-neutral-100 flex items-center justify-center overflow-hidden">
+            {p.avatar_url ? (
+              <img src={`${process.env.REACT_APP_BACKEND_URL}${p.avatar_url}`}
+                   alt="avatar" className="w-full h-full object-cover"/>
+            ) : (
+              <span className="font-display font-black text-2xl text-neutral-400">
+                {(user?.name || "?").charAt(0).toUpperCase()}
+              </span>
+            )}
+          </div>
+          <div className="flex-1">
+            <p className="overline mb-1">Profile photo</p>
+            <label className="btn-outline text-sm inline-block cursor-pointer">
+              {uploadingAvatar ? "Uploading…" : (p.avatar_url ? "Change photo" : "Upload photo")}
+              <input type="file" onChange={uploadAvatar} className="hidden"
+                     accept="image/png,image/jpeg,image/webp,image/gif"/>
+            </label>
+            <p className="text-xs text-neutral-500 mt-2 font-mono">PNG / JPG / WebP up to 3 MB</p>
+          </div>
+        </div>
+
         <div>
           <label className="overline block mb-2">Headline</label>
           <input data-testid={TID.profileHeadline} value={p.headline || ""} onChange={(e) => setP({ ...p, headline: e.target.value })}

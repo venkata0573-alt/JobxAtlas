@@ -186,8 +186,9 @@ class DeliverableIn(BaseModel):
     engagement_id: str
     title: str
     description: Optional[str] = ""
-    link: Optional[str] = ""            # URL of deliverable
+    link: Optional[str] = ""
     hours_claimed: Optional[float] = 0
+    file_ids: List[str] = []           # optional attachments from /files/upload
 
 
 class DeliverableActionIn(BaseModel):
@@ -634,6 +635,7 @@ async def submit_deliverable(payload: DeliverableIn, user: dict = Depends(get_cu
         "talent_id": user["id"], "employer_id": eng["employer_id"],
         "title": payload.title, "description": payload.description or "",
         "link": payload.link or "", "hours_claimed": float(payload.hours_claimed or 0),
+        "file_ids": payload.file_ids or [],
         "status": "submitted", "feedback": "",
         "submitted_at": now().isoformat(), "reviewed_at": "",
     }
@@ -1145,6 +1147,39 @@ async def newsletter_signup(payload: NewsletterIn, request: Request):
     return {"ok": True}
 
 
+# ---------- Generic file upload (avatars, deliverable attachments, etc.) ----------
+@api.post("/files/upload")
+async def upload_file(file: UploadFile = File(...), kind: str = Form("generic"),
+                      user: dict = Depends(get_current_user)):
+    """Generic authenticated file upload. `kind` may be 'avatar' | 'portfolio' |
+    'deliverable' | 'generic'. Returns {file_id, url, name, content_type, size}."""
+    data = await file.read()
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(400, "File exceeds 10 MB")
+    ext = (file.filename or "bin").rsplit(".", 1)[-1].lower()
+    allowed = {"png", "jpg", "jpeg", "gif", "webp", "pdf", "txt", "csv", "svg"}
+    if ext not in allowed:
+        raise HTTPException(400, f"Unsupported file type. Allowed: {', '.join(sorted(allowed))}")
+    fid = new_id()
+    path = f"{STORAGE_APP}/{kind}/{user['id']}/{fid}.{ext}"
+    ctype = file.content_type or "application/octet-stream"
+    try:
+        result = put_object(path, data, ctype)
+    except Exception as e:
+        raise HTTPException(500, f"Upload failed: {e}")
+    await db.files.insert_one({
+        "id": fid, "storage_path": result["path"], "original_filename": file.filename,
+        "content_type": ctype, "size": len(data), "kind": kind,
+        "user_id": user["id"], "created_at": now().isoformat(), "is_deleted": False,
+    })
+    # Avatar → also patch the user profile
+    if kind == "avatar":
+        avatar_url = f"/api/files/{fid}"
+        await db.users.update_one({"id": user["id"]}, {"$set": {"profile.avatar_url": avatar_url}})
+    return {"file_id": fid, "url": f"/api/files/{fid}",
+            "name": file.filename, "content_type": ctype, "size": len(data)}
+
+
 # ---------- Chat attachments ----------
 @api.post("/messages/upload")
 async def upload_message_attachment(engagement_id: str = Form(...), file: UploadFile = File(...),
@@ -1188,8 +1223,17 @@ async def download_file(file_id: str, user: dict = Depends(get_current_user)):
     rec = await db.files.find_one({"id": file_id, "is_deleted": False})
     if not rec:
         raise HTTPException(404, "File not found")
-    eng = await db.engagements.find_one({"id": rec.get("engagement_id")})
-    if not eng or user["id"] not in (eng.get("employer_id"), eng.get("talent_id"), rec.get("user_id")):
+    # Avatars are readable by any authenticated user (used in profile displays)
+    if rec.get("kind") == "avatar":
+        data, ctype = get_object(rec["storage_path"])
+        from fastapi.responses import Response
+        return Response(content=data, media_type=rec.get("content_type", ctype))
+    # Otherwise scope to engagement participants or uploader
+    eng = await db.engagements.find_one({"id": rec.get("engagement_id")}) if rec.get("engagement_id") else None
+    allowed_ids = {rec.get("user_id")}
+    if eng:
+        allowed_ids |= {eng.get("employer_id"), eng.get("talent_id")}
+    if user["id"] not in allowed_ids:
         raise HTTPException(403, "Not allowed")
     data, ctype = get_object(rec["storage_path"])
     from fastapi.responses import Response
