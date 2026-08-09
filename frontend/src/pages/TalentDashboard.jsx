@@ -111,7 +111,7 @@ export default function TalentDashboard() {
             <p className="overline text-[#0B1B2B] mb-1">MONTHLY RATE NUDGE</p>
             <p className="font-display font-extrabold text-lg md:text-xl tracking-tight leading-snug">
               Your ${nudge.current_rate}/hr is <span className={nudge.direction === "raise" ? "text-emerald-700" : "text-red-700"}>
-                {nudge.drift_pct > 0 ? "+" : ""}{nudge.drift_pct}%
+                {Math.abs(nudge.drift_pct)}%
               </span> {nudge.direction === "raise" ? "below" : "above"} the market mid of ${nudge.suggested_mid}/hr.
             </p>
             {nudge.rationale && <p className="text-sm text-neutral-600 mt-1">{nudge.rationale}</p>}

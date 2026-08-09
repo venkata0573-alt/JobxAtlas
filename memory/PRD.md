@@ -32,6 +32,14 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
+## Implemented (2026-02-09, iteration 14 — shortlist page + monthly scheduler + industry-picker fix)
+- **Bug fix (user report)**: Register.jsx industry picker no longer uses a native `<select>` (users couldn't tell it was populated). Replaced with an always-visible 3-column grid of chip buttons matching the role-picker style: `data-testid="industry-picker"` wraps 12 chips (`data-testid="industry-<slug>"`); each shows the label + "N ON PLATFORM" subtitle when count>0; hidden input `data-testid="register-industry"` still carries the selected value. Only renders when Employer role is selected.
+- **New `/employer/shortlist` page** (`Shortlist.jsx`): premium navy summary card with live count, avg $/hr, and estimated bundle (recomputed from a `10h / 20h / 40h / 80h` hours-per-talent chip picker); grid of shortlisted-talent cards with Remove; "Purchase hours for this shortlist" CTA routes to `/employer/purchase?context=shortlist&talents=N&hours_per_talent=H&est_budget=X`. Empty-state renders when the shortlist is empty. Added route in `App.js`, and a "★ Shortlist" nav link on the Employer Dashboard.
+- **PurchaseHours context banner**: when arriving with `?context=shortlist&...`, the page renders a cream banner at the top with the shortlist summary + back link.
+- **APScheduler monthly cron**: `AsyncIOScheduler` started on FastAPI startup, one job `monthly_rate_nudge_scan` on `CronTrigger(day=1, hour=9, minute=0)` UTC. Each run calls `_scan_and_record_rate_nudges` and logs a `job_runs` doc. New admin endpoint `GET /api/admin/scheduler` returns running state, next fire time (verified: `2026-09-01 09:00 UTC`), and the last recorded run.
+- **Cosmetic**: nudge banner phrasing now shows an unsigned percentage next to the directional verb (e.g. `69% above the market mid` instead of `-69% above`).
+- Verified via `testing_agent` iteration_5.json: 12/12 new backend tests + 58/59 baseline unchanged + all frontend flows tested. `retest_needed: false`.
+
 ## Implemented (2026-02-09, iteration 13 — buyer categories, shortlist, Resend email)
 - **Employer industry self-selection**: `RegisterIn` accepts `company_industry`; Register.jsx renders a dropdown (only when "Employer" role picked) fed by `GET /api/marketplace/industries` (also shows live count per industry). Server validates against the canonical 12-industry list `EMPLOYER_INDUSTRIES` and stores it in `user.profile.company_industry`.
 - **Live trust-bar chips**: Landing now fetches `/api/marketplace/industries` and renders `×N` next to any industry with real employers. `/api/marketplace/stats` also returns `industries_active` (distinct claimed industries). Verified with 4 test employers → 4 chips show `×1`.
