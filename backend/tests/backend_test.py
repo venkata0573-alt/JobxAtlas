@@ -5,7 +5,14 @@ import uuid
 import time
 import pytest
 import requests
+from pathlib import Path
+from dotenv import load_dotenv
 from openpyxl import Workbook
+
+# Load backend .env so MONGO_URL/DB_NAME are available for direct DB seed operations
+_BACKEND_ENV = Path(__file__).resolve().parents[1] / ".env"
+if _BACKEND_ENV.exists():
+    load_dotenv(_BACKEND_ENV)
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://hourly-talent-hub.preview.emergentagent.com").rstrip("/")
 API = f"{BASE}/api"
@@ -582,3 +589,319 @@ class TestPricing:
         for k in ("upwork", "fiverr", "freelancer"):
             assert k in d["compare"]
         assert d["platform_fee_pct"] == 8
+
+
+
+# ---------- Helpers for new-feature tests ----------
+def _seed_hours(uid: str, hours: int):
+    from pymongo import MongoClient
+    mc = MongoClient(os.environ["MONGO_URL"])
+    mc[os.environ["DB_NAME"]].users.update_one({"id": uid}, {"$set": {"hours_balance": hours}})
+
+
+# ---------- On-site engagement mode ----------
+class TestEngagementOnsite:
+    def test_onsite_requires_location(self, employer_sess, talent_user, employer_user):
+        _seed_hours(employer_user["id"], 100)
+        r = employer_sess.post(f"{API}/engagements", json={
+            "talent_id": talent_user["id"], "hours": 5, "scope": "onsite work",
+            "mode": "onsite", "location": ""
+        })
+        assert r.status_code == 400, r.text
+        assert "location" in r.text.lower()
+
+    def test_hybrid_requires_location(self, employer_sess, talent_user, employer_user):
+        _seed_hours(employer_user["id"], 100)
+        r = employer_sess.post(f"{API}/engagements", json={
+            "talent_id": talent_user["id"], "hours": 5, "scope": "hybrid work",
+            "mode": "hybrid"
+        })
+        assert r.status_code == 400
+
+    def test_remote_no_location_ok(self, employer_sess, talent_user, employer_user):
+        _seed_hours(employer_user["id"], 100)
+        r = employer_sess.post(f"{API}/engagements", json={
+            "talent_id": talent_user["id"], "hours": 5, "scope": "remote work",
+            "mode": "remote"
+        })
+        assert r.status_code == 200, r.text
+        assert r.json()["mode"] == "remote"
+
+    def test_invalid_mode_400(self, employer_sess, talent_user, employer_user):
+        _seed_hours(employer_user["id"], 100)
+        r = employer_sess.post(f"{API}/engagements", json={
+            "talent_id": talent_user["id"], "hours": 5, "scope": "x",
+            "mode": "moonbase"
+        })
+        assert r.status_code == 400
+
+    def test_onsite_sign_requires_ack(self, employer_sess, talent_sess, talent_user, employer_user):
+        _seed_hours(employer_user["id"], 100)
+        r = employer_sess.post(f"{API}/engagements", json={
+            "talent_id": talent_user["id"], "hours": 8, "scope": "onsite proj",
+            "mode": "onsite", "location": "Bengaluru HQ", "transport": "employer",
+            "onsite_notes": "Bring laptop"
+        })
+        assert r.status_code == 200, r.text
+        eng = r.json()
+        assert eng["mode"] == "onsite" and eng["location"] == "Bengaluru HQ"
+        eid = eng["id"]
+
+        # Sign without onsite_ack -> 400
+        bad = employer_sess.post(f"{API}/engagements/sign",
+                                 json={"engagement_id": eid, "signature": "Emp"})
+        assert bad.status_code == 400
+        assert "on-site" in bad.text.lower() or "onsite" in bad.text.lower()
+
+        # Sign with onsite_ack -> 200
+        r1 = employer_sess.post(f"{API}/engagements/sign",
+                                json={"engagement_id": eid, "signature": "Emp Signer",
+                                      "onsite_ack": True})
+        assert r1.status_code == 200
+        r2 = talent_sess.post(f"{API}/engagements/sign",
+                              json={"engagement_id": eid, "signature": "Tal Signer",
+                                    "onsite_ack": True})
+        assert r2.status_code == 200
+        signed = r2.json()
+        assert signed["status"] == "contract_signed"
+        # Signature payload persists onsite_ack
+        assert signed["employer_signature"]["onsite_ack"] is True
+        assert signed["talent_signature"]["onsite_ack"] is True
+        # stash for later tests
+        TestEngagementOnsite.onsite_eid = eid
+
+
+# ---------- Deliverables ----------
+class TestDeliverables:
+    def test_deliverable_requires_signed_contract(self, employer_sess, talent_sess, talent_user, employer_user):
+        _seed_hours(employer_user["id"], 100)
+        # Create unsigned engagement
+        r = employer_sess.post(f"{API}/engagements", json={
+            "talent_id": talent_user["id"], "hours": 6, "scope": "unsigned test",
+            "mode": "remote"})
+        assert r.status_code == 200
+        eid = r.json()["id"]
+        # Talent tries to submit -> 400 (contract not signed)
+        d = talent_sess.post(f"{API}/deliverables", json={
+            "engagement_id": eid, "title": "T", "hours_claimed": 1.0})
+        assert d.status_code == 400
+
+    def test_deliverable_full_flow(self, employer_sess, talent_sess, talent_user, employer_user):
+        _seed_hours(employer_user["id"], 100)
+        # Create + sign remote engagement
+        r = employer_sess.post(f"{API}/engagements", json={
+            "talent_id": talent_user["id"], "hours": 20, "scope": "deliv flow",
+            "mode": "remote"})
+        eid = r.json()["id"]
+        employer_sess.post(f"{API}/engagements/sign",
+                           json={"engagement_id": eid, "signature": "E"})
+        talent_sess.post(f"{API}/engagements/sign",
+                         json={"engagement_id": eid, "signature": "T"})
+
+        # Employer cannot submit (only talent)
+        bad = employer_sess.post(f"{API}/deliverables", json={
+            "engagement_id": eid, "title": "X", "hours_claimed": 1})
+        assert bad.status_code == 403
+
+        # Talent submits
+        s = talent_sess.post(f"{API}/deliverables", json={
+            "engagement_id": eid, "title": "Milestone 1",
+            "description": "Initial pass", "link": "https://example.com/1",
+            "hours_claimed": 3.5})
+        assert s.status_code == 200, s.text
+        d1 = s.json()
+        assert d1["status"] == "submitted"
+        assert d1["hours_claimed"] == 3.5
+        did1 = d1["id"]
+
+        # List deliverables (either party)
+        lst = employer_sess.get(f"{API}/deliverables/{eid}")
+        assert lst.status_code == 200
+        assert any(x["id"] == did1 for x in lst.json())
+
+        # Non-employer cannot approve (talent)
+        rf = talent_sess.post(f"{API}/deliverables/{did1}/approve", json={"feedback": "ok"})
+        assert rf.status_code == 403
+
+        # Employer approves -> hours_used increments
+        eng_before = employer_sess.get(f"{API}/engagements/{eid}").json()
+        hu_before = float(eng_before.get("hours_used") or 0)
+
+        ap = employer_sess.post(f"{API}/deliverables/{did1}/approve",
+                                json={"feedback": "Great work"})
+        assert ap.status_code == 200
+        assert ap.json()["status"] == "approved"
+        assert ap.json()["feedback"] == "Great work"
+
+        eng_after = employer_sess.get(f"{API}/engagements/{eid}").json()
+        assert float(eng_after["hours_used"]) == hu_before + 3.5
+
+        # Cannot approve twice
+        ap2 = employer_sess.post(f"{API}/deliverables/{did1}/approve", json={})
+        assert ap2.status_code == 400
+
+        # Second deliverable then reject
+        s2 = talent_sess.post(f"{API}/deliverables", json={
+            "engagement_id": eid, "title": "Milestone 2", "hours_claimed": 2})
+        did2 = s2.json()["id"]
+        rj = employer_sess.post(f"{API}/deliverables/{did2}/reject",
+                                json={"feedback": "Needs rework"})
+        assert rj.status_code == 200
+        assert rj.json()["status"] == "rejected"
+        # Rejected does NOT increment hours_used
+        eng_after2 = employer_sess.get(f"{API}/engagements/{eid}").json()
+        assert float(eng_after2["hours_used"]) == hu_before + 3.5
+
+        # Stash eid for review tests
+        TestDeliverables.signed_eid = eid
+
+
+# ---------- Reviews ----------
+def _make_signed_engagement(employer_sess, talent_sess, talent_user, employer_user, hours=10):
+    _seed_hours(employer_user["id"], 200)
+    r = employer_sess.post(f"{API}/engagements", json={
+        "talent_id": talent_user["id"], "hours": hours,
+        "scope": "review test", "mode": "remote"})
+    assert r.status_code == 200, r.text
+    eid = r.json()["id"]
+    employer_sess.post(f"{API}/engagements/sign",
+                       json={"engagement_id": eid, "signature": "Emp"})
+    talent_sess.post(f"{API}/engagements/sign",
+                     json={"engagement_id": eid, "signature": "Tal"})
+    return eid
+
+
+class TestReviews:
+    @pytest.fixture(scope="class")
+    def signed_eid(self, employer_sess, talent_sess, talent_user, employer_user):
+        return _make_signed_engagement(employer_sess, talent_sess, talent_user, employer_user, hours=5)
+
+    def test_review_rating_bounds(self, employer_sess, signed_eid):
+        eid = signed_eid
+        r = employer_sess.post(f"{API}/reviews", json={
+            "engagement_id": eid, "rating": 6, "text": "too high"})
+        assert r.status_code == 400
+        r0 = employer_sess.post(f"{API}/reviews", json={
+            "engagement_id": eid, "rating": 0, "text": "too low"})
+        assert r0.status_code == 400
+
+    def test_only_participants_can_review(self, admin_sess, signed_eid):
+        # Admin is not a participant -> should be 404
+        r = admin_sess.post(f"{API}/reviews", json={
+            "engagement_id": signed_eid, "rating": 5, "text": "outsider"})
+        assert r.status_code == 404
+
+    def test_create_reviews_and_moderation(self, employer_sess, talent_sess, talent_user, employer_user, admin_sess, signed_eid):
+        eid = signed_eid
+        # Employer reviews talent
+        re_ = employer_sess.post(f"{API}/reviews", json={
+            "engagement_id": eid, "rating": 5, "text": "great talent"})
+        assert re_.status_code == 200, re_.text
+        emp_rev = re_.json()
+        assert emp_rev["status"] == "pending"
+        assert emp_rev["reviewer_role"] == "employer"
+        assert emp_rev["reviewee_id"] == talent_user["id"]
+        assert emp_rev["rating"] == 5
+
+        # Duplicate by same reviewer -> 400
+        dup = employer_sess.post(f"{API}/reviews", json={
+            "engagement_id": eid, "rating": 4, "text": "dup"})
+        assert dup.status_code == 400
+
+        # Talent reviews employer
+        rt = talent_sess.post(f"{API}/reviews", json={
+            "engagement_id": eid, "rating": 4, "text": "solid employer"})
+        assert rt.status_code == 200
+        tal_rev = rt.json()
+        assert tal_rev["reviewer_role"] == "talent"
+        assert tal_rev["reviewee_id"] == employer_user["id"]
+
+        # Public reviews for talent - not visible until approved
+        pub = requests.get(f"{API}/reviews/user/{talent_user['id']}")
+        assert pub.status_code == 200
+        assert not any(x["id"] == emp_rev["id"] for x in pub.json()), "pending should not be public"
+
+        # Admin lists pending
+        adm_list = admin_sess.get(f"{API}/admin/reviews")
+        assert adm_list.status_code == 200
+        ids = [x["id"] for x in adm_list.json()]
+        assert emp_rev["id"] in ids and tal_rev["id"] in ids
+
+        # Non-admin cannot moderate
+        f403 = employer_sess.post(f"{API}/admin/reviews/{emp_rev['id']}/approve")
+        assert f403.status_code == 403
+
+        # Approve employer->talent review
+        ap = admin_sess.post(f"{API}/admin/reviews/{emp_rev['id']}/approve")
+        assert ap.status_code == 200
+
+        # Reject talent->employer review
+        rj = admin_sess.post(f"{API}/admin/reviews/{tal_rev['id']}/reject")
+        assert rj.status_code == 200
+
+        # Public reviews for talent should now include approved one
+        pub2 = requests.get(f"{API}/reviews/user/{talent_user['id']}")
+        assert pub2.status_code == 200
+        assert any(x["id"] == emp_rev["id"] for x in pub2.json())
+        # reviewer_id must be excluded from public payload
+        for item in pub2.json():
+            assert "reviewer_id" not in item
+
+        # Public reviews for employer must NOT contain rejected
+        pub3 = requests.get(f"{API}/reviews/user/{employer_user['id']}")
+        assert not any(x["id"] == tal_rev["id"] for x in pub3.json())
+
+        # Approve non-existent -> 404
+        nf = admin_sess.post(f"{API}/admin/reviews/does-not-exist/approve")
+        assert nf.status_code == 404
+
+
+# ---------- Grievances ----------
+class TestGrievances:
+    def test_submit_grievance_public(self):
+        # NO auth session - public endpoint
+        r = requests.post(f"{API}/grievances", json={
+            "subject": "Payment delay",
+            "description": "Not paid for 30 days",
+            "contact_email": "aggrieved@test.io",
+            "incident_date": "2026-01-05",
+        })
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["ok"] is True
+        assert d["reference"]
+        assert d["email_to"] == "grievance@talenthub.io"
+        TestGrievances.gid = d["reference"]
+
+    def test_submit_grievance_validation(self):
+        # Missing required fields -> 422
+        r = requests.post(f"{API}/grievances", json={"subject": "x"})
+        assert r.status_code == 422
+
+    def test_admin_list_and_resolve(self, employer_sess, admin_sess):
+        # Non-admin cannot list
+        f = employer_sess.get(f"{API}/admin/grievances")
+        assert f.status_code == 403
+
+        lst = admin_sess.get(f"{API}/admin/grievances")
+        assert lst.status_code == 200
+        gid = getattr(TestGrievances, "gid", None)
+        assert gid, "prerequisite"
+        assert any(x["id"] == gid for x in lst.json())
+
+        # Non-admin cannot resolve
+        f2 = employer_sess.post(f"{API}/admin/grievances/{gid}/resolve")
+        assert f2.status_code == 403
+
+        # Admin resolves
+        rr = admin_sess.post(f"{API}/admin/grievances/{gid}/resolve")
+        assert rr.status_code == 200
+
+        # Resolve unknown -> 404
+        nf = admin_sess.post(f"{API}/admin/grievances/nope-xyz/resolve")
+        assert nf.status_code == 404
+
+        # Verify status updated
+        lst2 = admin_sess.get(f"{API}/admin/grievances").json()
+        rec = next(x for x in lst2 if x["id"] == gid)
+        assert rec["status"] == "resolved"

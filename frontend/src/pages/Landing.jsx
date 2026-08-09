@@ -143,6 +143,7 @@ export default function Landing() {
           <div className="md:text-right">
             <p>© 2026 TalentHub Technologies Pvt Ltd</p>
             <p>All engagements protected by 12-month exclusivity</p>
+            <p className="mt-3"><a href="/grievance" className="text-white underline underline-offset-4">Raise a grievance →</a></p>
           </div>
         </div>
       </footer>

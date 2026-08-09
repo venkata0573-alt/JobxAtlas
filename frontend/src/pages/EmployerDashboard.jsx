@@ -15,6 +15,11 @@ export default function EmployerDashboard() {
   const [selected, setSelected] = useState(null);
   const [hours, setHours] = useState(5);
   const [scope, setScope] = useState("");
+  const [mode, setMode] = useState("remote");
+  const [location, setLocation] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [transport, setTransport] = useState("employer");
 
   useEffect(() => {
     (async () => {
@@ -28,11 +33,16 @@ export default function EmployerDashboard() {
   const createEngagement = async (e) => {
     e.preventDefault();
     if (!selected) return toast.error("Pick a talent first");
+    if (mode !== "remote" && !location.trim()) return toast.error("Please add a location for on-site / hybrid work");
     try {
-      const r = await api.post("/engagements", { talent_id: selected.id, hours: Number(hours), scope });
+      const r = await api.post("/engagements", {
+        talent_id: selected.id, hours: Number(hours), scope,
+        mode, location, start_date: startDate, end_date: endDate, transport,
+      });
       toast.success("Engagement created — sign the contract");
       setEngs([r.data, ...engs]);
-      setSelected(null); setScope(""); setHours(5);
+      setSelected(null); setScope(""); setHours(5); setMode("remote"); setLocation("");
+      setStartDate(""); setEndDate(""); setTransport("employer");
     } catch (err) { toast.error(formatErr(err)); }
   };
 
@@ -93,6 +103,64 @@ export default function EmployerDashboard() {
                         placeholder="What will they deliver?"
                         className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
             </div>
+
+            <div>
+              <p className="overline mb-2">4 · Work mode</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: "remote",  label: "Remote",  testid: TID.engModeRemote },
+                  { id: "onsite",  label: "On-site", testid: TID.engModeOnsite },
+                  { id: "hybrid",  label: "Hybrid",  testid: TID.engModeHybrid },
+                ].map((m) => (
+                  <button type="button" key={m.id} onClick={() => setMode(m.id)}
+                          data-testid={m.testid}
+                          className={`hard-border py-3 font-display font-extrabold text-sm ${mode === m.id ? "bg-[#0A0A0A] text-white" : "bg-white"}`}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {mode !== "remote" && (
+              <div className="hard-border bg-[#FDFCF0] p-5 space-y-4">
+                <p className="overline text-[#FF0A0A]">On-site details (required)</p>
+                <div>
+                  <label className="text-xs text-neutral-600 block mb-1">Location / address</label>
+                  <input value={location} onChange={(e) => setLocation(e.target.value)}
+                         data-testid={TID.engLocation}
+                         placeholder="Full address inc. city, country"
+                         className="w-full hard-border px-3 py-3 bg-white focus:outline-none focus:border-[#002FA7]"/>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-neutral-600 block mb-1">Start date</label>
+                    <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+                           data-testid={TID.engStart}
+                           className="w-full hard-border px-3 py-3 bg-white font-mono"/>
+                  </div>
+                  <div>
+                    <label className="text-xs text-neutral-600 block mb-1">End date</label>
+                    <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+                           data-testid={TID.engEnd}
+                           className="w-full hard-border px-3 py-3 bg-white font-mono"/>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-neutral-600 block mb-1">Transport arrangement</label>
+                  <select value={transport} onChange={(e) => setTransport(e.target.value)}
+                          data-testid={TID.engTransport}
+                          className="w-full hard-border px-3 py-3 bg-white">
+                    <option value="employer">Employer covers all transport</option>
+                    <option value="mutual">Mutually agreed / split</option>
+                    <option value="talent">Talent covers own transport</option>
+                  </select>
+                </div>
+                <p className="text-xs text-neutral-600 leading-relaxed">
+                  These fields appear in the contract. Both parties must acknowledge health &amp; safety and transport terms before signing.
+                </p>
+              </div>
+            )}
+
             <button type="submit" className="btn-primary">Create engagement →</button>
           </form>
         </section>

@@ -24,6 +24,7 @@ import Calendar from "@/pages/Calendar";
 import Pricing from "@/pages/Pricing";
 import Accounts from "@/pages/Accounts";
 import Admin from "@/pages/Admin";
+import Grievance from "@/pages/Grievance";
 
 function App() {
   return (
@@ -49,6 +50,7 @@ function App() {
             <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
             <Route path="/accounts" element={<ProtectedRoute><Accounts /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+            <Route path="/grievance" element={<Grievance />} />
           </Routes>
           <Toaster position="top-right" richColors />
         </AuthProvider>

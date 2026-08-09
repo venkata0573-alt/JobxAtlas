@@ -167,11 +167,45 @@ class EngagementCreateIn(BaseModel):
     talent_id: str
     hours: int
     scope: str
+    mode: str = "remote"                # "remote" | "onsite" | "hybrid"
+    location: Optional[str] = ""        # required when mode != remote
+    start_date: Optional[str] = ""
+    end_date: Optional[str] = ""
+    transport: Optional[str] = ""       # "employer" | "talent" | "mutual" | ""
+    onsite_notes: Optional[str] = ""
 
 
 class SignContractIn(BaseModel):
     engagement_id: str
-    signature: str  # typed name
+    signature: str
+    onsite_ack: Optional[bool] = False  # required True when mode != remote
+
+
+class DeliverableIn(BaseModel):
+    engagement_id: str
+    title: str
+    description: Optional[str] = ""
+    link: Optional[str] = ""            # URL of deliverable
+    hours_claimed: Optional[float] = 0
+
+
+class DeliverableActionIn(BaseModel):
+    feedback: Optional[str] = ""
+
+
+class ReviewIn(BaseModel):
+    engagement_id: str
+    rating: int                          # 1-5
+    text: Optional[str] = ""
+
+
+class GrievanceIn(BaseModel):
+    subject: str
+    engagement_id: Optional[str] = ""
+    against_party_id: Optional[str] = ""
+    description: str
+    contact_email: EmailStr
+    incident_date: Optional[str] = ""
 
 
 class IntegrationConnectIn(BaseModel):
@@ -500,11 +534,18 @@ async def create_engagement(payload: EngagementCreateIn, user: dict = Depends(ge
     talent = await db.users.find_one({"id": payload.talent_id, "role": "talent"})
     if not talent:
         raise HTTPException(404, "Talent not found")
+    if payload.mode not in ("remote", "onsite", "hybrid"):
+        raise HTTPException(400, "mode must be remote, onsite or hybrid")
+    if payload.mode != "remote" and not (payload.location or "").strip():
+        raise HTTPException(400, "Location is required for on-site / hybrid engagements")
     eng = {
         "id": new_id(), "employer_id": user["id"], "employer_name": user["name"],
         "talent_id": payload.talent_id, "talent_name": talent["name"],
         "hours_allocated": payload.hours, "hours_used": 0,
         "scope": payload.scope, "status": "pending_signatures",
+        "mode": payload.mode, "location": payload.location or "",
+        "start_date": payload.start_date or "", "end_date": payload.end_date or "",
+        "transport": payload.transport or "", "onsite_notes": payload.onsite_notes or "",
         "employer_signature": None, "talent_signature": None,
         "created_at": now().isoformat(),
         "exclusive_until": (now() + timedelta(days=365)).isoformat(),
@@ -534,16 +575,178 @@ async def sign_contract(payload: SignContractIn, user: dict = Depends(get_curren
     eng = await db.engagements.find_one({"id": payload.engagement_id})
     if not eng or user["id"] not in (eng["employer_id"], eng["talent_id"]):
         raise HTTPException(404, "Engagement not found")
+    if eng.get("mode", "remote") != "remote" and not payload.onsite_ack:
+        raise HTTPException(400, "You must acknowledge the on-site health, safety and transport terms")
     field = "employer_signature" if user["id"] == eng["employer_id"] else "talent_signature"
-    sig = {"name": payload.signature, "signed_at": now().isoformat(), "user_id": user["id"]}
+    sig = {"name": payload.signature, "signed_at": now().isoformat(),
+           "user_id": user["id"], "onsite_ack": bool(payload.onsite_ack)}
     update = {field: sig}
     other = eng.get("talent_signature") if field == "employer_signature" else eng.get("employer_signature")
     if other:
         update["status"] = "contract_signed"
-        # Deduct hours from employer balance at signing
         await db.users.update_one({"id": eng["employer_id"]}, {"$inc": {"hours_balance": -eng["hours_allocated"]}})
     await db.engagements.update_one({"id": payload.engagement_id}, {"$set": update})
     return await db.engagements.find_one({"id": payload.engagement_id}, {"_id": 0})
+
+
+# ---------- Deliverables ----------
+@api.post("/deliverables")
+async def submit_deliverable(payload: DeliverableIn, user: dict = Depends(get_current_user)):
+    eng = await db.engagements.find_one({"id": payload.engagement_id})
+    if not eng or user["id"] != eng.get("talent_id"):
+        raise HTTPException(403, "Only the engaged talent can submit deliverables")
+    if eng.get("status") != "contract_signed":
+        raise HTTPException(400, "Contract must be signed by both parties before submitting")
+    doc = {
+        "id": new_id(), "engagement_id": payload.engagement_id,
+        "talent_id": user["id"], "employer_id": eng["employer_id"],
+        "title": payload.title, "description": payload.description or "",
+        "link": payload.link or "", "hours_claimed": float(payload.hours_claimed or 0),
+        "status": "submitted", "feedback": "",
+        "submitted_at": now().isoformat(), "reviewed_at": "",
+    }
+    await db.deliverables.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.get("/deliverables/{engagement_id}")
+async def list_deliverables(engagement_id: str, user: dict = Depends(get_current_user)):
+    eng = await db.engagements.find_one({"id": engagement_id})
+    if not eng or user["id"] not in (eng["employer_id"], eng["talent_id"]):
+        raise HTTPException(404, "Not found")
+    items = await db.deliverables.find({"engagement_id": engagement_id}, {"_id": 0}).sort("submitted_at", -1).to_list(500)
+    return items
+
+
+async def _act_deliverable(deliverable_id: str, user: dict, status: str, feedback: str) -> Dict[str, Any]:
+    d = await db.deliverables.find_one({"id": deliverable_id})
+    if not d:
+        raise HTTPException(404, "Deliverable not found")
+    if user["id"] != d.get("employer_id"):
+        raise HTTPException(403, "Only the engaging employer can review deliverables")
+    if d.get("status") != "submitted":
+        raise HTTPException(400, "Deliverable already reviewed")
+    upd = {"status": status, "feedback": feedback or "", "reviewed_at": now().isoformat()}
+    await db.deliverables.update_one({"id": deliverable_id}, {"$set": upd})
+    if status == "approved" and d.get("hours_claimed"):
+        await db.engagements.update_one({"id": d["engagement_id"]},
+                                        {"$inc": {"hours_used": float(d["hours_claimed"])}})
+    return await db.deliverables.find_one({"id": deliverable_id}, {"_id": 0})
+
+
+@api.post("/deliverables/{deliverable_id}/approve")
+async def approve_deliverable(deliverable_id: str, payload: DeliverableActionIn, user: dict = Depends(get_current_user)):
+    return await _act_deliverable(deliverable_id, user, "approved", payload.feedback or "")
+
+
+@api.post("/deliverables/{deliverable_id}/reject")
+async def reject_deliverable(deliverable_id: str, payload: DeliverableActionIn, user: dict = Depends(get_current_user)):
+    return await _act_deliverable(deliverable_id, user, "rejected", payload.feedback or "")
+
+
+# ---------- Reviews ----------
+@api.post("/reviews")
+async def create_review(payload: ReviewIn, user: dict = Depends(get_current_user)):
+    if payload.rating < 1 or payload.rating > 5:
+        raise HTTPException(400, "Rating must be between 1 and 5")
+    eng = await db.engagements.find_one({"id": payload.engagement_id})
+    if not eng or user["id"] not in (eng["employer_id"], eng["talent_id"]):
+        raise HTTPException(404, "Engagement not found")
+    reviewer_role = "employer" if user["id"] == eng["employer_id"] else "talent"
+    reviewee_id = eng["talent_id"] if reviewer_role == "employer" else eng["employer_id"]
+    existing = await db.reviews.find_one({"engagement_id": payload.engagement_id, "reviewer_id": user["id"]})
+    if existing:
+        raise HTTPException(400, "You have already reviewed this engagement")
+    doc = {
+        "id": new_id(), "engagement_id": payload.engagement_id,
+        "reviewer_id": user["id"], "reviewer_name": user["name"], "reviewer_role": reviewer_role,
+        "reviewee_id": reviewee_id, "rating": int(payload.rating), "text": payload.text or "",
+        "status": "pending",     # pending | approved | rejected (moderated by admin)
+        "created_at": now().isoformat(),
+    }
+    await db.reviews.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.get("/reviews/user/{user_id}")
+async def reviews_for_user(user_id: str):
+    items = await db.reviews.find({"reviewee_id": user_id, "status": "approved"},
+                                  {"_id": 0, "reviewer_id": 0}).sort("created_at", -1).to_list(200)
+    return items
+
+
+@api.get("/admin/reviews")
+async def admin_list_reviews(user: dict = Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    items = await db.reviews.find({"status": "pending"}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return items
+
+
+@api.post("/admin/reviews/{rid}/approve")
+async def admin_approve_review(rid: str, user: dict = Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    r = await db.reviews.update_one({"id": rid}, {"$set": {"status": "approved"}})
+    if not r.matched_count:
+        raise HTTPException(404, "Not found")
+    return {"ok": True}
+
+
+@api.post("/admin/reviews/{rid}/reject")
+async def admin_reject_review(rid: str, user: dict = Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    r = await db.reviews.update_one({"id": rid}, {"$set": {"status": "rejected"}})
+    if not r.matched_count:
+        raise HTTPException(404, "Not found")
+    return {"ok": True}
+
+
+# ---------- Grievances ----------
+GRIEVANCE_EMAIL = "grievance@talenthub.io"
+
+
+@api.post("/grievances")
+async def submit_grievance(payload: GrievanceIn, request: Request):
+    doc = {
+        "id": new_id(),
+        "subject": payload.subject.strip()[:200],
+        "engagement_id": payload.engagement_id or "",
+        "against_party_id": payload.against_party_id or "",
+        "description": payload.description.strip(),
+        "contact_email": payload.contact_email.lower(),
+        "incident_date": payload.incident_date or "",
+        "status": "received",
+        "created_at": now().isoformat(),
+        "source_ip": request.client.host if request.client else "",
+    }
+    await db.grievances.insert_one(doc)
+    logger.info(f"GRIEVANCE received (id={doc['id']}) — would email {GRIEVANCE_EMAIL} · from {doc['contact_email']}: {doc['subject']}")
+    doc.pop("_id", None)
+    return {"ok": True, "reference": doc["id"], "email_to": GRIEVANCE_EMAIL}
+
+
+@api.get("/admin/grievances")
+async def admin_list_grievances(user: dict = Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    items = await db.grievances.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    return items
+
+
+@api.post("/admin/grievances/{gid}/resolve")
+async def admin_resolve_grievance(gid: str, user: dict = Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    r = await db.grievances.update_one({"id": gid}, {"$set": {"status": "resolved",
+                                                              "resolved_at": now().isoformat(),
+                                                              "resolved_by": user["id"]}})
+    if not r.matched_count:
+        raise HTTPException(404, "Not found")
+    return {"ok": True}
 
 
 # ---------- Third-party integrations & work log ----------
