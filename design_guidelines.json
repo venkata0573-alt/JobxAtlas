@@ -1,0 +1,104 @@
+{
+  "theme": "light_with_brutalist_dark_sections",
+  "archetype": "Swiss & High-Contrast (Archetype 4)",
+  "typography": {
+    "headings": "Outfit, sans-serif",
+    "body": "IBM Plex Sans, sans-serif",
+    "signature": "Caveat, cursive",
+    "monospace": "JetBrains Mono, monospace",
+    "imports": [
+      "@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;400;600;800&display=swap');"
+    ],
+    "rules": [
+      "No generic fonts (Inter, Roboto, Open Sans) for headings.",
+      "Headings (>32px) MUST use tracking-tight.",
+      "Overlines/Labels MUST be Uppercase + tracking-[0.2em].",
+      "Line height: leading-none for headers, leading-relaxed for body."
+    ]
+  },
+  "colors": {
+    "primary": "#002FA7",
+    "primary_hover": "#002277",
+    "accent_red": "#FF0A0A",
+    "background_light": "#F9F9F9",
+    "background_white": "#FFFFFF",
+    "background_dark": "#0A0A0A",
+    "text_primary": "#0A0A0A",
+    "text_secondary": "#52525B",
+    "text_inverse": "#FFFFFF",
+    "border": "#E4E4E7",
+    "border_hard": "#0A0A0A",
+    "contract_bg": "#FDFCF0"
+  },
+  "visual_enhancers": {
+    "shadows": "Hard, offset shadows ONLY (e.g., shadow-[4px_4px_0px_#0A0A0A]). No soft diffuse shadows.",
+    "borders": "1px solid #E4E4E7 or #0A0A0A everywhere. Use border-collapse for bento grids.",
+    "border_radius": "rounded-none everywhere to reinforce the rigid, authoritative marketplace feel.",
+    "glassmorphism": "Used ONLY for sticky headers: backdrop-blur-xl bg-white/70 with border-b border-black/10. Do NOT use transparent backgrounds."
+  },
+  "grids_and_layouts": {
+    "general_spacing": "Generous. Use p-8 to p-16 for containers. Grid gaps should be gap-8.",
+    "dashboard_mode": "High Density Grid (Mode B). Strict grid hierarchy, col-span-1 to col-span-3, no jagged bottoms. All dashboard widgets must align flawlessly.",
+    "browse_talent_mode": "The 'Tetris' Grid (Mode A). Asymmetric list. Don't use standard equal-square grids. Stagger talent cards.",
+    "contract_modal": "Must look like physical paper. Use max-w-3xl, centered, p-12, bg-[#FDFCF0], bordered."
+  },
+  "components": {
+    "buttons": "Square edges (rounded-none). Primary: bg-[#002FA7] text-white hover:bg-[#0A0A0A]. Accent: bg-[#FF0A0A] text-white.",
+    "inputs": "Shadcn inputs customized to rounded-none, border-black/20, focus:border-[#002FA7] focus:ring-0.",
+    "cards": "Flat background, 1px border border-[#0A0A0A], no shadow. Hover: slight lift (-translate-y-1) and shadow-[6px_6px_0px_0px_rgba(10,10,10,1)].",
+    "charts": "Shadcn (Recharts). Use purely solid colors (no gradients in charts). Use Donut charts for Hours Purchased vs. Allocated."
+  },
+  "motion_and_interactions": {
+    "hover_states": "Crisp, immediate transitions. transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1).",
+    "page_transitions": "Fade and slight slide-up on entry.",
+    "marquee": "Use react-fast-marquee for '12-MONTH EXCLUSIVITY GUARANTEED - PREMIUM TALENT ONLY' in a ticker across the page."
+  },
+  "accessibility": {
+    "contrast": "APCA standards preferred. Normal text min 4.5:1. Primary blue (#002FA7) against white passes easily.",
+    "testing": "All interactive elements MUST have data-testid attributes."
+  },
+  "media": {
+    "icons": "Use @phosphor-icons/react (Duotone or Regular weight). Installation: yarn add @phosphor-icons/react",
+    "image_urls": [
+      {
+        "url": "https://images.pexels.com/photos/18502918/pexels-photo-18502918.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "Hero Background",
+        "description": "Black and white abstract geometric dome architecture for a structural, authoritative hero section."
+      },
+      {
+        "url": "https://images.pexels.com/photos/16029823/pexels-photo-16029823.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "Talent Profile Placeholder",
+        "description": "Creative professional portrait for talent cards."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1758518729685-f88df7890776?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzR8MHwxfHNlYXJjaHwzfHx0ZWFtJTIwbWVldGluZyUyMG1vZGVybiUyMG9mZmljZXxlbnwwfHx8fDE3ODYzMDUyNDF8MA&ixlib=rb-4.1.0&q=85",
+        "category": "Employer Section",
+        "description": "Four professionals in a business meeting, used for the employer landing/how-it-works section."
+      }
+    ],
+    "image_constraints": "Max-height 80vh on mobile. Max overlay opacity: bg-black/40 for hero text contrast."
+  },
+  "3d_libraries": {
+    "strategy": "No Heavy 3D required for the core dashboard, but Recharts (Shadcn) must be utilized for hours and budget tracking.",
+    "recommendation": "Shadcn Charts (Recharts)"
+  },
+  "instructions_to_main_agent": [
+    "Follow 'The Anti-AI Designer' E1 principles: No generic Bootstrap columns, no soft dropshadows.",
+    "Implement the strict 12-month exclusivity warning explicitly on the contract modal and dashboard.",
+    "Ensure 'Mix-and-match booking flow' UI is built as an interactive allocation slider or grid where employers distribute hours among shortlisted talent.",
+    "Do NOT use HTML `<select>` or `<input type=\"date\">`. Rely completely on customized Shadcn primitives.",
+    "For the contract signature modal, use a handwritten script font 'Caveat' for the visual signature, with a clear 'Agree & Sign' CTA."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "You tend to converge toward generic outputs. Avoid this: make creative, distinctive frontends that surprise and delight.",
+    "Use 2-3x more spacing than feels comfortable.",
+    "Create depth through layered design elements with z-index hierarchy, but keep borders sharp for this Swiss Brutalist theme.",
+    "You MUST NOT apply universal transition (e.g., transition: all).",
+    "You MUST NOT center align the app container (.App { text-align: center; } is banned).",
+    "NEVER use AI assistant Emoji characters (🤖🧠💭💡) for icons.",
+    "Use sonner for toast notifications.",
+    "Missing images must not default to placeholder text. Use the exact provided image URLs.",
+    "Prioritize reusing components from src/components/ui.",
+    "All interactive and key informational elements MUST include a data-testid attribute to facilitate robust automated testing."
+  ]
+}
