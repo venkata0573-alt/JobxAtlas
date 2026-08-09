@@ -231,21 +231,19 @@ PACKAGES = {
     "enterprise_500": {"name": "Enterprise", "hours": 500, "amount": 12000.0, "amount_inr": 12000 * USD_TO_INR, "currency": "usd"},
 }
 
-# India-based receiving bank — Denkoit Softech Pvt. Ltd. (parent) / Geminsta (brand)
+# Receiving bank — Denkoit Softech Pvt. Ltd. (Geminista / TalentHub)
 COMPANY_BANK = {
     "beneficiary": "Denkoit Softech Pvt. Ltd.",
-    "brand": "Geminsta",
+    "brand": "Geminista",
     "product": "TalentHub",
-    "bank": "HDFC Bank",
-    "branch": "Hyderabad (to be confirmed)",
-    "account_number": "TBD — pending finalisation",
-    "ifsc": "TBD",
-    "swift": "HDFCINBB",
-    "upi": "talenthub@hdfcbank",
+    "bank": "ICICI Bank",
+    "branch": "—",
+    "account_number": "112405000771",
+    "ifsc": "ICIC0001124",
+    "swift": "ICICINBBCTS",
+    "upi": "MSDENKOITSOFTECHPVTLTD.eazypay@icici",
     "gstin": "36AAGCD3748K1ZC",
-    "note": "Please quote the reference ID exactly when transferring so we can credit your hours quickly.",
-    "country": "India",
-    "city": "Hyderabad",
+    "note": "Quote the reference ID exactly when transferring so we can credit your hours quickly.",
 }
 
 
@@ -353,7 +351,8 @@ async def get_talent(talent_id: str, user: dict = Depends(get_current_user)):
 # ---------- Stripe: purchase hour packages ----------
 @api.get("/packages")
 async def get_packages():
-    return {"packages": PACKAGES, "bank": COMPANY_BANK, "usd_to_inr": USD_TO_INR}
+    return {"packages": PACKAGES, "bank": COMPANY_BANK, "usd_to_inr": USD_TO_INR,
+            "upi_qr_url": f"https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=8&data=upi%3A%2F%2Fpay%3Fpa%3D{COMPANY_BANK['upi']}%26pn%3D{COMPANY_BANK['beneficiary'].replace(' ', '%20')}%26cu%3DINR"}
 
 
 # ---------- Bank Transfer Flow (India) ----------
@@ -384,6 +383,7 @@ async def bank_initiate(payload: BankTransferInitIn, user: dict = Depends(get_cu
         "package": pkg,
         "amount_inr": pkg["amount_inr"],
         "bank": COMPANY_BANK,
+        "upi_qr_url": f"https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=8&data=upi%3A%2F%2Fpay%3Fpa%3D{COMPANY_BANK['upi']}%26pn%3D{COMPANY_BANK['beneficiary'].replace(' ', '%20')}%26am%3D{pkg['amount_inr']}%26tn%3D{ref}%26cu%3DINR",
     }
 
 
@@ -1028,9 +1028,8 @@ async def get_pricing():
     return {
         "brand": {
             "product": "TalentHub",
-            "brand": "Geminsta",
+            "brand": "Geminista",
             "operator": "Denkoit Softech Pvt. Ltd.",
-            "city": "Hyderabad, India",
             "gstin": "36AAGCD3748K1ZC",
         },
         "platform_fee_pct": 8,
@@ -1067,7 +1066,7 @@ async def get_legal():
     return {
         "company": {
             "legal_name": "Denkoit Softech Pvt. Ltd.",
-            "brand": "Geminsta",
+            "brand": "Geminista",
             "product": "TalentHub",
             "registered_office": "Hyderabad, Telangana, India",
             "gstin": "36AAGCD3748K1ZC",

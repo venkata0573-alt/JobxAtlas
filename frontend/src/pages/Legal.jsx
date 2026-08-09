@@ -6,7 +6,7 @@ import { FileText } from "@phosphor-icons/react";
 const DOCS = {
   terms: {
     title: "Terms of Service",
-    body: `These Terms govern your access to and use of TalentHub (the "Platform"), a product of Geminsta operated by
+    body: `These Terms govern your access to and use of TalentHub (the "Platform"), a product of Geminista operated by
 Denkoit Softech Pvt. Ltd., a company registered in Hyderabad, Telangana, India (GSTIN 36AAGCD3748K1ZC).
 
 1. Eligibility. You must be 18+ and legally able to enter into contracts in your jurisdiction.

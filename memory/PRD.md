@@ -32,8 +32,15 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
-## Implemented (2026-02-09, iteration 4 — branding & mobile)
-- **Brand alignment across app**: Product **TalentHub**, brand **Geminsta**, operator **Denkoit Softech Pvt. Ltd.** (Hyderabad, India, GSTIN 36AAGCD3748K1ZC). Header tagline, footer, contract, bank-transfer beneficiary, invoices copy and `/api/legal` all updated.
+## Implemented (2026-02-09, iteration 5 — brand, SEO & native shell)
+- **Brand spelling corrected everywhere**: Geminsta → **Geminista** across backend, frontend, PWA manifest, HTML meta, tests, PRD.
+- **Real bank details wired**: ICICI Bank, Denkoit Softech Pvt. Ltd., A/C `112405000771`, IFSC `ICIC0001124`, UPI `MSDENKOITSOFTECHPVTLTD.eazypay@icici`. Purchase-hours page now shows a live-generated **UPI QR code** alongside the copyable fields.
+- **International premium marketing tone**: rewrote Landing (hero: "Hire experts by the hour. Ship projects by the week."), added trust-bar of integration logos, testimonials, and an FAQ section marked up with `schema.org/FAQPage` for Google rich results.
+- **SEO**: full `<head>` with description, keywords, canonical, Open Graph, Twitter card, JSON-LD Organization + SoftwareApplication schema. `robots.txt` + `sitemap.xml` shipped.
+- **India de-emphasised in visible copy**: no country references on hero, "how it works", stats, testimonials or FAQ. India / GSTIN retained only in the small legal footer + Legal page (statutory requirement).
+- **Capacitor 6 native shells**: `@capacitor/core`, `android`, `ios`, `push-notifications`, `preferences`; `capacitor.config.ts` created; `/app/NATIVE_APP_GUIDE.md` with build/publish steps.
+
+- **Brand alignment across app**: Product **TalentHub**, brand **Geminista**, operator **Denkoit Softech Pvt. Ltd.** (Hyderabad, India, GSTIN 36AAGCD3748K1ZC). Header tagline, footer, contract, bank-transfer beneficiary, invoices copy and `/api/legal` all updated.
 - **New talent commission model**: volume-tiered 8% → 6% → 5% → 4% at 40h / 120h / 250h thresholds monthly. Multi-employer surcharge: **$9 / ₹749 per month** when active engagements exist with more than one employer in the same calendar month.
 - **Legal & compliance page** at `/legal` with Terms, Privacy, Refund, Acceptable Use, 12-month Exclusivity — full text with company & GSTIN.
 - **Mobile app (PWA)**: manifest.json, service worker, apple-touch-icons and standalone display — installable on Android / iOS home screens with offline shell caching.

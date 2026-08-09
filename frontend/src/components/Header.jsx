@@ -41,7 +41,7 @@ export default function Header() {
           </div>
           <div className="leading-none">
             <span className="font-display font-extrabold text-xl tracking-tight block">TALENTHUB</span>
-            <span className="text-[9px] font-mono text-neutral-500 tracking-[0.15em] uppercase">by Geminsta</span>
+            <span className="text-[9px] font-mono text-neutral-500 tracking-[0.15em] uppercase">by Geminista</span>
           </div>
         </Link>
 

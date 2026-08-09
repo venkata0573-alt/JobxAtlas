@@ -92,57 +92,69 @@ export default function PurchaseHours() {
         ))}
       </div>
 
-      {tab === "card" && (
-        <p className="text-xs text-neutral-500 font-mono">Secure card checkout by Stripe · Test card 4242 4242 4242 4242 · any future expiry · any CVC</p>
-      )}
+          {tab === "bank" && bank && (
+            <p className="text-xs text-neutral-500 font-mono">Pay directly by bank transfer / UPI · GST invoice available</p>
+          )}
+          {tab === "card" && (
+            <p className="text-xs text-neutral-500 font-mono">Secure card checkout by Stripe · Test card 4242 4242 4242 4242 · any future expiry · any CVC</p>
+          )}
 
       {/* Bank details panel */}
       {tab === "bank" && bank && (
         <section className="hard-border bg-[#FDFCF0] p-8 md:p-12 shadow-brutal mt-4">
           <div className="flex items-center gap-3 mb-4">
             <Bank size={22} weight="duotone" color="#002FA7"/>
-            <h2 className="font-display font-extrabold text-2xl tracking-tight">Send ₹{bank.amount_inr.toLocaleString()} to our India account</h2>
+            <h2 className="font-display font-extrabold text-2xl tracking-tight">Send ₹{bank.amount_inr.toLocaleString()} · Reference {bank.reference}</h2>
           </div>
-          <p className="text-sm text-neutral-600 mb-6">Reference: <span className="font-mono font-bold">{bank.reference}</span> (must be quoted exactly).</p>
+          <p className="text-sm text-neutral-600 mb-6">Quote the reference exactly so we can credit your hours automatically.</p>
 
-          <div className="grid md:grid-cols-2 gap-4 mb-8">
-            {[
-              ["Beneficiary", bank.bank.beneficiary],
-              ["Bank", bank.bank.bank],
-              ["Branch", bank.bank.branch],
-              ["Account No.", bank.bank.account_number],
-              ["IFSC", bank.bank.ifsc],
-              ["SWIFT (Intl)", bank.bank.swift],
-              ["UPI ID", bank.bank.upi],
-              ["GSTIN", bank.bank.gstin],
-              ["Payment reference", bank.reference],
-              ["Amount", `₹${bank.amount_inr.toLocaleString()}`],
-            ].map(([k, v]) => (
-              <div key={k} className="hard-border bg-white p-4 flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="overline">{k}</p>
-                  <p className="font-mono text-sm break-all mt-1">{v}</p>
+          <div className="grid md:grid-cols-[1fr_auto] gap-8 items-start">
+            <div className="grid md:grid-cols-2 gap-4">
+              {[
+                ["Beneficiary", bank.bank.beneficiary],
+                ["Bank", bank.bank.bank],
+                ["Account No.", bank.bank.account_number],
+                ["IFSC", bank.bank.ifsc],
+                ["SWIFT (Intl)", bank.bank.swift],
+                ["UPI ID", bank.bank.upi],
+                ["GSTIN", bank.bank.gstin],
+                ["Payment reference", bank.reference],
+                ["Amount", `₹${bank.amount_inr.toLocaleString()}`],
+              ].map(([k, v]) => (
+                <div key={k} className="hard-border bg-white p-4 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="overline">{k}</p>
+                    <p className="font-mono text-sm break-all mt-1">{v}</p>
+                  </div>
+                  <button type="button" onClick={() => copy(String(v))} className="hard-border p-2 hover:bg-[#002FA7] hover:text-white flex-shrink-0">
+                    <Copy size={14}/>
+                  </button>
                 </div>
-                <button type="button" onClick={() => copy(String(v))} className="hard-border p-2 hover:bg-[#002FA7] hover:text-white flex-shrink-0">
-                  <Copy size={14}/>
-                </button>
+              ))}
+            </div>
+
+            {bank.upi_qr_url && (
+              <div className="hard-border bg-white p-4 shadow-brutal text-center">
+                <p className="overline mb-2">Scan to pay by UPI</p>
+                <img src={bank.upi_qr_url} alt="UPI QR code" width="220" height="220" className="mx-auto"/>
+                <p className="text-[10px] font-mono text-neutral-500 mt-2 break-all">{bank.bank.upi}</p>
               </div>
-            ))}
+            )}
           </div>
 
           {!submitted ? (
-            <div className="hard-border bg-white p-6">
+            <div className="hard-border bg-white p-6 mt-8">
               <p className="overline mb-3">After you&apos;ve made the transfer</p>
               <p className="text-sm text-neutral-600 mb-3">Paste the UTR / UPI reference from your bank confirmation. We&apos;ll verify and credit your hours within 1 business day.</p>
               <div className="flex flex-col md:flex-row gap-3">
-                <input value={utr} onChange={(e) => setUtr(e.target.value)} placeholder="e.g. HDFC1234567890 or UPI ref"
+                <input value={utr} onChange={(e) => setUtr(e.target.value)} placeholder="e.g. ICIC1234567890 or UPI ref"
                        className="flex-1 hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7] font-mono"
                        data-testid="bank-utr-input"/>
                 <button onClick={submitUtr} className="btn-primary" data-testid="bank-submit-utr">Submit reference →</button>
               </div>
             </div>
           ) : (
-            <div className="hard-border bg-[#002FA7] text-white p-6 flex items-center gap-3">
+            <div className="hard-border bg-[#002FA7] text-white p-6 flex items-center gap-3 mt-8">
               <CheckCircle size={22} weight="fill"/>
               <p className="font-display font-extrabold tracking-tight">Reference received. We&apos;ll credit your hours once the transfer clears.</p>
             </div>

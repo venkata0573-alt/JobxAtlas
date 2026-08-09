@@ -1,7 +1,7 @@
 {
-  "name": "TalentHub — by Geminsta",
+  "name": "TalentHub — by Geminista",
   "short_name": "TalentHub",
-  "description": "Structured skills marketplace: buy hours, mix & match talent, all contracted. A product of Geminsta by Denkoit Softech Pvt. Ltd.",
+  "description": "Structured skills marketplace: buy hours, mix & match talent, all contracted. A product of Geminista by Denkoit Softech Pvt. Ltd.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
