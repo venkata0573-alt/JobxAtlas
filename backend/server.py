@@ -231,18 +231,21 @@ PACKAGES = {
     "enterprise_500": {"name": "Enterprise", "hours": 500, "amount": 12000.0, "amount_inr": 12000 * USD_TO_INR, "currency": "usd"},
 }
 
-# India-based receiving bank (placeholder — replace with real details post-KYC)
+# India-based receiving bank — Denkoit Softech Pvt. Ltd. (parent) / Geminsta (brand)
 COMPANY_BANK = {
-    "beneficiary": "TalentHub Technologies Pvt Ltd",
+    "beneficiary": "Denkoit Softech Pvt. Ltd.",
+    "brand": "Geminsta",
+    "product": "TalentHub",
     "bank": "HDFC Bank",
-    "branch": "Bengaluru, Koramangala",
-    "account_number": "50100000000000",
-    "ifsc": "HDFC0000001",
+    "branch": "Hyderabad (to be confirmed)",
+    "account_number": "TBD — pending finalisation",
+    "ifsc": "TBD",
     "swift": "HDFCINBB",
     "upi": "talenthub@hdfcbank",
-    "gstin": "29ABCDE1234F1Z5",
+    "gstin": "36AAGCD3748K1ZC",
     "note": "Please quote the reference ID exactly when transferring so we can credit your hours quickly.",
     "country": "India",
+    "city": "Hyderabad",
 }
 
 
@@ -1023,6 +1026,13 @@ async def disconnect_account(account_id: str, user: dict = Depends(get_current_u
 @api.get("/pricing")
 async def get_pricing():
     return {
+        "brand": {
+            "product": "TalentHub",
+            "brand": "Geminsta",
+            "operator": "Denkoit Softech Pvt. Ltd.",
+            "city": "Hyderabad, India",
+            "gstin": "36AAGCD3748K1ZC",
+        },
         "platform_fee_pct": 8,
         "compare": {"upwork": 20, "fiverr": 20, "freelancer": 10},
         "free_trial": True,
@@ -1036,7 +1046,41 @@ async def get_pricing():
             {"id": "growth", "name": "Growth", "price": 99, "period": "per employer / month",
              "features": ["Everything in Starter", "Advanced integrations (SAP, ServiceNow)",
                           "SSO / SAML", "Dedicated success manager", "6% platform fee on hours purchased"]},
-        ]
+        ],
+        "talent_commission": {
+            "note": "Percentage deducted from talent's hourly rate at payout. Lower than market. Volume discounts apply monthly.",
+            "tiers": [
+                {"upto_hours": 40,   "commission_pct": 8,  "label": "Up to 40h / mo"},
+                {"upto_hours": 120,  "commission_pct": 6,  "label": "40 – 120h / mo"},
+                {"upto_hours": 250,  "commission_pct": 5,  "label": "120 – 250h / mo"},
+                {"upto_hours": 9999, "commission_pct": 4,  "label": "250h+ / mo"},
+            ],
+            "compare_talent": {"upwork": 10, "fiverr": 20, "toptal": 15},
+            "multi_employer_fee": {"amount_usd": 9, "amount_inr": 749,
+                                   "condition": "Active engagements with more than 1 employer in the same month"},
+        }
+    }
+
+
+@api.get("/legal")
+async def get_legal():
+    return {
+        "company": {
+            "legal_name": "Denkoit Softech Pvt. Ltd.",
+            "brand": "Geminsta",
+            "product": "TalentHub",
+            "registered_office": "Hyderabad, Telangana, India",
+            "gstin": "36AAGCD3748K1ZC",
+            "grievance_email": "grievance@talenthub.io",
+            "support_email": "hello@talenthub.io",
+        },
+        "documents": [
+            {"id": "terms",   "title": "Terms of Service",  "updated": "2026-02-09"},
+            {"id": "privacy", "title": "Privacy Policy",    "updated": "2026-02-09"},
+            {"id": "refund",  "title": "Refund Policy",     "updated": "2026-02-09"},
+            {"id": "acceptable_use", "title": "Acceptable Use", "updated": "2026-02-09"},
+            {"id": "exclusivity", "title": "12-Month Exclusivity Terms", "updated": "2026-02-09"},
+        ],
     }
 
 

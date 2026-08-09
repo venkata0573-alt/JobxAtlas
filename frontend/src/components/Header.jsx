@@ -39,7 +39,10 @@ export default function Header() {
           <div className="hard-border bg-[#002FA7] text-white w-8 h-8 flex items-center justify-center">
             <Lightning weight="fill" size={18} />
           </div>
-          <span className="font-display font-extrabold text-xl tracking-tight">TALENTHUB</span>
+          <div className="leading-none">
+            <span className="font-display font-extrabold text-xl tracking-tight block">TALENTHUB</span>
+            <span className="text-[9px] font-mono text-neutral-500 tracking-[0.15em] uppercase">by Geminsta</span>
+          </div>
         </Link>
 
         {/* Desktop */}

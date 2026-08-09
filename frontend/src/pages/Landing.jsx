@@ -128,11 +128,13 @@ export default function Landing() {
       </section>
 
       <footer className="bg-black text-neutral-500 text-sm border-t border-neutral-900">
-        <div className="max-w-7xl mx-auto px-6 md:px-12 py-10 grid md:grid-cols-3 gap-6 font-mono">
+        <div className="max-w-7xl mx-auto px-6 md:px-12 py-10 grid md:grid-cols-4 gap-6 font-mono">
           <div>
             <p className="text-white font-display font-extrabold tracking-tight text-lg mb-2">TALENTHUB</p>
-            <p>Structured skill marketplace</p>
-            <p className="mt-2">Bengaluru, India · Made with structure</p>
+            <p>A product of <span className="text-white">Geminsta</span></p>
+            <p>Operated by Denkoit Softech Pvt. Ltd.</p>
+            <p>Hyderabad, Telangana, India</p>
+            <p className="mt-2">GSTIN: 36AAGCD3748K1ZC</p>
           </div>
           <div>
             <p className="text-neutral-300 mb-2">Payments</p>
@@ -140,10 +142,18 @@ export default function Landing() {
             <p>Direct bank transfer / UPI (India)</p>
             <p>GST invoice available</p>
           </div>
-          <div className="md:text-right">
-            <p>© 2026 TalentHub Technologies Pvt Ltd</p>
-            <p>All engagements protected by 12-month exclusivity</p>
-            <p className="mt-3"><a href="/grievance" className="text-white underline underline-offset-4">Raise a grievance →</a></p>
+          <div>
+            <p className="text-neutral-300 mb-2">Company</p>
+            <p><Link to="/legal" className="hover:text-white">Terms &amp; Privacy</Link></p>
+            <p><Link to="/legal" className="hover:text-white">Refund policy</Link></p>
+            <p><Link to="/legal" className="hover:text-white">Acceptable use</Link></p>
+            <p><Link to="/grievance" className="hover:text-white">Raise a grievance</Link></p>
+          </div>
+          <div>
+            <p className="text-neutral-300 mb-2">Contact</p>
+            <p>hello@talenthub.io</p>
+            <p>grievance@talenthub.io</p>
+            <p className="mt-3">© 2026 Denkoit Softech Pvt. Ltd.</p>
           </div>
         </div>
       </footer>

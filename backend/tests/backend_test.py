@@ -590,6 +590,51 @@ class TestPricing:
             assert k in d["compare"]
         assert d["platform_fee_pct"] == 8
 
+    def test_pricing_brand_block(self):
+        r = requests.get(f"{API}/pricing")
+        assert r.status_code == 200
+        b = r.json().get("brand", {})
+        assert b.get("product") == "TalentHub"
+        assert b.get("brand") == "Geminsta"
+        assert b.get("operator") == "Denkoit Softech Pvt. Ltd."
+        assert b.get("gstin") == "36AAGCD3748K1ZC"
+
+    def test_pricing_talent_commission_tiers(self):
+        r = requests.get(f"{API}/pricing")
+        assert r.status_code == 200
+        tc = r.json().get("talent_commission", {})
+        tiers = tc.get("tiers", [])
+        assert len(tiers) == 4
+        assert [t["commission_pct"] for t in tiers] == [8, 6, 5, 4]
+
+    def test_pricing_multi_employer_fee(self):
+        r = requests.get(f"{API}/pricing")
+        assert r.status_code == 200
+        mef = r.json().get("talent_commission", {}).get("multi_employer_fee", {})
+        assert mef.get("amount_usd") == 9
+        assert mef.get("amount_inr") == 749
+
+
+# ---------- Legal ----------
+class TestLegal:
+    def test_legal_company(self):
+        r = requests.get(f"{API}/legal")
+        assert r.status_code == 200
+        c = r.json().get("company", {})
+        assert c.get("legal_name") == "Denkoit Softech Pvt. Ltd."
+        assert c.get("gstin") == "36AAGCD3748K1ZC"
+        assert c.get("brand") == "Geminsta"
+        assert c.get("product") == "TalentHub"
+
+
+# ---------- Packages bank/brand ----------
+class TestPackagesBankBrand:
+    def test_packages_bank_brand(self):
+        r = requests.get(f"{API}/packages")
+        assert r.status_code == 200
+        bank = r.json().get("bank", {})
+        assert bank.get("beneficiary") == "Denkoit Softech Pvt. Ltd."
+        assert bank.get("gstin") == "36AAGCD3748K1ZC"
 
 
 # ---------- Helpers for new-feature tests ----------

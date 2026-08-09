@@ -1,0 +1,18 @@
+{
+  "name": "TalentHub — by Geminsta",
+  "short_name": "TalentHub",
+  "description": "Structured skills marketplace: buy hours, mix & match talent, all contracted. A product of Geminsta by Denkoit Softech Pvt. Ltd.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F9F9F9",
+  "theme_color": "#002FA7",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "en",
+  "scope": "/",
+  "screenshots": []
+}

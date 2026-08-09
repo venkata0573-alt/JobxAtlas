@@ -25,6 +25,7 @@ import Pricing from "@/pages/Pricing";
 import Accounts from "@/pages/Accounts";
 import Admin from "@/pages/Admin";
 import Grievance from "@/pages/Grievance";
+import Legal from "@/pages/Legal";
 
 function App() {
   return (
@@ -51,6 +52,7 @@ function App() {
             <Route path="/accounts" element={<ProtectedRoute><Accounts /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             <Route path="/grievance" element={<Grievance />} />
+            <Route path="/legal" element={<Legal />} />
           </Routes>
           <Toaster position="top-right" richColors />
         </AuthProvider>
