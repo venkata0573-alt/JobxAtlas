@@ -1,0 +1,43 @@
+{
+  "summary": "Second backend testing run. Extended /app/backend/tests/backend_test.py from 21 to 41 tests, adding coverage for: bank transfer flow (initiate + submit + admin approve + idempotency + admin-only guard), EOI end-to-end (talent creates open EOI -> employer sees -> accepts -> engagement created -> re-accept blocked -> insufficient-hours 400), availability + calendar events, all required integration providers (jira/asana/confluence/monday/sap/servicenow/ms_dynamics/wrike), MS-Project XML upload + unsupported-extension rejection, connected accounts role filtering + connect/upsert/disconnect + token-strip + unknown-provider guard, and /api/pricing 3-plan payload. Also updated stale iteration-1 assertions (/api/packages now returns {packages,bank,usd_to_inr}; insufficient-hours test now resets balance to avoid ordering coupling). Ran with pytest -n0 for deterministic order — all 41/41 passing against public REACT_APP_BACKEND_URL.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/payments/bank/submit", "issue": "Employer can submit a UTR for a payment that is already approved/paid — no state guard beyond method check. Consider rejecting if status is already 'completed' or 'rejected'."},
+      {"endpoint": "/api/admin/bank-transfers/{id}/reject", "issue": "Returns {ok:true} even when payment_id does not exist (silent no-op). Should 404 like /approve does for consistency."},
+      {"endpoint": "/api/eoi", "issue": "GET filter for employers uses {employer_id: None} which matches open EOIs to any employer. Works, but there is no way for an employer to filter only EOIs targeted at them vs open. Add a query param."},
+      {"endpoint": "/api/availability/{user_id}", "issue": "Any authenticated user can read any other user's availability. Fine for talent-browsing but consider restricting employer availability to admins."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Consider adding state guard on /api/payments/bank/submit to reject submissions on already-completed/rejected payments.",
+    "/api/admin/bank-transfers/{id}/reject should 404 when payment_id is unknown (currently silent success).",
+    "server.py is 945 lines — split into routers (auth/payments/engagements/eoi/integrations/accounts).",
+    "Add rate limiting / brute-force lockout on /api/auth/login (playbook expects 5-fail lockout).",
+    "CORS_ORIGINS still defaults to '*' with allow_credentials=True — enforce explicit origins in prod.",
+    "Encrypt at rest tokens stored in integration_tokens and connected_accounts.api_token (currently plaintext)."
+  ],
+  "critical_code_review_comments": [
+    "Bank flow correctly credits +hours on admin approve and is idempotent (already:true on 2nd approve).",
+    "EOI accept properly enforces employer role + hours balance + creates engagement + marks EOI accepted with engagement_id.",
+    "Connected accounts endpoint correctly strips api_token from responses and enforces role via provider.for list.",
+    "Work upload correctly rejects .mpp with a helpful message and returns 400 on unsupported extensions.",
+    "MS Project XML parser works but namespace-scoped ElementTree find may miss tasks depending on export style — tolerated in test.",
+    "/api/talent listing returns full profile including hourly_rate publicly; documented as intentional.",
+    "Availability read exposes name/role/timezone of any user id — consider restricting.",
+    "/api/admin/bank-transfers/{id}/reject does not verify payment exists before update — silent no-op."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100% (41/41)", "frontend": "N/A"},
+  "test_credentials": "admin@talenthub.io / Admin@2026 (seeded). Per-run talent/employer users created via /api/auth/register with test_talent_<uuid>@test.io and test_employer_<uuid>@test.io, password P@ssw0rd123.",
+  "seed_data_creation": "Each run creates: 1 talent user, 1 employer user, ~2 EOIs, ~2 engagements (signing test + EOI-accept), 1 approved bank_transfer payment_transaction (INR 116200 -> +50 hours credited), 1 initiated Stripe checkout session, 1 asana stub integration + a few work_items, and .xlsx + .xml uploaded work_items. Employer hours_balance manipulated via pymongo direct DB writes (skipped if MONGO_URL not exported).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Full suite at /app/backend/tests/backend_test.py (41 tests, all passing). Run with `set -a && . /app/backend/.env && set +a && pytest backend/tests/backend_test.py -n0` — the -n0 flag disables xdist parallel scheduling to keep intra-fixture DB seeding deterministic (a few tests share the module-scoped employer_sess and mutate hours_balance directly). Admin login used for bank-transfer approve tests. Stripe checkout returns a real sandbox session URL (not followed). Iteration 1's stray decorator on startup() has been fixed by main agent.",
+  "rca of the issue": "N/A — no blocking issues found. Only pre-existing iteration-1 test assertion needed updating because /api/packages contract changed to be wrapped in {packages, bank, usd_to_inr}; and an xdist ordering coupling in the insufficient-hours test was resolved by explicitly zeroing hours_balance."
+}

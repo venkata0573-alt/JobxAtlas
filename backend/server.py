@@ -153,6 +153,16 @@ class CheckoutIn(BaseModel):
     origin_url: str
 
 
+class BankTransferInitIn(BaseModel):
+    package_id: str
+
+
+class BankTransferSubmitIn(BaseModel):
+    payment_id: str
+    utr: str          # UTR / UPI transaction reference
+    payer_note: Optional[str] = ""
+
+
 class EngagementCreateIn(BaseModel):
     talent_id: str
     hours: int
@@ -170,12 +180,35 @@ class IntegrationConnectIn(BaseModel):
     workspace: Optional[str] = ""
 
 
+class AccountConnectIn(BaseModel):
+    provider: str
+    handle: str        # e.g. LinkedIn URL, GitHub username, email
+    api_token: Optional[str] = ""  # optional API/OAuth token
+    metadata: Optional[Dict[str, Any]] = {}
+
+
 # ---------- Hour Packages (server-side) ----------
+# Company operates from India. Show USD via Stripe and INR for local bank transfer.
+USD_TO_INR = 83
 PACKAGES = {
-    "starter_10": {"name": "Starter", "hours": 10, "amount": 300.0, "currency": "usd"},
-    "growth_50": {"name": "Growth", "hours": 50, "amount": 1400.0, "currency": "usd"},
-    "scale_100": {"name": "Scale", "hours": 100, "amount": 2600.0, "currency": "usd"},
-    "enterprise_500": {"name": "Enterprise", "hours": 500, "amount": 12000.0, "currency": "usd"},
+    "starter_10":     {"name": "Starter",    "hours": 10,  "amount": 300.0,   "amount_inr": 300 * USD_TO_INR,   "currency": "usd"},
+    "growth_50":      {"name": "Growth",     "hours": 50,  "amount": 1400.0,  "amount_inr": 1400 * USD_TO_INR,  "currency": "usd"},
+    "scale_100":      {"name": "Scale",      "hours": 100, "amount": 2600.0,  "amount_inr": 2600 * USD_TO_INR,  "currency": "usd"},
+    "enterprise_500": {"name": "Enterprise", "hours": 500, "amount": 12000.0, "amount_inr": 12000 * USD_TO_INR, "currency": "usd"},
+}
+
+# India-based receiving bank (placeholder — replace with real details post-KYC)
+COMPANY_BANK = {
+    "beneficiary": "TalentHub Technologies Pvt Ltd",
+    "bank": "HDFC Bank",
+    "branch": "Bengaluru, Koramangala",
+    "account_number": "50100000000000",
+    "ifsc": "HDFC0000001",
+    "swift": "HDFCINBB",
+    "upi": "talenthub@hdfcbank",
+    "gstin": "29ABCDE1234F1Z5",
+    "note": "Please quote the reference ID exactly when transferring so we can credit your hours quickly.",
+    "country": "India",
 }
 
 
@@ -283,7 +316,101 @@ async def get_talent(talent_id: str, user: dict = Depends(get_current_user)):
 # ---------- Stripe: purchase hour packages ----------
 @api.get("/packages")
 async def get_packages():
-    return PACKAGES
+    return {"packages": PACKAGES, "bank": COMPANY_BANK, "usd_to_inr": USD_TO_INR}
+
+
+# ---------- Bank Transfer Flow (India) ----------
+def _short_ref() -> str:
+    return "TH-" + secrets.token_hex(4).upper()
+
+
+@api.post("/payments/bank/initiate")
+async def bank_initiate(payload: BankTransferInitIn, user: dict = Depends(get_current_user)):
+    if user["role"] != "employer":
+        raise HTTPException(403, "Only employers can purchase hours")
+    pkg = PACKAGES.get(payload.package_id)
+    if not pkg:
+        raise HTTPException(400, "Invalid package")
+    ref = _short_ref()
+    pid = new_id()
+    await db.payment_transactions.insert_one({
+        "id": pid, "session_id": f"bank_{pid}", "user_id": user["id"],
+        "package_id": payload.package_id, "hours": pkg["hours"],
+        "amount": pkg["amount_inr"] * 100, "currency": "inr",
+        "method": "bank_transfer", "reference": ref,
+        "status": "awaiting_transfer", "payment_status": "pending",
+        "created_at": now().isoformat(), "updated_at": now().isoformat(),
+    })
+    return {
+        "payment_id": pid,
+        "reference": ref,
+        "package": pkg,
+        "amount_inr": pkg["amount_inr"],
+        "bank": COMPANY_BANK,
+    }
+
+
+@api.post("/payments/bank/submit")
+async def bank_submit(payload: BankTransferSubmitIn, user: dict = Depends(get_current_user)):
+    rec = await db.payment_transactions.find_one({"id": payload.payment_id, "user_id": user["id"]})
+    if not rec:
+        raise HTTPException(404, "Payment not found")
+    if rec.get("method") != "bank_transfer":
+        raise HTTPException(400, "Not a bank-transfer payment")
+    if not payload.utr.strip():
+        raise HTTPException(400, "UTR / reference number is required")
+    await db.payment_transactions.update_one({"id": payload.payment_id}, {"$set": {
+        "utr": payload.utr.strip(),
+        "payer_note": payload.payer_note or "",
+        "status": "awaiting_verification",
+        "updated_at": now().isoformat(),
+    }})
+    return {"ok": True, "status": "awaiting_verification"}
+
+
+@api.get("/payments/mine")
+async def my_payments(user: dict = Depends(get_current_user)):
+    items = await db.payment_transactions.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return items
+
+
+# Admin: list pending bank transfers + approve
+@api.get("/admin/bank-transfers")
+async def admin_bank_list(user: dict = Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    items = await db.payment_transactions.find(
+        {"method": "bank_transfer", "payment_status": {"$ne": "paid"}},
+        {"_id": 0},
+    ).sort("created_at", -1).to_list(500)
+    return items
+
+
+@api.post("/admin/bank-transfers/{payment_id}/approve")
+async def admin_bank_approve(payment_id: str, user: dict = Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    rec = await db.payment_transactions.find_one({"id": payment_id})
+    if not rec:
+        raise HTTPException(404, "Not found")
+    if rec.get("payment_status") == "paid":
+        return {"ok": True, "already": True}
+    await db.payment_transactions.update_one({"id": payment_id}, {"$set": {
+        "status": "completed", "payment_status": "paid", "verified_by": user["id"],
+        "updated_at": now().isoformat(),
+    }})
+    await db.users.update_one({"id": rec["user_id"]}, {"$inc": {"hours_balance": rec["hours"]}})
+    return {"ok": True}
+
+
+@api.post("/admin/bank-transfers/{payment_id}/reject")
+async def admin_bank_reject(payment_id: str, user: dict = Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    await db.payment_transactions.update_one({"id": payment_id}, {"$set": {
+        "status": "rejected", "payment_status": "rejected", "updated_at": now().isoformat(),
+    }})
+    return {"ok": True}
 
 
 @api.post("/payments/checkout")
@@ -624,6 +751,72 @@ async def withdraw_eoi(eoi_id: str, user: dict = Depends(get_current_user)):
 
 
 # ---------- Pricing ----------
+# ---------- Connected Accounts (business/personal identities) ----------
+ACCOUNT_PROVIDERS = [
+    # Individual talent
+    {"id": "linkedin",   "name": "LinkedIn",         "for": ["talent", "employer"], "handle_label": "Profile URL"},
+    {"id": "github",     "name": "GitHub",           "for": ["talent"],             "handle_label": "Username"},
+    {"id": "gitlab",     "name": "GitLab",           "for": ["talent"],             "handle_label": "Username"},
+    {"id": "dribbble",   "name": "Dribbble",         "for": ["talent"],             "handle_label": "Username"},
+    {"id": "behance",    "name": "Behance",          "for": ["talent"],             "handle_label": "Username"},
+    {"id": "google",     "name": "Google Workspace", "for": ["talent", "employer"], "handle_label": "Email"},
+    {"id": "microsoft",  "name": "Microsoft 365",    "for": ["talent", "employer"], "handle_label": "Email"},
+    {"id": "slack",      "name": "Slack",            "for": ["employer"],           "handle_label": "Workspace URL"},
+    {"id": "teams",      "name": "MS Teams",         "for": ["employer"],           "handle_label": "Tenant"},
+    # Business identities & payouts
+    {"id": "company",    "name": "Company website",  "for": ["employer"],           "handle_label": "Domain / URL"},
+    {"id": "stripe_pay", "name": "Stripe (payouts)", "for": ["talent"],             "handle_label": "Connected account ID"},
+    {"id": "payoneer",   "name": "Payoneer",         "for": ["talent"],             "handle_label": "Payee ID"},
+    {"id": "wise",       "name": "Wise",             "for": ["talent"],             "handle_label": "Recipient ID"},
+    {"id": "plaid",      "name": "Bank via Plaid",   "for": ["employer"],           "handle_label": "Institution"},
+]
+
+
+@api.get("/accounts/providers")
+async def account_providers(user: dict = Depends(get_current_user)):
+    role = user.get("role", "talent")
+    return [p for p in ACCOUNT_PROVIDERS if role in p["for"] or role == "admin"]
+
+
+@api.get("/accounts")
+async def list_accounts(user: dict = Depends(get_current_user)):
+    items = await db.connected_accounts.find({"user_id": user["id"]}, {"_id": 0, "api_token": 0}).to_list(200)
+    return items
+
+
+@api.post("/accounts/connect")
+async def connect_account(payload: AccountConnectIn, user: dict = Depends(get_current_user)):
+    prov = next((p for p in ACCOUNT_PROVIDERS if p["id"] == payload.provider), None)
+    if not prov:
+        raise HTTPException(400, "Unknown provider")
+    if user["role"] not in prov["for"] and user["role"] != "admin":
+        raise HTTPException(403, f"{prov['name']} is not available for your role")
+    if not payload.handle.strip():
+        raise HTTPException(400, "Handle is required")
+    doc = {
+        "id": new_id(), "user_id": user["id"], "provider": payload.provider,
+        "provider_name": prov["name"],
+        "handle": payload.handle.strip(),
+        "api_token": payload.api_token or "",
+        "metadata": payload.metadata or {},
+        "connected_at": now().isoformat(),
+        "verified": False,
+    }
+    # Upsert: allow one connection per provider per user
+    await db.connected_accounts.delete_many({"user_id": user["id"], "provider": payload.provider})
+    await db.connected_accounts.insert_one(doc)
+    doc.pop("api_token", None); doc.pop("_id", None)
+    return doc
+
+
+@api.delete("/accounts/{account_id}")
+async def disconnect_account(account_id: str, user: dict = Depends(get_current_user)):
+    r = await db.connected_accounts.delete_one({"id": account_id, "user_id": user["id"]})
+    if r.deleted_count == 0:
+        raise HTTPException(404, "Not found")
+    return {"ok": True}
+
+
 @api.get("/pricing")
 async def get_pricing():
     return {

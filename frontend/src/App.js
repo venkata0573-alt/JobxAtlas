@@ -19,6 +19,11 @@ import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
 import EngagementDetail from "@/pages/EngagementDetail";
 import Integrations from "@/pages/Integrations";
+import EOI from "@/pages/EOI";
+import Calendar from "@/pages/Calendar";
+import Pricing from "@/pages/Pricing";
+import Accounts from "@/pages/Accounts";
+import Admin from "@/pages/Admin";
 
 function App() {
   return (
@@ -30,6 +35,7 @@ function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/pricing" element={<Pricing />} />
             <Route path="/browse" element={<BrowseTalent />} />
             <Route path="/talent" element={<ProtectedRoute role="talent"><TalentDashboard /></ProtectedRoute>} />
             <Route path="/talent/profile" element={<ProtectedRoute role="talent"><TalentProfile /></ProtectedRoute>} />
@@ -39,6 +45,10 @@ function App() {
             <Route path="/payment/cancel" element={<ProtectedRoute><PaymentCancel /></ProtectedRoute>} />
             <Route path="/engagement/:id" element={<ProtectedRoute><EngagementDetail /></ProtectedRoute>} />
             <Route path="/integrations" element={<ProtectedRoute><Integrations /></ProtectedRoute>} />
+            <Route path="/eoi" element={<ProtectedRoute><EOI /></ProtectedRoute>} />
+            <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
+            <Route path="/accounts" element={<ProtectedRoute><Accounts /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
           </Routes>
           <Toaster position="top-right" richColors />
         </AuthProvider>

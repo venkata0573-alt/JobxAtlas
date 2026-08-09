@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import Marquee from "@/components/Marquee";
+import DemoTabs from "@/components/DemoTabs";
 import { TID } from "@/constants/testIds";
 import { ShieldCheck, Handshake, Sparkle, PuzzlePiece, FileArrowUp, Clock } from "@phosphor-icons/react";
 
@@ -78,6 +79,8 @@ export default function Landing() {
         </div>
       </section>
 
+      <DemoTabs />
+
       {/* Exclusivity + Work tracking */}
       <section className="max-w-7xl mx-auto px-6 md:px-12 py-24 grid md:grid-cols-2 gap-6">
         <div className="hard-border bg-[#FDFCF0] p-10 md:p-14 shadow-brutal">
@@ -125,9 +128,22 @@ export default function Landing() {
       </section>
 
       <footer className="bg-black text-neutral-500 text-sm border-t border-neutral-900">
-        <div className="max-w-7xl mx-auto px-6 md:px-12 py-8 flex justify-between font-mono">
-          <span>© 2026 TALENTHUB</span>
-          <span>Made with structure.</span>
+        <div className="max-w-7xl mx-auto px-6 md:px-12 py-10 grid md:grid-cols-3 gap-6 font-mono">
+          <div>
+            <p className="text-white font-display font-extrabold tracking-tight text-lg mb-2">TALENTHUB</p>
+            <p>Structured skill marketplace</p>
+            <p className="mt-2">Bengaluru, India · Made with structure</p>
+          </div>
+          <div>
+            <p className="text-neutral-300 mb-2">Payments</p>
+            <p>Stripe (Cards · Global)</p>
+            <p>Direct bank transfer / UPI (India)</p>
+            <p>GST invoice available</p>
+          </div>
+          <div className="md:text-right">
+            <p>© 2026 TalentHub Technologies Pvt Ltd</p>
+            <p>All engagements protected by 12-month exclusivity</p>
+          </div>
         </div>
       </footer>
     </main>
