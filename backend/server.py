@@ -24,6 +24,7 @@ from pydantic import BaseModel, EmailStr, Field, ConfigDict
 # Local
 from ai_service import suggest_hourly_rate
 from work_integrations import parse_excel_bytes, parse_project_xml_bytes, list_supported_providers, fetch_from_provider
+from storage_client import init_storage, put_object, get_object, APP_NAME as STORAGE_APP
 
 # ---------- Setup ----------
 MONGO_URL = os.environ["MONGO_URL"]
@@ -1096,6 +1097,103 @@ async def seo_city_skills():
         for s in SEO_SKILLS[:6]:
             combos.append({"slug": f"{s}-{c}", "skill": s, "city": c})
     return {"combos": combos}
+
+
+@api.get("/seo/hire-city/{slug}")
+async def seo_hire_city(slug: str):
+    # Slug format: {skill-slug}-{city}
+    parts = slug.rsplit("-", 1)
+    if len(parts) != 2:
+        raise HTTPException(400, "Invalid slug — expected 'skill-city'")
+    skill_slug, city = parts
+    if skill_slug not in SEO_SKILLS or city not in SEO_CITIES:
+        raise HTTPException(404, "Unknown skill/city combo")
+    keyword = skill_slug.replace("-", " ")
+    city_pretty = city.replace("-", " ").title()
+    talent = await db.users.find(
+        {"role": "talent", "profile.skills": {"$regex": keyword.split()[0], "$options": "i"}},
+        {"_id": 0, "password_hash": 0, "email": 0, "integrations": 0},
+    ).limit(24).to_list(24)
+    return {
+        "slug": slug, "skill": skill_slug, "city": city, "keyword": keyword, "city_pretty": city_pretty,
+        "title": f"Hire {keyword.title()} in {city_pretty} — TalentHub",
+        "description": f"Hire vetted {keyword} available in {city_pretty} on TalentHub. Purchase hours, sign contracts, track work in Jira and Asana.",
+        "talent": talent,
+    }
+
+
+# ---------- Newsletter / "Get listed" signup ----------
+class NewsletterIn(BaseModel):
+    email: EmailStr
+    kind: str = "get_listed"           # get_listed | newsletter | notify
+    context: Optional[str] = ""        # e.g. skill+city slug they came from
+
+
+@api.post("/newsletter/signup")
+async def newsletter_signup(payload: NewsletterIn, request: Request):
+    doc = {
+        "id": new_id(), "email": payload.email.lower(),
+        "kind": payload.kind, "context": payload.context or "",
+        "source_ip": request.client.host if request.client else "",
+        "created_at": now().isoformat(),
+    }
+    await db.newsletter_signups.update_one(
+        {"email": doc["email"], "kind": doc["kind"], "context": doc["context"]},
+        {"$setOnInsert": doc}, upsert=True,
+    )
+    logger.info(f"Newsletter signup ({payload.kind}): {payload.email} — {payload.context}")
+    return {"ok": True}
+
+
+# ---------- Chat attachments ----------
+@api.post("/messages/upload")
+async def upload_message_attachment(engagement_id: str = Form(...), file: UploadFile = File(...),
+                                    user: dict = Depends(get_current_user)):
+    eng = await db.engagements.find_one({"id": engagement_id})
+    if not eng or user["id"] not in (eng.get("employer_id"), eng.get("talent_id")):
+        raise HTTPException(404, "Engagement not found")
+    data = await file.read()
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(400, "File exceeds 10 MB")
+    ext = (file.filename or "bin").rsplit(".", 1)[-1].lower()
+    allowed = {"png", "jpg", "jpeg", "gif", "webp", "pdf", "txt", "csv"}
+    if ext not in allowed:
+        raise HTTPException(400, f"Unsupported file type. Allowed: {', '.join(sorted(allowed))}")
+    path = f"{STORAGE_APP}/attachments/{user['id']}/{new_id()}.{ext}"
+    ctype = file.content_type or "application/octet-stream"
+    try:
+        result = put_object(path, data, ctype)
+    except Exception as e:
+        raise HTTPException(500, f"Upload failed: {e}")
+    attachment_id = new_id()
+    await db.files.insert_one({
+        "id": attachment_id, "storage_path": result["path"], "original_filename": file.filename,
+        "content_type": ctype, "size": len(data), "engagement_id": engagement_id,
+        "user_id": user["id"], "created_at": now().isoformat(), "is_deleted": False,
+    })
+    doc = {
+        "id": new_id(), "engagement_id": engagement_id,
+        "sender_id": user["id"], "sender_name": user["name"],
+        "text": f"[attachment: {file.filename}]", "flagged": False,
+        "attachment_id": attachment_id, "attachment_name": file.filename,
+        "attachment_type": ctype, "created_at": now().isoformat(),
+    }
+    await db.messages.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.get("/files/{file_id}")
+async def download_file(file_id: str, user: dict = Depends(get_current_user)):
+    rec = await db.files.find_one({"id": file_id, "is_deleted": False})
+    if not rec:
+        raise HTTPException(404, "File not found")
+    eng = await db.engagements.find_one({"id": rec.get("engagement_id")})
+    if not eng or user["id"] not in (eng.get("employer_id"), eng.get("talent_id"), rec.get("user_id")):
+        raise HTTPException(403, "Not allowed")
+    data, ctype = get_object(rec["storage_path"])
+    from fastapi.responses import Response
+    return Response(content=data, media_type=rec.get("content_type", ctype))
 @api.get("/integrations/providers")
 async def integration_providers():
     return list_supported_providers()
@@ -1496,6 +1594,12 @@ async def delete_work_item(item_id: str, user: dict = Depends(get_current_user))
 
 @app.on_event("startup")
 async def startup():
+    # Initialize object storage (non-fatal if it fails; attachment routes will 500)
+    try:
+        init_storage()
+        logger.info("Object storage initialized")
+    except Exception as e:
+        logger.warning(f"Storage init failed: {e}")
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)
     await db.engagements.create_index("id", unique=True)

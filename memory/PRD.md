@@ -32,7 +32,11 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
-## Implemented (2026-02-09, iteration 7 — auto-payout + employer overview)
+## Implemented (2026-02-09, iteration 8 — Geminista rebrand + attachments + city×skill)
+- **Full Geminista rebrand**: swapped generic "brutalist" theme for an executive/PMO look aligned with geminista.com — deep navy `#0B1B2B` + warm gold `#C79A3B` on a cream `#FAF9F6` background; Fraunces serif for headings, Inter for body; custom TH-in-diamond SVG logo with gold accent.
+- **City × Skill programmatic SEO**: new `/api/seo/hire-city/{slug}` endpoint (e.g. `react-developers-london`) and enhanced `/hire/:slug` route that auto-detects skill or skill+city format. Each page carries a title/description tuned for the {skill, city} pair, and two CTA cards — a **"Notify me" signup for buyers** (when talent is empty for that combo) and a **"Get listed" invitation** for the talent side. Both write into `newsletter_signups` for outreach.
+- **Chat attachments** via Emergent object storage: added `/app/backend/storage_client.py`, `POST /api/messages/upload` (10 MB cap, whitelist png/jpg/gif/webp/pdf/txt/csv), `GET /api/files/{id}` (auth-gated). Frontend `EngagementChat` renders inline image previews via blob URLs and click-to-download for PDFs & docs.
+
 - **Deliverable → auto-payout trigger**: when the employer approves a deliverable, `_act_deliverable` now creates an individual `Payout` record instantly (rate × approved-hours minus tier commission minus multi-employer fee, applied once per month). No more waiting for a batch run — talent are paid as work is accepted.
 - **Talent referral discount**: referred talent get a permanent **1% commission discount for 6 months** from the time their referrer is credited. Applied automatically in the auto-payout calculation.
 - **Employer overview endpoint** `/api/employer/overview` returns per-resource breakdown (engagements, hours allocated/used, active) and finances (hours purchased/allocated/used/available, total spent, gross paid to talent).

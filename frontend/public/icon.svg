@@ -1,5 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#002FA7"/>
-  <path d="M256 96l72 200h-52l-16-48h-56l-16 48h-52L256 96z" fill="#FFFFFF"/>
-  <path d="M226 208h60l-30-88-30 88z" fill="#FF0A0A"/>
+  <rect width="512" height="512" fill="#0B1B2B"/>
+  <g transform="translate(96,96)">
+    <!-- Diamond frame -->
+    <path d="M160 0 L320 160 L160 320 L0 160 Z" fill="none" stroke="#C79A3B" stroke-width="10"/>
+    <!-- T -->
+    <rect x="60" y="100" width="100" height="14" fill="#FAF9F6"/>
+    <rect x="103" y="100" width="14" height="130" fill="#FAF9F6"/>
+    <!-- H (offset for wordmark feel) -->
+    <rect x="180" y="100" width="14" height="130" fill="#C79A3B"/>
+    <rect x="180" y="158" width="76" height="14" fill="#C79A3B"/>
+    <rect x="242" y="100" width="14" height="130" fill="#C79A3B"/>
+  </g>
 </svg>

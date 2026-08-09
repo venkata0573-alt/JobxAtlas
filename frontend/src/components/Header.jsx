@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { TID } from "@/constants/testIds";
-import { Lightning, List, X } from "@phosphor-icons/react";
+import { List, X } from "@phosphor-icons/react";
 
 export default function Header() {
   const { user, logout } = useAuth();
@@ -11,7 +11,7 @@ export default function Header() {
   const [open, setOpen] = useState(false);
 
   const dashHref = user && user.role === "employer" ? "/employer" : "/talent";
-  const linkCls = "hover:underline underline-offset-4 whitespace-nowrap";
+  const linkCls = "hover:text-[#C79A3B] transition-colors whitespace-nowrap";
 
   const guestLinks = (
     <>
@@ -33,27 +33,24 @@ export default function Header() {
   ) : null;
 
   return (
-    <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 border-b border-black/10">
+    <header className="sticky top-0 z-50 backdrop-blur-xl bg-[#FAF9F6]/90 border-b border-black/10">
       <div className="max-w-7xl mx-auto px-6 md:px-10 py-4 flex items-center justify-between gap-6">
-        <Link to="/" className="flex items-center gap-2" data-testid={TID.navLogo}>
-          <div className="hard-border bg-[#002FA7] text-white w-8 h-8 flex items-center justify-center">
-            <Lightning weight="fill" size={18} />
-          </div>
+        <Link to="/" className="flex items-center gap-3" data-testid={TID.navLogo}>
+          <img src="/icon.svg" alt="TalentHub" className="w-9 h-9"/>
           <div className="leading-none">
-            <span className="font-display font-extrabold text-xl tracking-tight block">TALENTHUB</span>
-            <span className="text-[9px] font-mono text-neutral-500 tracking-[0.15em] uppercase">by Geminista</span>
+            <span className="font-display font-black text-xl tracking-tight block">TalentHub</span>
+            <span className="text-[9px] font-mono text-[#6B6B6B] tracking-[0.2em] uppercase">by Geminista</span>
           </div>
         </Link>
 
-        {/* Desktop */}
-        <nav className="hidden md:flex items-center gap-5 text-sm flex-1 justify-center">
+        <nav className="hidden md:flex items-center gap-6 text-sm flex-1 justify-center">
           {user ? userLinks : guestLinks}
         </nav>
 
         <div className="hidden md:flex items-center gap-3">
           {user && user !== false ? (
             <>
-              <span className="text-xs text-neutral-500 font-mono">{user.name}</span>
+              <span className="text-xs text-[#6B6B6B] font-mono">{user.name}</span>
               <button className="btn-outline text-sm" onClick={async () => { await logout(); nav("/"); }}
                       data-testid={TID.navLogout}>Log out</button>
             </>
@@ -69,15 +66,13 @@ export default function Header() {
           ) : null}
         </div>
 
-        {/* Mobile toggle */}
         <button className="md:hidden hard-border p-2" onClick={() => setOpen(!open)}>
           {open ? <X size={18}/> : <List size={18}/>}
         </button>
       </div>
 
-      {/* Mobile menu */}
       {open && (
-        <div className="md:hidden bg-white border-t border-black/10 px-6 py-5 space-y-4 text-sm">
+        <div className="md:hidden bg-[#FAF9F6] border-t border-black/10 px-6 py-5 space-y-4 text-sm">
           {user ? userLinks : guestLinks}
           {user && user !== false ? (
             <button className="btn-outline text-sm w-full" onClick={async () => { setOpen(false); await logout(); nav("/"); }}>
