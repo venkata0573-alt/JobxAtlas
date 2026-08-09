@@ -14,7 +14,7 @@ const DECKS = {
     color: "#002FA7",
     steps: [
       { img: "/demo/landing.jpg",
-        head: "Land on TalentHub",
+        head: "Land on Job Atlas",
         do:   "Click Start free — no credit card, no lock-in.",
         why:  "The whole platform is free to explore. You only pay when you actually purchase hours.",
         hotspot: { top: "78%", left: "12%", w: "170px", h: "56px" },

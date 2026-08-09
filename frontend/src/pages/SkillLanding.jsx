@@ -42,7 +42,7 @@ export default function SkillLanding() {
 
       <div className="hard-border bg-white p-6 mb-10 shadow-brutal">
         <p className="text-sm">
-          <strong>Why TalentHub for {data.keyword}{data.city_pretty ? ` in ${data.city_pretty}` : ""}?</strong>{" "}
+          <strong>Why Job Atlas for {data.keyword}{data.city_pretty ? ` in ${data.city_pretty}` : ""}?</strong>{" "}
           Purchase hours in bulk, sign structured contracts, sync with Jira &amp; Asana, and pay a platform fee half of Upwork&apos;s.
           Every professional listed here is vetted and available under a 12-month platform-only engagement.
         </p>
@@ -51,7 +51,7 @@ export default function SkillLanding() {
       {data.talent.length === 0 ? (
         <section className="hard-border bg-white p-10 text-center mb-10">
           <p className="font-display font-black text-2xl mb-2">Coming soon to {data.city_pretty || "this category"}</p>
-          <p className="text-neutral-500 mb-6">Be first on the list. We&apos;ll notify you the moment vetted {data.keyword} join TalentHub in your area.</p>
+          <p className="text-neutral-500 mb-6">Be first on the list. We&apos;ll notify you the moment vetted {data.keyword} join Job Atlas in your area.</p>
           {!signedUp ? (
             <form onSubmit={(e) => signup(e, "notify")} className="max-w-md mx-auto flex gap-2">
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
@@ -89,7 +89,7 @@ export default function SkillLanding() {
       <section className="hard-border bg-[#0B1B2B] text-white p-10 shadow-brutal grid md:grid-cols-[1.4fr_1fr] gap-8 items-center">
         <div>
           <p className="overline text-[#C79A3B] mb-3">ARE YOU A {data.keyword.toUpperCase()}?</p>
-          <h2 className="font-display font-black text-3xl md:text-4xl tracking-tight mb-3">Get listed on TalentHub.</h2>
+          <h2 className="font-display font-black text-3xl md:text-4xl tracking-tight mb-3">Get listed on Job Atlas.</h2>
           <p className="text-neutral-300 max-w-lg">
             Structured contracts, transparent commission, weekly payouts to your bank. Join a marketplace that treats independent
             {" "}{data.keyword}{data.city_pretty ? ` in ${data.city_pretty}` : ""} like the senior professionals they are.

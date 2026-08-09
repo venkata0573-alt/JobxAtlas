@@ -29,7 +29,7 @@ const TESTIMONIALS = [
 ];
 
 const FAQ = [
-  { q: "How is TalentHub different from Upwork or Fiverr?",
+  { q: "How is Job Atlas different from Upwork or Fiverr?",
     a: "We're structured. Employers buy hours in bulk and allocate them. Both sides sign a contract. Talent is bound by a 12-month exclusivity clause so no side-door hiring. Our platform fee is 8% (vs 20%)." },
   { q: "Can I hire multiple people from one hour-package?",
     a: "Yes — that's the whole point. Purchase once, mix & match hours across as many talent as you like." },
@@ -38,7 +38,7 @@ const FAQ = [
   { q: "Which project tools do you integrate with?",
     a: "Jira, Asana, Confluence, Monday, Wrike, ServiceNow, SAP, MS Dynamics, Trello, ClickUp, Notion — plus Excel and MS Project XML uploads." },
   { q: "Do you have a mobile app?",
-    a: "Yes. TalentHub is available as a Progressive Web App on Android and iOS today, and as native app-store shells via Capacitor." },
+    a: "Yes. Job Atlas is available as a Progressive Web App on Android and iOS today, and as native app-store shells via Capacitor." },
   { q: "How are payments handled?",
     a: "Employers pay by card via Stripe or by bank transfer / UPI. Talent are paid out via Stripe, Payoneer, Wise or direct bank credit." },
 ];
@@ -58,7 +58,7 @@ export default function Landing() {
             <span className="text-[#FF0A0A]">Grow without the guesswork.</span>
           </h1>
           <p className="mt-8 max-w-2xl text-lg text-neutral-300 leading-relaxed">
-            TalentHub connects world-class freelance developers, designers and consultants with the companies
+            Job Atlas connects world-class freelance developers, designers and consultants with the companies
             that need them — hours purchased once, allocated across a shortlist, every engagement contracted
             and tracked inside your existing tools.
           </p>
@@ -139,7 +139,7 @@ export default function Landing() {
             No side-doors. Ever.
           </h3>
           <p className="text-neutral-700 leading-relaxed">
-            Employers cannot directly hire talent introduced via TalentHub, and talent cannot work directly for
+            Employers cannot directly hire talent introduced via Job Atlas, and talent cannot work directly for
             introduced employers — for 12 months. Contact details stay hidden until hours are purchased and a
             contract is signed by both parties.
           </p>
@@ -153,7 +153,7 @@ export default function Landing() {
             Plug in Jira, Asana, Confluence, SAP…
           </h3>
           <p className="text-neutral-700 leading-relaxed">
-            Connect your project tools or upload Excel / MS Project XML plans. TalentHub pulls tasks, statuses
+            Connect your project tools or upload Excel / MS Project XML plans. Job Atlas pulls tasks, statuses
             and hours logged so every engagement has a single source of truth.
           </p>
           <div className="mt-6 flex flex-wrap gap-2 text-xs font-mono">
@@ -208,12 +208,8 @@ export default function Landing() {
       <section className="border-t border-black/10 bg-[#FAF9F6]">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-14">
           <p className="overline text-[#C79A3B] mb-6 text-center">SIGNED &amp; ENDORSED BY DENKOIT SOFTECH LEADERSHIP</p>
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              { name: "Sowmya D.",     role: "Chief Executive Officer" },
-              { name: "Rajesh K.",     role: "Chief Technology Officer" },
-              { name: "Vikram M.",     role: "Head of Client Success" },
-            ].map(s => (
+          <div className="max-w-md mx-auto">
+            {[{ name: "Naveed Hasan", role: "Founder · Denkoit Softech Pvt. Ltd." }].map(s => (
               <div key={s.name} className="hard-border bg-white p-6 text-center">
                 <p className="font-signature text-4xl text-[#0B1B2B] leading-tight">{s.name}</p>
                 <div className="w-16 h-px bg-[#C79A3B] mx-auto my-3"/>
@@ -222,7 +218,7 @@ export default function Landing() {
             ))}
           </div>
           <p className="text-center text-xs font-mono text-neutral-500 mt-8">
-            TalentHub is operated with the same standards of governance that define Geminista&apos;s enterprise practice.
+            Job Atlas is operated with the same standards of governance that define Geminista&apos;s enterprise practice.
           </p>
         </div>
       </section>
@@ -245,7 +241,7 @@ export default function Landing() {
       <footer className="bg-black text-neutral-500 text-sm border-t border-neutral-900">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-12 grid md:grid-cols-4 gap-8 font-mono">
           <div>
-            <p className="text-white font-display font-extrabold tracking-tight text-lg mb-2">TALENTHUB</p>
+            <p className="text-white font-display font-extrabold tracking-tight text-lg mb-2">JOB ATLAS</p>
             <p>A product of <span className="text-white">Geminista</span></p>
             <p className="mt-2">Structured hiring for a global workforce.</p>
           </div>
@@ -265,8 +261,8 @@ export default function Landing() {
           </div>
           <div>
             <p className="text-neutral-300 mb-2">Contact</p>
-            <p>hello@talenthub.io</p>
-            <p>grievance@talenthub.io</p>
+            <p>hello@jobatlas.io</p>
+            <p>grievance@jobatlas.io</p>
             <p className="mt-4 text-neutral-600">Operated by Denkoit Softech Pvt. Ltd.</p>
             <p className="text-neutral-600">GSTIN 36AAGCD3748K1ZC</p>
             <p className="mt-3">© 2026 Geminista</p>

@@ -36,9 +36,9 @@ export default function Header() {
     <header className="sticky top-0 z-50 backdrop-blur-xl bg-[#FAF9F6]/90 border-b border-black/10">
       <div className="max-w-7xl mx-auto px-6 md:px-10 py-4 flex items-center justify-between gap-6">
         <Link to="/" className="flex items-center gap-3" data-testid={TID.navLogo}>
-          <img src="/icon.svg" alt="TalentHub" className="w-11 h-11"/>
+          <img src="/icon.svg" alt="Job Atlas" className="w-11 h-11"/>
           <div className="leading-tight">
-            <span className="font-display font-black text-xl tracking-tight block">TalentHub</span>
+            <span className="font-display font-black text-xl tracking-tight block">Job Atlas</span>
             <span className="text-[9px] font-mono text-[#6B6B6B] tracking-[0.25em] uppercase">by Geminista</span>
           </div>
         </Link>

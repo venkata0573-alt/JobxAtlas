@@ -1,6 +1,6 @@
 {
-  "name": "TalentHub — by Geminista",
-  "short_name": "TalentHub",
+  "name": "Job Atlas — by Geminista",
+  "short_name": "Job Atlas",
   "description": "Premium marketplace to hire vetted freelancers by the hour. Structured contracts, integrated with Jira & Asana. A product of Geminista.",
   "start_url": "/",
   "display": "standalone",

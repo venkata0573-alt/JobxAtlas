@@ -6,7 +6,7 @@ import { FileText } from "@phosphor-icons/react";
 const DOCS = {
   terms: {
     title: "Terms of Service",
-    body: `These Terms govern your access to and use of TalentHub (the "Platform"), a product of Geminista operated by
+    body: `These Terms govern your access to and use of Job Atlas (the "Platform"), a product of Geminista operated by
 Denkoit Softech Pvt. Ltd., a company registered in Hyderabad, Telangana, India (GSTIN 36AAGCD3748K1ZC).
 
 1. Eligibility. You must be 18+ and legally able to enter into contracts in your jurisdiction.
@@ -30,7 +30,7 @@ Denkoit Softech Pvt. Ltd., a company registered in Hyderabad, Telangana, India (
   },
   privacy: {
     title: "Privacy Policy",
-    body: `Denkoit Softech Pvt. Ltd. ("we") collects and processes personal data to operate TalentHub. We are the
+    body: `Founder: Naveed Hasan. Denkoit Softech Pvt. Ltd. ("we") collects and processes personal data to operate Job Atlas. We are the
 data controller for the purposes of applicable data-protection laws including India's Digital Personal Data
 Protection Act.
 
@@ -41,14 +41,14 @@ Purpose: providing the service, fraud prevention, statutory reporting (including
 handling, and product improvement.
 
 Retention: engagement records are retained for 7 years for statutory & tax compliance. You may request
-deletion of personal data not required for such compliance by writing to grievance@talenthub.io.
+deletion of personal data not required for such compliance by writing to grievance@jobatlas.io.
 
 International transfers: we may use sub-processors outside India (Stripe, cloud hosting) with appropriate
 contractual safeguards.
 
 Cookies: session cookies for authentication (httpOnly). No third-party ad tracking.
 
-Your rights: access, rectification, portability, and erasure — write to grievance@talenthub.io with a copy of
+Your rights: access, rectification, portability, and erasure — write to grievance@jobatlas.io with a copy of
 your ID for verification.`
   },
   refund: {
@@ -60,11 +60,11 @@ your ID for verification.`
 3. Subscription plan fees (Starter, Growth) are non-refundable but can be cancelled anytime and take effect
    at the end of the current billing cycle.
 4. Multi-employer monthly fees for talent are charged in arrears and are non-refundable once billed.
-5. All refund requests must be submitted in writing to grievance@talenthub.io with the transaction reference.`
+5. All refund requests must be submitted in writing to grievance@jobatlas.io with the transaction reference.`
   },
   acceptable_use: {
     title: "Acceptable Use",
-    body: `You may not use TalentHub to:
+    body: `You may not use Job Atlas to:
 · Circumvent the platform to transact directly with an introduced party (breach of exclusivity).
 · Post misleading skills, credentials or portfolio.
 · Upload malware, illegal content, or content that violates intellectual property rights.
@@ -114,8 +114,8 @@ export default function Legal() {
             ))}
           </ul>
           <div className="mt-6 pt-4 border-t border-black/10 text-xs font-mono text-neutral-500">
-            <p>Support: hello@talenthub.io</p>
-            <p>Grievance: grievance@talenthub.io</p>
+            <p>Support: hello@jobatlas.io</p>
+            <p>Grievance: grievance@jobatlas.io</p>
             <p className="mt-2"><Link to="/grievance" className="underline">Raise a grievance →</Link></p>
           </div>
         </nav>

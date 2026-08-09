@@ -143,7 +143,7 @@ export default function EngagementDetail() {
         <p className="overline mb-6 text-neutral-600">Master Services Agreement · v1.1</p>
         <p className="mb-4 leading-relaxed">
           This engagement is between <strong>{eng.employer_name}</strong> (&quot;Employer&quot;) and <strong>{eng.talent_name}</strong> (&quot;Talent&quot;),
-          both operating through TalentHub (&quot;Platform&quot;).
+          both operating through Job Atlas (&quot;Platform&quot;).
         </p>
         <p className="mb-4 leading-relaxed"><strong>Scope of Work:</strong> {eng.scope}</p>
         <p className="mb-4 leading-relaxed"><strong>Hours Allocated:</strong> {eng.hours_allocated} hours from the Employer&apos;s pre-paid platform balance.</p>
@@ -206,7 +206,10 @@ export default function EngagementDetail() {
                 <>
                   <p className="font-signature text-4xl">{eng[key].name}</p>
                   <p className="text-xs text-neutral-500 mt-2 font-mono">Signed by {who} · {new Date(eng[key].signed_at).toLocaleString()}</p>
-                  {isOnsite && eng[key].onsite_ack && <p className="text-xs text-[#002FA7] mt-1">✓ On-site terms acknowledged</p>}
+                  {label === "Employer signature" && eng.employer_name && (
+                    <p className="text-xs text-neutral-600 mt-1">for <strong>{eng.employer_name}</strong></p>
+                  )}
+                  {isOnsite && eng[key].onsite_ack && <p className="text-xs text-[#5A34E8] mt-1">✓ On-site terms acknowledged</p>}
                 </>
               ) : (
                 <p className="text-neutral-400 italic">Awaiting signature…</p>

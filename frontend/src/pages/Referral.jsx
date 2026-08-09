@@ -42,7 +42,7 @@ export default function Referral() {
           <span className="font-mono text-xs break-all">{link}</span>
           <div className="flex gap-2">
             <button onClick={() => { navigator.clipboard.writeText(link); toast.success("Link copied"); }} className="hard-border p-2 hover:bg-[#002FA7] hover:text-white"><Copy size={14}/></button>
-            <button onClick={() => navigator.share?.({ title: "TalentHub", url: link })} className="hard-border p-2 hover:bg-[#002FA7] hover:text-white"><Share size={14}/></button>
+            <button onClick={() => navigator.share?.({ title: "Job Atlas", url: link })} className="hard-border p-2 hover:bg-[#002FA7] hover:text-white"><Share size={14}/></button>
           </div>
         </div>
         <p className="text-xs text-neutral-500 mt-4">Bonus hours earned so far: <strong>{r.total_bonus_hours}</strong></p>

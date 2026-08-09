@@ -63,7 +63,7 @@ export default function Pricing() {
           Keeps side-door hiring closed while letting you work across companies.
         </p>
         <p className="text-sm text-neutral-600 mt-3">
-          Comparison of talent take-rates: <strong>TalentHub {tc.tiers[0].commission_pct}%–{tc.tiers[tc.tiers.length-1].commission_pct}%</strong> ·
+          Comparison of talent take-rates: <strong>Job Atlas {tc.tiers[0].commission_pct}%–{tc.tiers[tc.tiers.length-1].commission_pct}%</strong> ·
           Upwork {tc.compare_talent.upwork}% · Fiverr up to {tc.compare_talent.fiverr}% · Toptal {tc.compare_talent.toptal}%.
         </p>
       </div>
@@ -74,7 +74,7 @@ export default function Pricing() {
         <table className="w-full text-sm">
           <thead className="bg-[#0A0A0A] text-white">
             <tr>
-              {["Feature", "TalentHub", "Upwork", "Fiverr", "Freelancer"].map((h) => (
+              {["Feature", "Job Atlas", "Upwork", "Fiverr", "Freelancer"].map((h) => (
                 <th key={h} className="text-left px-4 py-3 overline">{h}</th>
               ))}
             </tr>

@@ -31,7 +31,7 @@ export default function Earnings() {
       `− Multi-employer fee:   $${e.multi_employer_fee.toFixed(2)}`,
       `= NET PAYABLE:          $${e.net.toFixed(2)} ${e.currency.toUpperCase()}`,
       ``,
-      `TalentHub · a product of Geminista · Denkoit Softech Pvt. Ltd.`,
+      `Job Atlas · a product of Geminista · Denkoit Softech Pvt. Ltd.`,
     ];
     const blob = new Blob([rows.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);

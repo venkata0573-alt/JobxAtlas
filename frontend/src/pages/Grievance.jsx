@@ -112,7 +112,7 @@ export default function Grievance() {
         </div>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <p className="text-xs text-neutral-500 flex items-center gap-2 font-mono">
-            <EnvelopeSimple size={14}/> Will be routed to grievance@talenthub.io
+            <EnvelopeSimple size={14}/> Will be routed to grievance@jobatlas.io
           </p>
           <button type="submit" disabled={loading} className="btn-primary" data-testid={TID.grievanceSubmit}>
             {loading ? "Submitting…" : "Submit grievance →"}

@@ -234,7 +234,7 @@ export default function EmployerDashboard() {
           <div className="hard-border bg-[#FDFCF0] p-4 mt-6">
             <div className="flex items-start gap-2">
               <WarningOctagon weight="fill" color="#FF0A0A" size={16} className="mt-0.5"/>
-              <p className="text-xs leading-relaxed">Direct hiring outside TalentHub is prohibited for 12 months per engagement. All work must remain routed through the platform.</p>
+              <p className="text-xs leading-relaxed">Direct hiring outside Job Atlas is prohibited for 12 months per engagement. All work must remain routed through the platform.</p>
             </div>
           </div>
         </aside>
