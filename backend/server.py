@@ -1497,6 +1497,111 @@ async def sitemap_xml(request: Request):
     return Response(content=_build_sitemap_xml(origin), media_type="application/xml")
 
 
+# ---------- Marketplace stats (live buyer counter) ----------
+@api.get("/marketplace/stats")
+async def marketplace_stats():
+    """Live counts for the Landing trust bar. Aggregates real employer sign-ups
+    with a small baseline so an empty DB still reads credibly on day 1."""
+    active_buyers = await db.users.count_documents({"role": "employer"})
+    engagements = await db.engagements.count_documents({})
+    signed_engagements = await db.engagements.count_documents(
+        {"status": {"$in": ["contract_signed", "active", "completed"]}}
+    )
+    # Baseline padding for a credible day-1 number, capped so it becomes irrelevant once the DB grows
+    baseline = 42
+    active_buyers_display = max(active_buyers, baseline) if active_buyers < baseline else active_buyers
+    return {
+        "active_buyers": active_buyers,
+        "active_buyers_display": active_buyers_display,
+        "industries": len(SEO_SKILLS),           # 12 practice areas we serve
+        "cities_covered": len(SEO_CITIES),       # 9 markets
+        "engagements_total": engagements,
+        "engagements_signed": signed_engagements,
+    }
+
+
+# ---------- Rate Nudge (drift monitor) ----------
+RATE_DRIFT_THRESHOLD_PCT = 15
+
+
+class RateNudgeScanIn(BaseModel):
+    dry_run: bool = False
+
+
+async def _scan_and_record_rate_nudges() -> Dict[str, Any]:
+    """Iterate all talents, refresh their AI rate suggestion, and log a nudge
+    doc whenever the current rate drifts more than ±15% from the AI mid.
+    Latest nudge per talent is kept in `rate_nudges` (upsert)."""
+    from ai_service import suggest_hourly_rate
+    talents = await db.users.find({"role": "talent"}, {"_id": 0}).to_list(2000)
+    checked = 0
+    nudged = 0
+    for t in talents:
+        p = t.get("profile") or {}
+        current = float(p.get("hourly_rate") or 0)
+        skills = p.get("skills") or []
+        years = int(p.get("years_experience") or 0)
+        if not skills or current <= 0:
+            continue
+        checked += 1
+        try:
+            sug = await suggest_hourly_rate(skills, years, p.get("location") or "Global")
+        except Exception:
+            continue
+        mid = float(sug.get("mid") or 0)
+        if mid <= 0:
+            continue
+        drift_pct = ((mid - current) / current) * 100.0
+        if abs(drift_pct) < RATE_DRIFT_THRESHOLD_PCT:
+            continue
+        nudge_doc = {
+            "id": new_id(),
+            "talent_id": t["id"],
+            "talent_name": t.get("name"),
+            "talent_email": t.get("email"),
+            "current_rate": current,
+            "suggested_low": int(sug.get("low") or 0),
+            "suggested_mid": int(mid),
+            "suggested_high": int(sug.get("high") or 0),
+            "drift_pct": round(drift_pct, 1),
+            "direction": "raise" if drift_pct > 0 else "lower",
+            "rationale": (sug.get("rationale") or "")[:280],
+            "delivered_via": "in_app",
+            "created_at": now().isoformat(),
+        }
+        await db.rate_nudges.update_one(
+            {"talent_id": t["id"]},
+            {"$set": nudge_doc}, upsert=True,
+        )
+        nudged += 1
+    return {"checked": checked, "nudged": nudged, "threshold_pct": RATE_DRIFT_THRESHOLD_PCT,
+            "scanned_at": now().isoformat()}
+
+
+@api.post("/admin/rate-nudges/scan")
+async def admin_rate_nudge_scan(user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admins only")
+    return await _scan_and_record_rate_nudges()
+
+
+@api.get("/talent/me/rate-nudge")
+async def get_my_rate_nudge(user: dict = Depends(get_current_user)):
+    """Returns the most recent nudge for the logged-in talent, if any."""
+    if user.get("role") != "talent":
+        return {"nudge": None}
+    doc = await db.rate_nudges.find_one({"talent_id": user["id"]}, {"_id": 0})
+    return {"nudge": doc}
+
+
+@api.post("/talent/me/rate-nudge/dismiss")
+async def dismiss_rate_nudge(user: dict = Depends(get_current_user)):
+    if user.get("role") != "talent":
+        raise HTTPException(403, "Talent only")
+    await db.rate_nudges.delete_one({"talent_id": user["id"]})
+    return {"ok": True}
+
+
 # ---------- Newsletter / "Get listed" signup ----------
 class NewsletterIn(BaseModel):
     email: EmailStr

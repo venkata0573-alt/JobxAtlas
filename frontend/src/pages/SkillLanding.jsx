@@ -2,12 +2,14 @@ import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
 import { toast } from "sonner";
+import { X, Lock, CheckCircle } from "@phosphor-icons/react";
 
 export default function SkillLanding() {
   const { slug } = useParams();
   const [data, setData] = useState(null);
   const [email, setEmail] = useState("");
   const [signedUp, setSignedUp] = useState(false);
+  const [selected, setSelected] = useState(null);  // curated talent open in modal
 
   const isCombo = slug && slug.includes("-") && ["london","new-york","san-francisco","berlin","singapore","dubai","sydney","toronto","remote"]
     .some(c => slug.endsWith("-" + c));
@@ -67,9 +69,20 @@ export default function SkillLanding() {
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
           {data.talent.map(t => (
-            <div key={t.id} className="hard-border bg-white p-7 shadow-brutal-hover">
-              <p className="overline text-[#C79A3B]">{t.profile?.location || data.city_pretty || "Global"}</p>
-              <h3 className="font-display font-black text-2xl tracking-tight mt-1">{t.name}</h3>
+            <button
+              key={t.id}
+              onClick={() => setSelected(t)}
+              className="text-left hard-border bg-white p-7 shadow-brutal-hover cursor-pointer group"
+              data-testid={`curated-talent-card-${t.id}`}>
+              <div className="flex items-center justify-between">
+                <p className="overline text-[#C79A3B]">{t.profile?.location || data.city_pretty || "Global"}</p>
+                {t.curated && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-mono text-[#C79A3B] uppercase tracking-widest">
+                    <CheckCircle size={12} weight="fill"/> Vetted
+                  </span>
+                )}
+              </div>
+              <h3 className="font-display font-black text-2xl tracking-tight mt-1 group-hover:text-[#6B21A8] transition-colors">{t.name}</h3>
               <p className="text-neutral-600 text-sm mt-1">{t.profile?.headline || "Independent professional"}</p>
               <div className="flex flex-wrap gap-2 mt-3">
                 {(t.profile?.skills || []).slice(0, 4).map(s => (
@@ -80,8 +93,90 @@ export default function SkillLanding() {
                 <span className="text-sm font-mono">{t.profile?.years_experience || 0} yrs</span>
                 <p className="font-display font-black text-xl">${t.profile?.hourly_rate || 0}<span className="text-xs text-neutral-500">/hr</span></p>
               </div>
-            </div>
+              <p className="text-[11px] font-mono text-neutral-400 mt-3 inline-flex items-center gap-1">
+                <Lock size={11} weight="fill"/> Tap to preview · contact unlocks after hours are purchased
+              </p>
+            </button>
           ))}
+        </div>
+      )}
+
+      {/* Curated Talent Preview Modal */}
+      {selected && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setSelected(null)}
+          data-testid="curated-talent-modal">
+          <div
+            className="hard-border bg-white max-w-lg w-full p-8 shadow-brutal-lg relative"
+            onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setSelected(null)}
+              className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700"
+              aria-label="Close"
+              data-testid="close-curated-modal">
+              <X size={20}/>
+            </button>
+
+            <div className="flex items-center justify-between mb-2">
+              <p className="overline text-[#C79A3B]">{selected.profile?.location || "Global"}</p>
+              {selected.curated && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-mono text-[#C79A3B] uppercase tracking-widest">
+                  <CheckCircle size={12} weight="fill"/> Vetted talent
+                </span>
+              )}
+            </div>
+            <h3 className="font-display font-black text-3xl tracking-tight text-[#0B1B2B]">{selected.name}</h3>
+            <p className="text-neutral-600 mt-1">{selected.profile?.headline || "Independent professional"}</p>
+
+            <div className="grid grid-cols-3 gap-3 my-6 text-center">
+              <div className="hard-border bg-[#FAF9F6] p-3">
+                <p className="font-display font-black text-xl">${selected.profile?.hourly_rate || 0}</p>
+                <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mt-1">Per hour</p>
+              </div>
+              <div className="hard-border bg-[#FAF9F6] p-3">
+                <p className="font-display font-black text-xl">{selected.profile?.years_experience || 0}</p>
+                <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mt-1">Yrs exp</p>
+              </div>
+              <div className="hard-border bg-[#FAF9F6] p-3">
+                <p className="font-display font-black text-xl">{selected.profile?.available_hours_per_week || 20}</p>
+                <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mt-1">Hrs / wk</p>
+              </div>
+            </div>
+
+            <p className="overline text-neutral-500 mb-2">Skills</p>
+            <div className="flex flex-wrap gap-2 mb-6">
+              {(selected.profile?.skills || []).map(s => (
+                <span key={s} className="text-xs font-mono hard-border px-2 py-1 bg-white">{s}</span>
+              ))}
+            </div>
+
+            <div className="hard-border bg-[#FDF6E3] p-4 mb-6">
+              <p className="text-sm font-display font-extrabold text-[#0B1B2B] inline-flex items-center gap-2">
+                <Lock size={16} weight="fill" color="#C79A3B"/> Contact details unlock after purchase
+              </p>
+              <p className="text-xs text-neutral-600 mt-2 leading-relaxed">
+                To message <strong>{selected.name.split(" ")[0]}</strong> or any vetted talent on Job Atlas,
+                purchase a bundle of hours. A 12-month exclusivity contract is auto-generated and both parties sign before contact
+                information is revealed.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Link
+                to="/pricing"
+                className="btn-primary text-sm flex-1 text-center"
+                data-testid="buy-hours-to-unlock-btn">
+                Buy hours to unlock →
+              </Link>
+              <button
+                onClick={() => setSelected(null)}
+                className="btn-outline text-sm flex-1"
+                data-testid="continue-browsing-btn">
+                Continue browsing
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

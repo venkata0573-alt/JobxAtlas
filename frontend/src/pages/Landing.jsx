@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Marquee from "@/components/Marquee";
 import DemoTabs from "@/components/DemoTabs";
+import api from "@/lib/api";
 import { TID } from "@/constants/testIds";
 import {
   ShieldCheck, Handshake, Sparkle, PuzzlePiece,
@@ -44,6 +45,11 @@ const FAQ = [
 ];
 
 export default function Landing() {
+  const [stats, setStats] = useState({ active_buyers_display: 42, industries: 12, engagements_signed: 20 });
+  useEffect(() => {
+    api.get("/marketplace/stats").then((r) => setStats(r.data)).catch(() => {});
+  }, []);
+
   return (
     <main className="bg-white">
       {/* HERO */}
@@ -123,13 +129,18 @@ export default function Landing() {
               </div>
               <div className="hidden md:flex items-baseline gap-6 text-sm font-mono text-neutral-400">
                 <div className="text-right">
-                  <p className="font-display font-black text-3xl text-white leading-none">42+</p>
+                  <p className="font-display font-black text-3xl text-white leading-none">{stats.active_buyers_display}+</p>
                   <p className="text-xs mt-1 tracking-widest uppercase">Active buyers</p>
                 </div>
                 <div className="w-px h-10 bg-white/20"/>
                 <div className="text-right">
-                  <p className="font-display font-black text-3xl text-white leading-none">14</p>
-                  <p className="text-xs mt-1 tracking-widest uppercase">Industries</p>
+                  <p className="font-display font-black text-3xl text-white leading-none">{stats.industries}</p>
+                  <p className="text-xs mt-1 tracking-widest uppercase">Practice areas</p>
+                </div>
+                <div className="w-px h-10 bg-white/20"/>
+                <div className="text-right">
+                  <p className="font-display font-black text-3xl text-white leading-none">{stats.engagements_signed}</p>
+                  <p className="text-xs mt-1 tracking-widest uppercase">Signed engagements</p>
                 </div>
               </div>
             </div>

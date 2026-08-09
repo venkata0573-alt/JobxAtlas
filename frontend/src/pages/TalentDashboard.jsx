@@ -4,7 +4,7 @@ import api, { formatErr } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { TID } from "@/constants/testIds";
-import { Sparkle, ArrowsClockwise } from "@phosphor-icons/react";
+import { Sparkle, ArrowsClockwise, WarningCircle, X } from "@phosphor-icons/react";
 import DashboardMetrics from "@/components/DashboardMetrics";
 
 export default function TalentDashboard() {
@@ -14,6 +14,8 @@ export default function TalentDashboard() {
   const [suggest, setSuggest] = useState(null);
   const [suggesting, setSuggesting] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [nudge, setNudge] = useState(null);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
   const profile = user?.profile || {};
   const currentRate = Number(profile.hourly_rate || 0);
@@ -23,11 +25,33 @@ export default function TalentDashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const [a, m] = await Promise.all([api.get("/engagements"), api.get("/dashboard/metrics")]);
-        setEngs(a.data); setMetrics(m.data);
+        const [a, m, n] = await Promise.all([
+          api.get("/engagements"),
+          api.get("/dashboard/metrics"),
+          api.get("/talent/me/rate-nudge").catch(() => ({ data: { nudge: null } })),
+        ]);
+        setEngs(a.data); setMetrics(m.data); setNudge(n.data?.nudge || null);
       } catch (e) { toast.error(formatErr(e)); }
     })();
   }, []);
+
+  const dismissNudge = async () => {
+    setNudgeDismissed(true);
+    try { await api.post("/talent/me/rate-nudge/dismiss"); } catch (e) { /* silent */ }
+  };
+
+  const applyNudge = async () => {
+    if (!nudge) return;
+    setApplying(true);
+    try {
+      await api.put("/profile", { ...profile, hourly_rate: Number(nudge.suggested_mid) });
+      await refresh();
+      await api.post("/talent/me/rate-nudge/dismiss").catch(() => {});
+      setNudge(null);
+      toast.success(`Rate updated to $${nudge.suggested_mid}/hr`);
+    } catch (e) { toast.error(formatErr(e)); }
+    finally { setApplying(false); }
+  };
 
   const runRateCheck = async () => {
     if (!skills.length) return toast.error("Add at least one skill to your profile first");
@@ -73,6 +97,43 @@ export default function TalentDashboard() {
       </div>
 
       <DashboardMetrics metrics={metrics} role="talent"/>
+
+      {/* Rate Nudge banner — appears when the last monthly scan found >±15% drift */}
+      {nudge && !nudgeDismissed && (
+        <section
+          className={`mt-8 hard-border p-6 md:p-7 shadow-brutal flex flex-col md:flex-row md:items-center gap-4
+            ${nudge.direction === "raise" ? "bg-[#FDF6E3] border-[#C79A3B]" : "bg-[#FEF0F0] border-red-300"}`}
+          data-testid="rate-nudge-banner">
+          <div className="hard-border bg-[#0B1B2B] text-[#C79A3B] w-12 h-12 flex items-center justify-center shrink-0">
+            <WarningCircle size={22} weight="duotone"/>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="overline text-[#0B1B2B] mb-1">MONTHLY RATE NUDGE</p>
+            <p className="font-display font-extrabold text-lg md:text-xl tracking-tight leading-snug">
+              Your ${nudge.current_rate}/hr is <span className={nudge.direction === "raise" ? "text-emerald-700" : "text-red-700"}>
+                {nudge.drift_pct > 0 ? "+" : ""}{nudge.drift_pct}%
+              </span> {nudge.direction === "raise" ? "below" : "above"} the market mid of ${nudge.suggested_mid}/hr.
+            </p>
+            {nudge.rationale && <p className="text-sm text-neutral-600 mt-1">{nudge.rationale}</p>}
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={applyNudge}
+              disabled={applying}
+              className="btn-primary text-sm whitespace-nowrap"
+              data-testid="apply-nudge-btn">
+              {applying ? "Applying…" : `Apply $${nudge.suggested_mid}/hr →`}
+            </button>
+            <button
+              onClick={dismissNudge}
+              className="btn-outline text-sm inline-flex items-center gap-1"
+              data-testid="dismiss-nudge-btn"
+              aria-label="Dismiss">
+              <X size={14}/>
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* Rate Sanity Check */}
       <section className="hard-border bg-[#FAF9F6] p-8 shadow-brutal mt-8" data-testid="rate-sanity-card">
