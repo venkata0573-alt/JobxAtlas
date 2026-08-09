@@ -57,9 +57,14 @@ export default function EmployerDashboard() {
           <p className="overline text-[#002FA7] mb-3">EMPLOYER DASHBOARD</p>
           <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight">Welcome, {user?.name?.split(" ")[0]}.</h1>
         </div>
-        <Link to="/employer/purchase" className="btn-primary shadow-brutal shadow-brutal-hover">
-          <span className="inline-flex items-center gap-2"><Coins weight="duotone" size={16}/> Buy more hours</span>
-        </Link>
+        <div className="flex gap-2">
+          <Link to="/employer/shortlist" className="btn-outline shadow-brutal-hover" data-testid="nav-shortlist">
+            <span className="inline-flex items-center gap-2">★ Shortlist</span>
+          </Link>
+          <Link to="/employer/purchase" className="btn-primary shadow-brutal shadow-brutal-hover">
+            <span className="inline-flex items-center gap-2"><Coins weight="duotone" size={16}/> Buy more hours</span>
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 border-l border-t border-black/10 mb-10 hidden">

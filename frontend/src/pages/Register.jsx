@@ -75,22 +75,36 @@ export default function Register() {
 
         {/* Employer-only: industry self-selection (feeds the Landing trust bar) */}
         {f.role === "employer" && (
-          <div>
-            <label className="overline block mb-2">Which best describes your company?</label>
-            <select
-              value={f.company_industry}
-              onChange={set("company_industry")}
-              required
-              data-testid="register-industry"
-              className="w-full hard-border px-3 py-3 bg-white focus:outline-none focus:border-[#C79A3B]">
-              <option value="">Choose an industry —</option>
-              {industries.map((i) => (
-                <option key={i.label} value={i.label}>
-                  {i.label}{i.count ? ` · ${i.count} on platform` : ""}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-neutral-500 mt-2">
+          <div data-testid="industry-picker">
+            <label className="overline block mb-3">Which best describes your company?</label>
+            {industries.length === 0 ? (
+              <p className="text-xs text-neutral-500 font-mono">Loading industries…</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {industries.map((i) => {
+                  const selected = f.company_industry === i.label;
+                  return (
+                    <button
+                      key={i.label}
+                      type="button"
+                      onClick={() => setF({ ...f, company_industry: i.label })}
+                      data-testid={`industry-${i.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`}
+                      className={`hard-border px-3 py-3 text-left transition-colors ${
+                        selected ? "bg-[#0A0A0A] text-white border-[#0A0A0A]" : "bg-white hover:bg-[#FAF9F6]"
+                      }`}>
+                      <span className="block text-sm font-display font-bold leading-tight">{i.label}</span>
+                      {i.count > 0 && (
+                        <span className={`block mt-1 text-[10px] font-mono tracking-widest ${selected ? "text-[#F0C260]" : "text-[#C79A3B]"}`}>
+                          {i.count} ON PLATFORM
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <input type="hidden" name="company_industry" value={f.company_industry} data-testid="register-industry"/>
+            <p className="text-xs text-neutral-500 mt-3">
               Anonymised in aggregate on our public trust bar. Your company name is never shown.
             </p>
           </div>

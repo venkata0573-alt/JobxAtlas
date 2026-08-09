@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 5 verification of the industry-picker bug-fix + shortlist + rate-nudge + APScheduler + sitemap + marketplace stats. Added new pytest module test_iteration5_features.py (12 tests, all passing). End-to-end Playwright verified the primary bug fix (12 always-visible industry chips), employer registration with industry, Shortlist add/remove via curated modal, Shortlist page (summary + hours picker + purchase CTA), PurchaseHours shortlist-context banner (correct URL params + label rendering), TalentDashboard rate-nudge-banner + Rate Sanity Check button, empty-shortlist state for fresh employer, and the nav-shortlist link on /employer. No regressions surfaced.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "TalentDashboard rate-nudge banner", "issues": ["Wording ambiguity: banner shows '$220/hr is -69.1% above the market mid of $68/hr' — the negative sign before an 'above' phrasing reads oddly. Suggest displaying absolute drift with directional label (e.g., '69% ABOVE market' or '69% below market') so the sign stays consistent with the verb. Non-blocking cosmetic issue."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration5_features.py",
+    "/app/test_reports/pytest/iteration5.xml"
+  ],
+  "action_items": [
+    "(Optional cosmetic) Fix rate-nudge banner sign/verb mismatch on TalentDashboard: prefer 'X% ABOVE market' when drift is positive-for-lowering (current rate above mid) and 'X% BELOW market' when current rate is below mid. Currently formats a negative percentage next to the word 'above'."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 2368 lines — split into routers (marketplace, shortlist, rate_nudges, admin) for maintainability.",
+    "_scan_and_record_rate_nudges silently skips talents when suggest_hourly_rate raises; suggest capturing the exception count in the return payload for observability.",
+    "GET /marketplace/stats returns active_buyers alongside active_buyers_display (baseline-padded). Frontend should be explicit which one it renders to avoid confusion.",
+    "Rate nudge banner text mixes signed percentage with directional verb — fix the phrasing on the frontend (TalentDashboard.jsx)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration5_features.py"
+  ],
+  "success_rate": {"backend": "100% (12/12 new tests, prior 58/59 baseline unchanged)", "frontend": "100% of tested flows"},
+  "test_credentials": "Admin admin@talenthub.io / Admin@2026, Talent talent@test.io / Talent@2026, Employer emp-series-b-fintechs@test.io / Employer@2026 (all verified working).",
+  "seed_data_creation": "Created one fresh employer 'fresh-emp-<ts>@test.io' via /register during the empty-shortlist Playwright flow. During pytest each run creates a unique 'new-emp-<ts>-<uuid>@test.io' + 'bad-emp-<uuid>' + 'tal-<uuid>' account. Rate-nudge scan persisted a nudge doc for talent@test.io with email_status='RESEND_API_KEY not configured' as expected (safe no-op). One shortlist doc created + deleted per test run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 5 verified: /api/marketplace/industries returns 12 canonical labels + counts; /api/marketplace/stats returns industries=12; POST/GET/DELETE /api/shortlist role-gated to employer, upsert-on-add; /api/admin/rate-nudges/scan returns full schema {checked,nudged,emailed,email_failures,threshold_pct:15,scanned_at} and emailed=0 when RESEND_API_KEY empty (email_status='RESEND_API_KEY not configured' persisted in nudge doc); /api/admin/scheduler.running=true with job monthly_rate_nudge_scan + cron trigger. Sitemap has >=70 <url> entries. Frontend: Register.jsx renders industry-picker with 12 chips w/ 'N ON PLATFORM' subtitle; talent role hides picker. SkillLanding curated modal → shortlist button flips label to 'Shortlisted ✓'. /employer/shortlist renders summary + hours-per-talent chips (10/20/40/80) + purchase-for-shortlist-btn navigates to /employer/purchase?context=shortlist with correct params. PurchaseHours renders shortlist-context-banner. Empty state renders when no shortlist items. nav-shortlist visible on /employer. Rate nudge banner + Rate Sanity Check button both render on /talent.",
+  "rca of the issue": "Original user bug 'industries are not listed in the dropdown when employer wants to sign up' — RCA (already applied by E1): the native <select> was populated but users could not see the options without clicking to expand. Fix: Register.jsx now renders a 3-column grid of always-visible chip buttons ([data-testid='industry-picker'] wrapping 12 chips [data-testid='industry-<slug>'] with hidden input [data-testid='register-industry']). Verified: all 12 industries visible without any click, selecting a chip visually darkens it, hidden input carries the label, industries with count>0 show 'N ON PLATFORM' subtitle, and picker only renders when Employer role is selected. Bug fully resolved."
+}

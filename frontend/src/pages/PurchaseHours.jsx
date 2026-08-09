@@ -1,10 +1,17 @@
 import React, { useEffect, useState } from "react";
+import { useSearchParams, Link } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
 import { TID } from "@/constants/testIds";
 import { toast } from "sonner";
-import { Clock, Bank, CreditCard, Copy, CheckCircle } from "@phosphor-icons/react";
+import { Clock, Bank, CreditCard, Copy, CheckCircle, BookmarkSimple } from "@phosphor-icons/react";
 
 export default function PurchaseHours() {
+  const [params] = useSearchParams();
+  const shortlistCtx = params.get("context") === "shortlist" ? {
+    talents: Number(params.get("talents") || 0),
+    hours_per_talent: Number(params.get("hours_per_talent") || 0),
+    est_budget: Number(params.get("est_budget") || 0),
+  } : null;
   const [data, setData] = useState({ packages: {}, bank: {}, usd_to_inr: 83 });
   const [tab, setTab] = useState("card");
   const [bank, setBank] = useState(null);
@@ -46,6 +53,26 @@ export default function PurchaseHours() {
       <p className="text-neutral-600 max-w-2xl mb-8">
         Card via Stripe (fastest), or a direct bank transfer to our India account (great for Indian companies, GST invoice available).
       </p>
+
+      {/* Shortlist context banner (shown when arriving from /employer/shortlist) */}
+      {shortlistCtx && (
+        <div className="hard-border bg-[#FDF6E3] p-6 mb-8 shadow-brutal flex flex-col md:flex-row md:items-center justify-between gap-4" data-testid="shortlist-context-banner">
+          <div className="flex items-start gap-4">
+            <div className="hard-border bg-[#0B1B2B] text-[#C79A3B] w-11 h-11 flex items-center justify-center shrink-0">
+              <BookmarkSimple size={20} weight="fill"/>
+            </div>
+            <div>
+              <p className="overline text-[#C79A3B] mb-1">SHOPPING FOR YOUR SHORTLIST</p>
+              <p className="font-display font-extrabold text-lg leading-tight text-[#0B1B2B]">
+                {shortlistCtx.talents} talent{shortlistCtx.talents > 1 ? "s" : ""} · {shortlistCtx.hours_per_talent}h each ·
+                <span className="ml-1 text-[#0B1B2B]">${shortlistCtx.est_budget.toLocaleString()} est. bundle</span>
+              </p>
+              <p className="text-xs text-neutral-600 mt-1">Pick the package below that gets closest to your estimate — you can always top up later.</p>
+            </div>
+          </div>
+          <Link to="/employer/shortlist" className="btn-outline text-sm whitespace-nowrap">← Back to shortlist</Link>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="hard-border inline-flex bg-white mb-8">

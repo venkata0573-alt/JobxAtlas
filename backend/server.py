@@ -1670,6 +1670,25 @@ async def admin_rate_nudge_scan(request: Request, user: dict = Depends(get_curre
     return await _scan_and_record_rate_nudges(request=request)
 
 
+@api.get("/admin/scheduler")
+async def admin_scheduler_status(user: dict = Depends(get_current_user)):
+    """Reports the state of the APScheduler + next fire time for the monthly nudge."""
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admins only")
+    if not _scheduler or not _scheduler.running:
+        return {"running": False, "jobs": []}
+    jobs = []
+    for j in _scheduler.get_jobs():
+        jobs.append({
+            "id": j.id, "name": j.name,
+            "next_run_time": str(j.next_run_time) if j.next_run_time else None,
+            "trigger": str(j.trigger),
+        })
+    last = await db.job_runs.find({"job": "monthly_rate_nudge_scan"},
+                                   {"_id": 0}).sort("at", -1).limit(1).to_list(1)
+    return {"running": True, "jobs": jobs, "last_run": last[0] if last else None}
+
+
 @api.get("/talent/me/rate-nudge")
 async def get_my_rate_nudge(user: dict = Depends(get_current_user)):
     """Returns the most recent nudge for the logged-in talent, if any."""
@@ -2290,9 +2309,50 @@ async def startup():
         })
         logger.info(f"Seeded admin: {admin_email}")
 
+    # Start the monthly rate-nudge scheduler
+    global _scheduler
+    try:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        from apscheduler.triggers.cron import CronTrigger
+        _scheduler = AsyncIOScheduler(timezone="UTC")
+
+        async def _monthly_nudge_job():
+            logger.info("[scheduler] monthly rate-nudge scan starting")
+            try:
+                result = await _scan_and_record_rate_nudges(request=None)
+                logger.info(f"[scheduler] monthly rate-nudge scan done: {result}")
+                await db.job_runs.insert_one({
+                    "id": new_id(), "job": "monthly_rate_nudge_scan",
+                    "at": now().isoformat(), "result": result,
+                })
+            except Exception as e:
+                logger.exception(f"[scheduler] monthly rate-nudge scan failed: {e}")
+
+        # 1st of every month at 09:00 UTC
+        _scheduler.add_job(
+            _monthly_nudge_job,
+            CronTrigger(day=1, hour=9, minute=0),
+            id="monthly_rate_nudge_scan",
+            replace_existing=True,
+            misfire_grace_time=3600,
+        )
+        _scheduler.start()
+        logger.info("[scheduler] rate-nudge scheduler started (cron: day=1 09:00 UTC)")
+    except Exception as e:
+        logger.warning(f"[scheduler] failed to start: {e}")
+
+
+_scheduler = None
+
 
 @app.on_event("shutdown")
 async def shutdown():
+    global _scheduler
+    if _scheduler:
+        try:
+            _scheduler.shutdown(wait=False)
+        except Exception:
+            pass
     client.close()
 
 

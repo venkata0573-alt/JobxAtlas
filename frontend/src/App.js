@@ -29,6 +29,7 @@ import Legal from "@/pages/Legal";
 import Earnings from "@/pages/Earnings";
 import Referral from "@/pages/Referral";
 import SkillLanding from "@/pages/SkillLanding";
+import Shortlist from "@/pages/Shortlist";
 
 function App() {
   return (
@@ -46,6 +47,7 @@ function App() {
             <Route path="/talent/profile" element={<ProtectedRoute role="talent"><TalentProfile /></ProtectedRoute>} />
             <Route path="/employer" element={<ProtectedRoute role="employer"><EmployerDashboard /></ProtectedRoute>} />
             <Route path="/employer/purchase" element={<ProtectedRoute role="employer"><PurchaseHours /></ProtectedRoute>} />
+            <Route path="/employer/shortlist" element={<ProtectedRoute role="employer"><Shortlist /></ProtectedRoute>} />
             <Route path="/payment/success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
             <Route path="/payment/cancel" element={<ProtectedRoute><PaymentCancel /></ProtectedRoute>} />
             <Route path="/engagement/:id" element={<ProtectedRoute><EngagementDetail /></ProtectedRoute>} />
