@@ -107,6 +107,28 @@ export default function Landing() {
               </blockquote>
             ))}
           </div>
+
+          {/* Employer Trust Bar — anonymised buyer categories */}
+          <div className="mt-16 hard-border bg-[#0B1B2B] text-white p-8 md:p-10">
+            <p className="overline text-[#C79A3B] mb-4">TRUSTED BY BUYERS OF EVERY SHAPE</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-4 text-sm font-mono text-neutral-300">
+              <span>Series-B fintechs</span>
+              <span>PE-backed platforms</span>
+              <span>Health-tech scale-ups</span>
+              <span>YC-backed marketplaces</span>
+              <span>Global consultancies</span>
+              <span>Public-sector innovation teams</span>
+              <span>Series-A SaaS teams</span>
+              <span>Family-office ventures</span>
+              <span>Cross-border e-commerce</span>
+              <span>DTC brand houses</span>
+              <span>Regulated data-cos</span>
+              <span>ClimateTech pilots</span>
+            </div>
+            <p className="text-[10px] font-mono text-neutral-500 mt-6 uppercase tracking-widest">
+              Company names withheld · Non-disclosure honoured on every engagement
+            </p>
+          </div>
         </div>
       </section>
 
@@ -220,6 +242,25 @@ export default function Landing() {
           <div className="flex gap-3">
             <Link to="/register" className="btn-primary shadow-brutal">Start free →</Link>
             <Link to="/pricing" className="btn-outline shadow-brutal" style={{background:"#fff", color:"#0A0A0A"}}>See pricing</Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Founder note — personal welcome */}
+      <section className="border-t border-black/10 bg-[#FAF9F6]">
+        <div className="max-w-4xl mx-auto px-6 md:px-12 py-20 text-center">
+          <p className="overline text-[#C79A3B] mb-6">A NOTE FROM THE FOUNDER</p>
+          <p className="font-display text-xl md:text-2xl leading-relaxed text-[#0B1B2B] max-w-2xl mx-auto">
+            &ldquo;I built Job Atlas because hiring hourly experts should feel like walking into a
+            trusted room — not shouting into a bidding pit. Every profile here is vetted, every
+            engagement is contracted, and every payout is triggered the moment work is accepted.
+            If you&apos;re a company that values structure — or an independent professional tired of
+            chasing invoices — you&apos;re in the right place.&rdquo;
+          </p>
+          <div className="mt-10 inline-flex flex-col items-center">
+            <p className="font-signature text-5xl text-[#0B1B2B] leading-none">Naveed Hasan</p>
+            <div className="w-24 h-px bg-[#C79A3B] mt-3 mb-2"/>
+            <p className="text-xs font-mono text-neutral-500 uppercase tracking-[0.25em]">Founder · Job Atlas</p>
           </div>
         </div>
       </section>

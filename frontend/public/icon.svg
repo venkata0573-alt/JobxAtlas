@@ -1,44 +1,47 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Job Atlas">
   <defs>
-    <linearGradient id="ja-bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#122740"/>
-      <stop offset="100%" stop-color="#0B1B2B"/>
-    </linearGradient>
-    <linearGradient id="ja-j" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#F0C260"/>
-      <stop offset="50%"  stop-color="#D8A73F"/>
-      <stop offset="100%" stop-color="#8A6510"/>
+    <linearGradient id="ja-ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#5B27A8"/>
+      <stop offset="55%"  stop-color="#3B1668"/>
+      <stop offset="100%" stop-color="#25093E"/>
     </linearGradient>
   </defs>
 
-  <!-- Rounded dark navy background -->
-  <rect width="512" height="512" rx="96" ry="96" fill="url(#ja-bg)"/>
+  <!-- White rounded background -->
+  <rect width="512" height="512" rx="96" ry="96" fill="#FFFFFF" stroke="#EFEAE0" stroke-width="2"/>
 
-  <!-- Elegant serif "J" wordmark. Drawn as a single filled path so it
-       renders identically at any size (16px favicon → 512px app icon). -->
+  <!-- CLEAN TOP BAR — thick horizontal slab (the "cap" of the J) -->
+  <rect x="112" y="118" width="288" height="34" rx="6" fill="url(#ja-ink)"/>
+
+  <!-- SCRIPT J BODY — Pacifico-inspired: bold, flowing, with dramatic bottom hook -->
   <path d="
-    M 128 110
-    L 384 110
-    Q 400 110 400 128
-    L 400 152
-    Q 400 170 384 170
-    L 306 170
-    L 306 336
-    Q 306 402 250 402
-    Q 176 402 138 342
-    Q 132 332 142 326
-    L 194 296
-    Q 204 290 210 300
-    Q 226 328 250 328
-    Q 258 328 258 320
-    L 258 170
-    L 128 170
-    Q 112 170 112 152
-    L 112 128
-    Q 112 110 128 110
-    Z"
-    fill="url(#ja-j)"/>
+    M 244 152
+    C 244 152 258 152 268 152
+    C 278 152 288 158 292 172
+    C 302 216 316 268 316 314
+    C 316 348 306 372 284 386
+    C 254 406 210 408 176 396
+    C 142 384 116 358 116 322
+    C 116 306 128 296 144 296
+    C 158 296 168 306 170 320
+    C 172 336 184 348 202 352
+    C 220 356 240 350 250 336
+    C 260 320 256 300 250 274
+    C 240 232 226 194 220 172
+    C 216 158 228 152 244 152 Z"
+    fill="url(#ja-ink)"/>
 
-  <!-- Subtle drop-shadow accent line under the letter (adds premium depth) -->
-  <path d="M 96 440 L 416 440" stroke="#C79A3B" stroke-width="2" opacity="0.4"/>
+  <!-- Tiny brush-style curl accents on top bar ends, adding script personality -->
+  <path d="M 108 152 Q 96 148 92 138"
+        stroke="url(#ja-ink)"
+        stroke-width="10"
+        stroke-linecap="round"
+        fill="none"
+        opacity="0.85"/>
+  <path d="M 404 152 Q 416 148 420 138"
+        stroke="url(#ja-ink)"
+        stroke-width="10"
+        stroke-linecap="round"
+        fill="none"
+        opacity="0.85"/>
 </svg>

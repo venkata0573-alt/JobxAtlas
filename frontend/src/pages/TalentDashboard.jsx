@@ -4,12 +4,22 @@ import api, { formatErr } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { TID } from "@/constants/testIds";
+import { Sparkle, ArrowsClockwise } from "@phosphor-icons/react";
 import DashboardMetrics from "@/components/DashboardMetrics";
 
 export default function TalentDashboard() {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const [engs, setEngs] = useState([]);
   const [metrics, setMetrics] = useState(null);
+  const [suggest, setSuggest] = useState(null);
+  const [suggesting, setSuggesting] = useState(false);
+  const [applying, setApplying] = useState(false);
+
+  const profile = user?.profile || {};
+  const currentRate = Number(profile.hourly_rate || 0);
+  const skills = profile.skills || [];
+  const years = Number(profile.years_experience || 0);
+
   useEffect(() => {
     (async () => {
       try {
@@ -19,6 +29,35 @@ export default function TalentDashboard() {
     })();
   }, []);
 
+  const runRateCheck = async () => {
+    if (!skills.length) return toast.error("Add at least one skill to your profile first");
+    setSuggesting(true);
+    setSuggest(null);
+    try {
+      const r = await api.post("/profile/suggest-rate", {
+        skills, years_experience: years, location: profile.location || "Global",
+      });
+      setSuggest(r.data);
+      toast.success(`AI suggests $${r.data.mid}/hr for your current skill set`);
+    } catch (e) { toast.error(formatErr(e)); }
+    finally { setSuggesting(false); }
+  };
+
+  const applySuggestion = async () => {
+    if (!suggest) return;
+    setApplying(true);
+    try {
+      await api.put("/profile", { ...profile, hourly_rate: Number(suggest.mid) });
+      await refresh();
+      toast.success(`Rate updated to $${suggest.mid}/hr`);
+      setSuggest(null);
+    } catch (e) { toast.error(formatErr(e)); }
+    finally { setApplying(false); }
+  };
+
+  const drift = suggest ? Math.round(suggest.mid - currentRate) : 0;
+  const driftPct = currentRate > 0 ? Math.round((drift / currentRate) * 100) : 0;
+
   return (
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
       <div className="flex items-baseline justify-between mb-10 flex-wrap gap-4">
@@ -27,11 +66,81 @@ export default function TalentDashboard() {
           <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight">Hey {user?.name?.split(" ")[0]}.</h1>
           <p className="text-neutral-600 mt-2">Everything you&apos;re working on — in one grid.</p>
         </div>
-        <Link to="/talent/profile" className="btn-outline text-sm">Edit profile →</Link>
-      <Link to="/talent/earnings" className="btn-outline text-sm ml-2">View earnings →</Link>
+        <div className="flex gap-2">
+          <Link to="/talent/profile" className="btn-outline text-sm">Edit profile →</Link>
+          <Link to="/talent/earnings" className="btn-outline text-sm">View earnings →</Link>
+        </div>
       </div>
 
       <DashboardMetrics metrics={metrics} role="talent"/>
+
+      {/* Rate Sanity Check */}
+      <section className="hard-border bg-[#FAF9F6] p-8 shadow-brutal mt-8" data-testid="rate-sanity-card">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="hard-border bg-[#0B1B2B] text-white w-12 h-12 flex items-center justify-center shrink-0">
+              <Sparkle size={22} weight="duotone"/>
+            </div>
+            <div>
+              <p className="overline text-[#C79A3B] mb-1">RATE SANITY CHECK</p>
+              <h2 className="font-display font-extrabold text-2xl tracking-tight">Is your ${currentRate}/hr still market-fresh?</h2>
+              <p className="text-sm text-neutral-600 mt-1">
+                Re-run the AI rate suggestion any time you add a new skill or gain a year of experience.
+                Currently modelling <span className="font-mono">{skills.length}</span> skills · <span className="font-mono">{years}</span> yrs · <span className="font-mono">{profile.location || "Global"}</span>.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={runRateCheck}
+            disabled={suggesting}
+            className="btn-primary text-sm inline-flex items-center gap-2 whitespace-nowrap"
+            data-testid="run-rate-check-btn">
+            <ArrowsClockwise size={16} weight="bold" className={suggesting ? "animate-spin" : ""}/>
+            {suggesting ? "Checking…" : "Refresh my rate"}
+          </button>
+        </div>
+
+        {suggest && (
+          <div className="mt-6 pt-6 border-t border-black/10 grid md:grid-cols-[1.2fr_1fr] gap-6" data-testid="rate-suggestion-panel">
+            <div>
+              <p className="overline text-neutral-500 mb-2">AI suggestion (Claude Sonnet 5)</p>
+              <p className="font-display font-black text-4xl text-[#0B1B2B]">
+                ${suggest.low}<span className="text-2xl text-neutral-500">–</span>${suggest.high}
+                <span className="text-lg text-neutral-500 font-mono">/hr</span>
+              </p>
+              <p className="text-sm text-neutral-600 mt-2">Mid-range: <span className="font-mono font-bold">${suggest.mid}/hr</span></p>
+              {suggest.rationale && (
+                <p className="text-xs text-neutral-500 mt-3 leading-relaxed">{suggest.rationale}</p>
+              )}
+            </div>
+            <div className="hard-border bg-white p-5">
+              {currentRate > 0 && drift !== 0 ? (
+                <>
+                  <p className="overline text-neutral-500 mb-2">Delta vs your current rate</p>
+                  <p className={`font-display font-black text-3xl ${drift > 0 ? "text-emerald-700" : "text-red-700"}`}>
+                    {drift > 0 ? "+" : ""}${drift}
+                    <span className="text-base font-mono text-neutral-500 ml-2">({drift > 0 ? "+" : ""}{driftPct}%)</span>
+                  </p>
+                  <p className="text-xs text-neutral-500 mt-3">
+                    {drift > 0
+                      ? "You're pricing under the market. Consider bumping to stay competitive on quality perception."
+                      : "You're pricing above the market. That can be intentional — but be ready to justify with portfolio & reviews."}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-neutral-600">Your current rate matches the mid-range — you&apos;re on point.</p>
+              )}
+              <button
+                onClick={applySuggestion}
+                disabled={applying}
+                className="btn-accent text-sm w-full mt-4"
+                data-testid="apply-rate-btn">
+                {applying ? "Applying…" : `Apply $${suggest.mid}/hr →`}
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
 
       <section className="hard-border bg-white p-8 shadow-brutal mt-8">
         <h2 className="font-display font-extrabold text-2xl tracking-tight mb-6">Engagements</h2>

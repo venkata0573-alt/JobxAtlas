@@ -1445,6 +1445,58 @@ async def seo_hire_city(slug: str):
     }
 
 
+# ---------- Sitemap autogeneration ----------
+STATIC_SITEMAP_PATHS = [
+    ("/",          "1.0", "weekly"),
+    ("/browse",    "0.9", "daily"),
+    ("/pricing",   "0.9", "monthly"),
+    ("/register",  "0.8", "monthly"),
+    ("/login",     "0.6", "yearly"),
+    ("/legal",     "0.5", "yearly"),
+    ("/grievance", "0.4", "yearly"),
+]
+
+
+def _build_sitemap_xml(origin: str) -> str:
+    origin = origin.rstrip("/")
+    now_iso = now().date().isoformat()
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for path, prio, freq in STATIC_SITEMAP_PATHS:
+        lines.append(f"  <url><loc>{origin}{path}</loc>"
+                     f"<lastmod>{now_iso}</lastmod>"
+                     f"<changefreq>{freq}</changefreq>"
+                     f"<priority>{prio}</priority></url>")
+    # Skill-only landing pages (12)
+    for s in SEO_SKILLS:
+        lines.append(f"  <url><loc>{origin}/hire/{s}</loc>"
+                     f"<lastmod>{now_iso}</lastmod>"
+                     f"<changefreq>weekly</changefreq>"
+                     f"<priority>0.8</priority></url>")
+    # City × skill landing pages (54 = 9 cities × 6 top skills)
+    for c in SEO_CITIES:
+        for s in SEO_SKILLS[:6]:
+            lines.append(f"  <url><loc>{origin}/hire/{s}-{c}</loc>"
+                         f"<lastmod>{now_iso}</lastmod>"
+                         f"<changefreq>weekly</changefreq>"
+                         f"<priority>0.7</priority></url>")
+    lines.append("</urlset>")
+    return "\n".join(lines)
+
+
+@api.get("/sitemap.xml")
+async def sitemap_xml(request: Request):
+    """Dynamically generated sitemap covering all static + SEO landing routes."""
+    from fastapi.responses import Response
+    # Prefer the explicit env var, then the forwarded host (ingress), then the raw host header
+    origin = os.environ.get("PUBLIC_SITE_URL")
+    if not origin:
+        fwd_host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+        fwd_proto = request.headers.get("x-forwarded-proto", "https")
+        origin = f"{fwd_proto}://{fwd_host}" if fwd_host else str(request.base_url).rstrip("/")
+    return Response(content=_build_sitemap_xml(origin), media_type="application/xml")
+
+
 # ---------- Newsletter / "Get listed" signup ----------
 class NewsletterIn(BaseModel):
     email: EmailStr
