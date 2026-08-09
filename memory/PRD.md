@@ -1,56 +1,64 @@
-# TalentHub — Skills Marketplace Platform
+# TalentHub — PRD
 
-## Problem Statement (verbatim)
-Build a platform where people showcase their skills; platform recommends hourly rate based
-on experience/skill; employers purchase hours and mix-and-match talent; employers cannot
-directly hire (nor talent directly work for) counterparties introduced through the platform
-for at least 12 months; all contractual terms must be signed by both parties. Later additions:
-pull work-tracking data from Monday, Wrike, MS Dynamics, ServiceNow, SAP, Jira, Asana,
-Confluence, Trello, ClickUp, Notion (plus Excel/.xlsx and MS Project XML uploads). Crisp
-dashboards with two role-specific views and shared components.
-
-## Users
-- **Talent** — showcases skills, gets AI-suggested rate, signs contracts, tracks work
-- **Employer** — buys hour packages, mixes-and-matches talent, signs contracts, tracks work
-- **Admin** — seeded on startup (`admin@talenthub.io / Admin@2026`)
+## Problem Statement
+Skills marketplace where individuals showcase skills and employers buy hours in bulk.
+Platform enforces 12-month exclusivity, dual-signed contracts, mix-and-match hour allocation,
+work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment rails
+(Stripe global + INR bank transfer for the India-based operating company).
 
 ## Architecture
-- **Frontend**: React 19 + React Router + Tailwind + shadcn/ui + Phosphor icons + Recharts + sonner
-- **Backend**: FastAPI + Motor(Mongo) + PyJWT + bcrypt + Stripe + emergentintegrations (Claude Sonnet 4.5)
-- **Payments**: Stripe claimable sandbox
-- **DB collections**: users, engagements, payment_transactions, integration_tokens, work_items, eois
+- **Backend**: FastAPI (Python), Motor async MongoDB, JWT (httpOnly cookies) auth, bcrypt,
+  Stripe SDK, emergentintegrations (Claude Sonnet 5 via Emergent LLM key), openpyxl for Excel.
+- **Frontend**: React 19, react-router-dom v7, Tailwind + Shadcn UI, Phosphor icons,
+  Recharts for dashboard charts, sonner for toasts.
+- **DB collections**: users, engagements, eois, payment_transactions, work_items,
+  integration_tokens, connected_accounts.
 
-## Implemented (2026-02)
-- JWT httpOnly cookie auth (register, login, logout, me)
-- Role-based access (talent/employer/admin)
-- Talent profile with AI-powered rate suggestion (Claude Sonnet 4.5)
-- Talent browse/search (contact hidden until engagement)
-- Stripe hour package purchase (4 tiers: 10/50/100/500)
-- Payment status polling + webhook credit
-- Engagement lifecycle: create → typed-signature contract (both sides) → active + hours deducted
-- 12-month exclusivity clause & UI warnings
-- Third-party integrations (11 providers): Monday, Wrike, MS Dynamics, ServiceNow, SAP,
-  Asana, Jira, Confluence, Trello, ClickUp, Notion
-- File uploads: Excel (.xlsx/.xls) and MS Project XML
-- Unified work log
-- Role-aware dashboard metrics endpoint with shared components (Pie/Bar/Upcoming)
-- Bento landing page (Swiss Brutalist theme)
+## Personas
+1. **Talent** — freelancers/consultants creating profiles, raising EOIs, signing contracts.
+2. **Employer** — companies purchasing hour packages, allocating across talent, signing contracts.
+3. **Admin** — verifies India bank-transfer payments, oversees platform.
 
-## Backlog / Next
-- P1: Real-time notifications on countersign / new engagement
-- P1: Talent EOI (expression of interest) flow (endpoints scaffolded but no UI yet)
-- P1: Emergent Google Social Login
-- P2: Per-engagement time tracker + timesheet approval
-- P2: Admin console (moderation, integrity checks for exclusivity breaches)
-- P2: Encrypt integration tokens at rest
-- P2: Rate limiting / brute-force lockout on `/api/auth/login`
+## Core Requirements (static)
+- Registration/login (JWT), profile CRUD, AI rate suggestion (Claude Sonnet 5).
+- Talent browsing with hidden contact until engagement contract signed.
+- Hour packages via Stripe (USD) or INR bank transfer (Indian company).
+- Contract signing with typed signature + 12-month exclusivity clause both sides.
+- Work tracking via Jira, Asana, Confluence, Monday, Wrike, MS Dynamics, ServiceNow, SAP,
+  Trello, ClickUp, Notion + Excel/MS-Project XML upload.
+- Weekly availability with timezone re-projection for calendar view.
+- EOI flow: talent raises → employer accepts → engagement auto-created.
+- Connected accounts (LinkedIn/GitHub/Google/Microsoft/Slack/Payoneer/Wise/Plaid/etc).
+- Role-aware dashboard with shared + specific metrics + charts.
+- Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
-## Env & Setup
-- Backend env: MONGO_URL, DB_NAME, JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, EMERGENT_LLM_KEY,
-  STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_ACCOUNT_ID, STRIPE_WEBHOOK_SECRET
-- Frontend env: REACT_APP_BACKEND_URL
-- Test card: 4242 4242 4242 4242
+## Implemented (2026-02-09)
+- Full auth (JWT httpOnly), admin seed, 41/41 backend tests passing.
+- Talent + employer profile, AI-powered rate suggestion (Claude Sonnet 5 with rule fallback).
+- Browse talent (contact hidden), mix-and-match engagement creation.
+- Contract signing (dual typed-signature) with 12-month exclusivity clause.
+- Stripe checkout (claimable sandbox provisioned) + polling status.
+- INR bank-transfer flow (initiate/submit UTR/admin approve).
+- 11 work-tracker integration providers + Excel + MS Project XML upload.
+- Weekly availability editor + timezone-projected weekly grid + calendar events.
+- EOI create/list/accept/withdraw across roles.
+- Connected accounts panel with role filtering + connect/disconnect.
+- Role-aware dashboard metrics with Recharts pie + bar + upcoming widget.
+- Landing with video demo tabs (Pexels-hosted mp4) and India footer.
+- Pricing page with 3 plans + Upwork/Fiverr/Freelancer comparison.
 
-## Testing
-- Backend: 21/21 pytest passing (auth, profile, AI rate, browse, packages, checkout,
-  engagements+signing with balance deduction, integrations, work upload, dashboard metrics)
+## Backlog (P1)
+- OAuth-based real integrations for LinkedIn/Google/Microsoft (currently token-based).
+- Actual MS Project .mpp binary parsing (currently XML only).
+- Live sync scheduler for connected work-tools.
+- Hour-usage logging per engagement.
+- Talent-to-employer search by employer accepting an EOI (currently talent enters UUID).
+
+## Backlog (P2)
+- Escrow / partial refunds.
+- Multi-currency billing beyond USD/INR.
+- Team seats within an employer.
+- Public shareable talent profile pages.
+
+## Test Credentials
+See /app/memory/test_credentials.md
