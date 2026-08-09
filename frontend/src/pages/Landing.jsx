@@ -46,8 +46,10 @@ const FAQ = [
 
 export default function Landing() {
   const [stats, setStats] = useState({ active_buyers_display: 42, industries: 12, engagements_signed: 20 });
+  const [industries, setIndustries] = useState([]);
   useEffect(() => {
     api.get("/marketplace/stats").then((r) => setStats(r.data)).catch(() => {});
+    api.get("/marketplace/industries").then((r) => setIndustries(r.data.industries || [])).catch(() => {});
   }, []);
 
   return (
@@ -146,16 +148,23 @@ export default function Landing() {
             </div>
 
             <div className="relative grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {[
-                "Series-B fintechs", "PE-backed platforms", "Health-tech scale-ups",
-                "YC-backed marketplaces", "Global consultancies", "Public-sector innovation",
-                "Series-A SaaS teams", "Family-office ventures", "Cross-border e-commerce",
-                "DTC brand houses", "Regulated data-cos", "ClimateTech pilots",
-              ].map((label) => (
-                <div key={label}
-                     className="hard-border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] transition-colors px-4 py-3 flex items-center gap-3">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#C79A3B] shrink-0"/>
-                  <span className="text-sm text-neutral-200 leading-tight">{label}</span>
+              {(industries.length ? industries : [
+                { label: "Series-B fintechs", count: 0 }, { label: "PE-backed platforms", count: 0 },
+                { label: "Health-tech scale-ups", count: 0 }, { label: "YC-backed marketplaces", count: 0 },
+                { label: "Global consultancies", count: 0 }, { label: "Public-sector innovation", count: 0 },
+                { label: "Series-A SaaS teams", count: 0 }, { label: "Family-office ventures", count: 0 },
+                { label: "Cross-border e-commerce", count: 0 }, { label: "DTC brand houses", count: 0 },
+                { label: "Regulated data-cos", count: 0 }, { label: "ClimateTech pilots", count: 0 },
+              ]).map((row) => (
+                <div key={row.label}
+                     className="hard-border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] transition-colors px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#C79A3B] shrink-0"/>
+                    <span className="text-sm text-neutral-200 leading-tight truncate">{row.label}</span>
+                  </div>
+                  {row.count > 0 && (
+                    <span className="text-[10px] font-mono text-[#C79A3B] tabular-nums shrink-0">×{row.count}</span>
+                  )}
                 </div>
               ))}
             </div>

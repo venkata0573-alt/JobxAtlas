@@ -1,15 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { X, Lock, CheckCircle } from "@phosphor-icons/react";
+import { X, Lock, CheckCircle, BookmarkSimple } from "@phosphor-icons/react";
 
 export default function SkillLanding() {
   const { slug } = useParams();
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [email, setEmail] = useState("");
   const [signedUp, setSignedUp] = useState(false);
   const [selected, setSelected] = useState(null);  // curated talent open in modal
+  const [shortlisting, setShortlisting] = useState(false);
+  const [shortlisted, setShortlisted] = useState(new Set());
 
   const isCombo = slug && slug.includes("-") && ["london","new-york","san-francisco","berlin","singapore","dubai","sydney","toronto","remote"]
     .some(c => slug.endsWith("-" + c));
@@ -17,7 +21,46 @@ export default function SkillLanding() {
   useEffect(() => {
     const endpoint = isCombo ? `/seo/hire-city/${slug}` : `/seo/hire/${slug}`;
     api.get(endpoint).then(r => setData(r.data)).catch(() => setData({ notFound: true }));
-  }, [slug, isCombo]);
+    // Load existing shortlist (employer only) so we can render toggled state
+    if (user && user.role === "employer") {
+      api.get("/shortlist").then(r => {
+        setShortlisted(new Set((r.data.items || []).map(i => i.talent_id)));
+      }).catch(() => {});
+    }
+  }, [slug, isCombo, user]);
+
+  const toggleShortlist = async (t) => {
+    if (!user) {
+      toast.info("Sign in as an employer to save talent to your shortlist");
+      return;
+    }
+    if (user.role !== "employer") {
+      toast.error("Only employer accounts can shortlist talent");
+      return;
+    }
+    setShortlisting(true);
+    try {
+      if (shortlisted.has(t.id)) {
+        await api.delete(`/shortlist/${t.id}`);
+        const next = new Set(shortlisted); next.delete(t.id); setShortlisted(next);
+        toast.success(`${t.name} removed from shortlist`);
+      } else {
+        await api.post("/shortlist", {
+          talent_id: t.id,
+          talent_name: t.name,
+          headline: t.profile?.headline || "",
+          location: t.profile?.location || "",
+          hourly_rate: t.profile?.hourly_rate || 0,
+          skills: t.profile?.skills || [],
+          context: slug,
+          is_curated: !!t.curated,
+        });
+        const next = new Set(shortlisted); next.add(t.id); setShortlisted(next);
+        toast.success(`${t.name} added to your shortlist`);
+      }
+    } catch (e) { toast.error(formatErr(e)); }
+    finally { setShortlisting(false); }
+  };
 
   const signup = async (e, kind) => {
     e.preventDefault();
@@ -170,10 +213,19 @@ export default function SkillLanding() {
                 Buy hours to unlock →
               </Link>
               <button
+                onClick={() => toggleShortlist(selected)}
+                disabled={shortlisting}
+                className={`text-sm flex-1 inline-flex items-center justify-center gap-2 hard-border px-4 py-3 font-semibold transition-colors
+                  ${shortlisted.has(selected.id) ? "bg-[#0B1B2B] text-white border-[#0B1B2B]" : "bg-white text-[#0B1B2B] hover:bg-[#FAF9F6]"}`}
+                data-testid="shortlist-btn">
+                <BookmarkSimple size={16} weight={shortlisted.has(selected.id) ? "fill" : "regular"}/>
+                {shortlisted.has(selected.id) ? "Shortlisted ✓" : "Shortlist for future hire"}
+              </button>
+              <button
                 onClick={() => setSelected(null)}
-                className="btn-outline text-sm flex-1"
+                className="btn-outline text-sm sm:flex-none"
                 data-testid="continue-browsing-btn">
-                Continue browsing
+                Close
               </button>
             </div>
           </div>

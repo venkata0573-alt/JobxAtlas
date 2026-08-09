@@ -1574,14 +1574,26 @@ class RateNudgeScanIn(BaseModel):
     dry_run: bool = False
 
 
-async def _scan_and_record_rate_nudges() -> Dict[str, Any]:
+async def _scan_and_record_rate_nudges(request: Optional[Request] = None) -> Dict[str, Any]:
     """Iterate all talents, refresh their AI rate suggestion, and log a nudge
     doc whenever the current rate drifts more than ±15% from the AI mid.
-    Latest nudge per talent is kept in `rate_nudges` (upsert)."""
+    Also fires an outbound email via Resend when configured."""
     from ai_service import suggest_hourly_rate
+    from mailer import send_email, rate_nudge_html
+    # Build the dashboard link for the CTA in the email
+    if request is not None:
+        fwd_host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+        fwd_proto = request.headers.get("x-forwarded-proto", "https")
+        origin = os.environ.get("PUBLIC_SITE_URL") or (f"{fwd_proto}://{fwd_host}" if fwd_host else "")
+    else:
+        origin = os.environ.get("PUBLIC_SITE_URL") or ""
+    dashboard_url = f"{origin.rstrip('/')}/talent" if origin else "/talent"
+
     talents = await db.users.find({"role": "talent"}, {"_id": 0}).to_list(2000)
     checked = 0
     nudged = 0
+    emailed = 0
+    email_failures = 0
     for t in talents:
         p = t.get("profile") or {}
         current = float(p.get("hourly_rate") or 0)
@@ -1600,6 +1612,7 @@ async def _scan_and_record_rate_nudges() -> Dict[str, Any]:
         drift_pct = ((mid - current) / current) * 100.0
         if abs(drift_pct) < RATE_DRIFT_THRESHOLD_PCT:
             continue
+        direction = "raise" if drift_pct > 0 else "lower"
         nudge_doc = {
             "id": new_id(),
             "talent_id": t["id"],
@@ -1610,25 +1623,51 @@ async def _scan_and_record_rate_nudges() -> Dict[str, Any]:
             "suggested_mid": int(mid),
             "suggested_high": int(sug.get("high") or 0),
             "drift_pct": round(drift_pct, 1),
-            "direction": "raise" if drift_pct > 0 else "lower",
+            "direction": direction,
             "rationale": (sug.get("rationale") or "")[:280],
             "delivered_via": "in_app",
+            "email_status": "pending",
+            "email_id": None,
             "created_at": now().isoformat(),
         }
+
+        # Send the outbound email (best-effort, non-blocking-per-talent)
+        html = rate_nudge_html(
+            talent_name=t.get("name") or "",
+            current_rate=current, mid=int(mid),
+            low=int(sug.get("low") or 0), high=int(sug.get("high") or 0),
+            drift_pct=drift_pct, direction=direction,
+            dashboard_url=dashboard_url,
+            rationale=(sug.get("rationale") or "")[:200],
+        )
+        subject = (f"Your rate looks {abs(round(drift_pct))}% "
+                   f"{'below' if direction == 'raise' else 'above'} market — Job Atlas")
+        mail_result = await send_email(to=t.get("email"), subject=subject, html=html)
+        if mail_result.get("sent"):
+            emailed += 1
+            nudge_doc["delivered_via"] = "email+in_app"
+            nudge_doc["email_status"] = "sent"
+            nudge_doc["email_id"] = mail_result.get("id")
+        else:
+            email_failures += 1
+            nudge_doc["email_status"] = mail_result.get("reason", "failed")
+
         await db.rate_nudges.update_one(
             {"talent_id": t["id"]},
             {"$set": nudge_doc}, upsert=True,
         )
         nudged += 1
-    return {"checked": checked, "nudged": nudged, "threshold_pct": RATE_DRIFT_THRESHOLD_PCT,
+    return {"checked": checked, "nudged": nudged, "emailed": emailed,
+            "email_failures": email_failures,
+            "threshold_pct": RATE_DRIFT_THRESHOLD_PCT,
             "scanned_at": now().isoformat()}
 
 
 @api.post("/admin/rate-nudges/scan")
-async def admin_rate_nudge_scan(user: dict = Depends(get_current_user)):
+async def admin_rate_nudge_scan(request: Request, user: dict = Depends(get_current_user)):
     if user.get("role") != "admin":
         raise HTTPException(403, "Admins only")
-    return await _scan_and_record_rate_nudges()
+    return await _scan_and_record_rate_nudges(request=request)
 
 
 @api.get("/talent/me/rate-nudge")
