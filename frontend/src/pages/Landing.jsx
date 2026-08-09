@@ -108,26 +108,55 @@ export default function Landing() {
             ))}
           </div>
 
-          {/* Employer Trust Bar — anonymised buyer categories */}
-          <div className="mt-16 hard-border bg-[#0B1B2B] text-white p-8 md:p-10">
-            <p className="overline text-[#C79A3B] mb-4">TRUSTED BY BUYERS OF EVERY SHAPE</p>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-4 text-sm font-mono text-neutral-300">
-              <span>Series-B fintechs</span>
-              <span>PE-backed platforms</span>
-              <span>Health-tech scale-ups</span>
-              <span>YC-backed marketplaces</span>
-              <span>Global consultancies</span>
-              <span>Public-sector innovation teams</span>
-              <span>Series-A SaaS teams</span>
-              <span>Family-office ventures</span>
-              <span>Cross-border e-commerce</span>
-              <span>DTC brand houses</span>
-              <span>Regulated data-cos</span>
-              <span>ClimateTech pilots</span>
+          {/* Employer Trust Bar — anonymised buyer categories, premium layout */}
+          <div className="mt-16 relative overflow-hidden hard-border bg-gradient-to-br from-[#0B1B2B] via-[#122740] to-[#0B1B2B] text-white p-8 md:p-12">
+            {/* Decorative corner accent */}
+            <div className="absolute top-0 right-0 w-40 h-40 bg-[#C79A3B] opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"/>
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-[#6B21A8] opacity-10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"/>
+
+            <div className="relative flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-8">
+              <div>
+                <p className="overline text-[#C79A3B] mb-2">TRUSTED BY BUYERS OF EVERY SHAPE</p>
+                <h3 className="font-display font-extrabold text-2xl md:text-3xl tracking-tight leading-tight max-w-xl">
+                  From Series-A founders to public-sector innovation teams.
+                </h3>
+              </div>
+              <div className="hidden md:flex items-baseline gap-6 text-sm font-mono text-neutral-400">
+                <div className="text-right">
+                  <p className="font-display font-black text-3xl text-white leading-none">42+</p>
+                  <p className="text-xs mt-1 tracking-widest uppercase">Active buyers</p>
+                </div>
+                <div className="w-px h-10 bg-white/20"/>
+                <div className="text-right">
+                  <p className="font-display font-black text-3xl text-white leading-none">14</p>
+                  <p className="text-xs mt-1 tracking-widest uppercase">Industries</p>
+                </div>
+              </div>
             </div>
-            <p className="text-[10px] font-mono text-neutral-500 mt-6 uppercase tracking-widest">
-              Company names withheld · Non-disclosure honoured on every engagement
-            </p>
+
+            <div className="relative grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {[
+                "Series-B fintechs", "PE-backed platforms", "Health-tech scale-ups",
+                "YC-backed marketplaces", "Global consultancies", "Public-sector innovation",
+                "Series-A SaaS teams", "Family-office ventures", "Cross-border e-commerce",
+                "DTC brand houses", "Regulated data-cos", "ClimateTech pilots",
+              ].map((label) => (
+                <div key={label}
+                     className="hard-border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] transition-colors px-4 py-3 flex items-center gap-3">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#C79A3B] shrink-0"/>
+                  <span className="text-sm text-neutral-200 leading-tight">{label}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="relative mt-8 pt-6 border-t border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <p className="text-[11px] font-mono text-neutral-500 uppercase tracking-[0.2em]">
+                Company names withheld · Non-disclosure honoured on every engagement
+              </p>
+              <Link to="/register" className="text-xs font-mono text-[#C79A3B] hover:text-white transition-colors">
+                Add your company →
+              </Link>
+            </div>
           </div>
         </div>
       </section>
