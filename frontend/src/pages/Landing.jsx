@@ -23,9 +23,9 @@ const Feature = ({ Icon, title, desc }) => (
 const TRUST_LOGOS = ["Jira", "Asana", "Confluence", "Monday", "Wrike", "ServiceNow", "SAP", "MS Dynamics"];
 
 const TESTIMONIALS = [
-  { name: "Amelia R.",  role: "COO, SaaS Scale-up",  quote: "We assembled a five-person product squad in an afternoon. Signed contracts, hours logged inside Jira, done." },
-  { name: "Devon P.",   role: "Independent Engineer", quote: "AI suggested my rate, and it stuck. I now work across three companies without a single email chain about invoices." },
-  { name: "Sana M.",    role: "Head of Design",      quote: "Every deliverable comes with a moderated review. The exclusivity clause finally made freelance feel like a real profession." },
+  { name: "Devon P.",   role: "Senior React Engineer · London",        rate: "$95/hr", quote: "AI suggested my rate, and it stuck. I now work across three companies without a single email chain about invoices." },
+  { name: "Priya S.",   role: "Product Designer · Berlin",             rate: "$78/hr", quote: "Every deliverable I ship gets moderated review, and the payout hits my bank the day it's approved. Freelance finally feels like a real profession." },
+  { name: "Marcus O.",  role: "Data Scientist · Remote (Toronto)",     rate: "$110/hr", quote: "I quit chasing invoices. Job Atlas handles the contract, the hours, the exclusivity — I just do the work I signed up for." },
 ];
 
 const FAQ = [
@@ -78,11 +78,37 @@ export default function Landing() {
             <span className="inline-flex items-center gap-2"><Star weight="fill" color="#FF0A0A" size={14}/> Vetted global talent pool</span>
             <span className="inline-flex items-center gap-2"><ShieldCheck weight="fill" color="#FF0A0A" size={14}/> Signed dual-party contracts</span>
             <span className="inline-flex items-center gap-2"><Certificate weight="fill" color="#FF0A0A" size={14}/> 8% platform fee — half of the market</span>
+            <span className="inline-flex items-center gap-2"><ChartLineUp weight="fill" color="#C79A3B" size={14}/> Same-day payouts on deliverable approval</span>
           </div>
         </div>
       </section>
 
       <Marquee />
+
+      {/* Vetted talent voices — under hero for social proof */}
+      <section className="bg-white border-b border-black/10">
+        <div className="max-w-7xl mx-auto px-6 md:px-12 py-20">
+          <p className="overline text-[#C79A3B] mb-3">VETTED TALENT · IN THEIR OWN WORDS</p>
+          <h2 className="font-display font-extrabold text-3xl md:text-4xl tracking-tight max-w-2xl mb-12">
+            The freelancers you&apos;re one signature away from hiring.
+          </h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            {TESTIMONIALS.map((t, i) => (
+              <blockquote key={i} className={`hard-border bg-[#FAF9F6] p-8 shadow-brutal ${i === 1 ? "md:-translate-y-3" : ""}`}>
+                <Quotes size={26} weight="fill" color="#C79A3B"/>
+                <p className="mt-4 leading-relaxed text-[#1a1a1a]">{t.quote}</p>
+                <footer className="mt-6 border-t border-black/10 pt-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-display font-extrabold tracking-tight">{t.name}</p>
+                    <p className="overline text-neutral-500">{t.role}</p>
+                  </div>
+                  <p className="font-mono text-xs text-[#0B1B2B] font-bold">{t.rate}</p>
+                </footer>
+              </blockquote>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* Trust bar — integrations */}
       <section className="border-b border-black/10 bg-white py-10">
@@ -121,7 +147,7 @@ export default function Landing() {
           <div className="grid md:grid-cols-3 gap-6">
             <Feature Icon={Sparkle}      title="1. AI-priced skills"   desc="Talent adds skills & years of experience. Claude Sonnet 5 suggests a market-aligned hourly rate range in seconds."/>
             <Feature Icon={Clock}        title="2. Buy hours in bulk"  desc="Employers purchase hour packages and allocate them freely across a shortlist. Cheaper than hiring one full-time."/>
-            <Feature Icon={Handshake}    title="3. Sign & work"        desc="Both parties sign a typed-signature contract. Then the meter starts — inside the platform only, tracked in your tools."/>
+            <Feature Icon={Handshake}    title="3. Sign & get paid instantly"        desc="Both parties sign a typed-signature contract. When the employer accepts your deliverable, the payout is triggered the same day — no chasing invoices."/>
           </div>
         </div>
       </section>
@@ -164,28 +190,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="bg-[#F9F9F9] border-t border-black/10">
-        <div className="max-w-7xl mx-auto px-6 md:px-12 py-24">
-          <p className="overline text-[#002FA7] mb-3">LOVED BY BOTH SIDES</p>
-          <h2 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight max-w-2xl mb-16">
-            The marketplace freelancers and CFOs finally agree on.
-          </h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            {TESTIMONIALS.map((t, i) => (
-              <blockquote key={i} className={`hard-border bg-white p-8 shadow-brutal ${i === 1 ? "md:-translate-y-3" : ""}`}>
-                <Quotes size={28} weight="fill" color="#002FA7"/>
-                <p className="mt-4 leading-relaxed">{t.quote}</p>
-                <footer className="mt-6 border-t border-black/10 pt-4">
-                  <p className="font-display font-extrabold tracking-tight">{t.name}</p>
-                  <p className="overline text-neutral-500">{t.role}</p>
-                </footer>
-              </blockquote>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* FAQ */}
       <section className="max-w-4xl mx-auto px-6 md:px-12 py-24" itemScope itemType="https://schema.org/FAQPage">
         <p className="overline text-[#002FA7] mb-3">FREQUENTLY ASKED</p>
@@ -202,28 +206,6 @@ export default function Landing() {
               </div>
             </details>
           ))}
-        </div>
-      </section>
-
-      <section className="border-t border-black/10 bg-[#FAF9F6]">
-        <div className="max-w-7xl mx-auto px-6 md:px-12 py-14">
-          <p className="overline text-[#C79A3B] mb-6 text-center">SIGNED &amp; ENDORSED BY DENKOIT SOFTECH LEADERSHIP</p>
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              { name: "Sowmya D.",     role: "Chief Executive Officer" },
-              { name: "Rajesh K.",     role: "Chief Technology Officer" },
-              { name: "Vikram M.",     role: "Head of Client Success" },
-            ].map(s => (
-              <div key={s.name} className="hard-border bg-white p-6 text-center">
-                <p className="font-signature text-4xl text-[#0B1B2B] leading-tight">{s.name}</p>
-                <div className="w-16 h-px bg-[#C79A3B] mx-auto my-3"/>
-                <p className="text-xs font-mono text-neutral-500 uppercase tracking-widest">{s.role}</p>
-              </div>
-            ))}
-          </div>
-          <p className="text-center text-xs font-mono text-neutral-500 mt-8">
-            Job Atlas is operated with the same standards of governance that define Job Atlas&apos;s enterprise practice.
-          </p>
         </div>
       </section>
 

@@ -1,59 +1,44 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Job Atlas">
   <defs>
-    <linearGradient id="ja-star" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#F0C260"/>
-      <stop offset="55%"  stop-color="#C79A3B"/>
-      <stop offset="100%" stop-color="#8A6510"/>
-    </linearGradient>
-    <linearGradient id="ja-jletter" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#12293F"/>
+    <linearGradient id="ja-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#122740"/>
       <stop offset="100%" stop-color="#0B1B2B"/>
     </linearGradient>
-    <filter id="ja-shadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.22"/>
-    </filter>
+    <linearGradient id="ja-j" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#F0C260"/>
+      <stop offset="50%"  stop-color="#D8A73F"/>
+      <stop offset="100%" stop-color="#8A6510"/>
+    </linearGradient>
   </defs>
 
-  <!-- Rounded cream background (matches Job Atlas cream #FAF9F6) -->
-  <rect width="512" height="512" rx="88" ry="88" fill="#FAF9F6"/>
+  <!-- Rounded dark navy background -->
+  <rect width="512" height="512" rx="96" ry="96" fill="url(#ja-bg)"/>
 
-  <!-- Premium 5-point gold star (Geminista gold gradient with darker rim) -->
-  <g filter="url(#ja-shadow)">
-    <path d="M 256 40
-             L 322 172
-             L 466 193
-             L 361 296
-             L 386 440
-             L 256 372
-             L 126 440
-             L 151 296
-             L 46  193
-             L 190 172 Z"
-          fill="url(#ja-star)"
-          stroke="#5F4408"
-          stroke-width="5"
-          stroke-linejoin="round"/>
-    <!-- Subtle inner highlight facet (top wedge) -->
-    <path d="M 256 40 L 322 172 L 256 188 L 190 172 Z"
-          fill="#F7D98E" opacity="0.55"/>
-  </g>
+  <!-- Elegant serif "J" wordmark. Drawn as a single filled path so it
+       renders identically at any size (16px favicon → 512px app icon). -->
+  <path d="
+    M 128 110
+    L 384 110
+    Q 400 110 400 128
+    L 400 152
+    Q 400 170 384 170
+    L 306 170
+    L 306 336
+    Q 306 402 250 402
+    Q 176 402 138 342
+    Q 132 332 142 326
+    L 194 296
+    Q 204 290 210 300
+    Q 226 328 250 328
+    Q 258 328 258 320
+    L 258 170
+    L 128 170
+    Q 112 170 112 152
+    L 112 128
+    Q 112 110 128 110
+    Z"
+    fill="url(#ja-j)"/>
 
-  <!-- Serif "J" centered inside the star, navy ink -->
-  <g stroke="url(#ja-jletter)"
-     stroke-linecap="round"
-     stroke-linejoin="round"
-     fill="none">
-    <!-- Top serif bar -->
-    <line x1="208" y1="180" x2="316" y2="180" stroke-width="34"/>
-    <!-- Vertical stem + curved hook -->
-    <path d="M 274 180 L 274 300 Q 274 344 232 344 Q 188 344 188 302"
-          stroke-width="34"/>
-  </g>
-
-  <!-- Tiny sparkle detailing (top-right of star) -->
-  <g fill="#FFFFFF" opacity="0.9">
-    <circle cx="360" cy="122" r="4"/>
-    <circle cx="380" cy="142" r="2.5"/>
-    <circle cx="345" cy="146" r="2"/>
-  </g>
+  <!-- Subtle drop-shadow accent line under the letter (adds premium depth) -->
+  <path d="M 96 440 L 416 440" stroke="#C79A3B" stroke-width="2" opacity="0.4"/>
 </svg>

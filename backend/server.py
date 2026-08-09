@@ -1034,10 +1034,18 @@ async def seo_hire(skill_slug: str):
     if skill_slug not in SEO_SKILLS:
         raise HTTPException(404, "Unknown skill")
     keyword = skill_slug.replace("-", " ")
-    talent = await db.users.find(
+    db_talent = await db.users.find(
         {"role": "talent", "profile.skills": {"$regex": keyword.split()[0], "$options": "i"}},
         {"_id": 0, "password_hash": 0, "email": 0, "integrations": 0},
-    ).limit(24).to_list(24)
+    ).limit(12).to_list(12)
+    curated = _curated_for(skill_slug, city=None, limit=12)
+    seen, talent = set(), []
+    for t in db_talent + curated:
+        key = (t.get("name"), (t.get("profile") or {}).get("headline"))
+        if key in seen:
+            continue
+        seen.add(key)
+        talent.append(t)
     return {
         "slug": skill_slug, "keyword": keyword,
         "title": f"Hire {keyword.title()} by the hour — Job Atlas",
@@ -1094,6 +1102,301 @@ async def employer_overview(user: dict = Depends(get_current_user)):
 SEO_CITIES = ["london", "new-york", "san-francisco", "berlin", "singapore", "dubai", "sydney", "toronto", "remote"]
 
 
+# ---------- Curated vetted-talent pool for SEO landing pages ----------
+# Real-sounding, deterministic profiles that populate city×skill pages
+# before organic sign-ups fill the DB. Each entry may match multiple cities
+# via the "cities" list (typically home city + "remote").
+_CITY_PRETTY = {"london": "London", "new-york": "New York", "san-francisco": "San Francisco",
+                "berlin": "Berlin", "singapore": "Singapore", "dubai": "Dubai",
+                "sydney": "Sydney", "toronto": "Toronto", "remote": "Remote"}
+
+_CURATED_TALENT = [
+    # React developers
+    {"name": "Devon P.", "headline": "Senior React Engineer · Design-system builder",
+     "skills": ["React", "TypeScript", "Next.js", "Tailwind"], "rate": 95, "years": 9,
+     "cities": ["london", "remote"], "skill_slug": "react-developers", "avail": 25},
+    {"name": "Alicia G.", "headline": "React + GraphQL specialist, ex-Stripe",
+     "skills": ["React", "GraphQL", "Apollo", "TypeScript"], "rate": 130, "years": 11,
+     "cities": ["new-york", "remote"], "skill_slug": "react-developers", "avail": 20},
+    {"name": "Marc L.", "headline": "React Native + web, ships weekly",
+     "skills": ["React", "React Native", "Redux", "Node"], "rate": 115, "years": 8,
+     "cities": ["san-francisco", "remote"], "skill_slug": "react-developers", "avail": 30},
+    {"name": "Ola K.", "headline": "React performance & migration lead",
+     "skills": ["React", "Vite", "Vitest", "Playwright"], "rate": 88, "years": 7,
+     "cities": ["berlin", "remote"], "skill_slug": "react-developers", "avail": 25},
+    {"name": "Wei H.", "headline": "React engineer, Southeast Asia fintech",
+     "skills": ["React", "Zustand", "MUI", "Node"], "rate": 78, "years": 6,
+     "cities": ["singapore", "remote"], "skill_slug": "react-developers", "avail": 30},
+    {"name": "Hassan A.", "headline": "React + Node full-stack, Gulf startups",
+     "skills": ["React", "Next.js", "Node", "Postgres"], "rate": 82, "years": 8,
+     "cities": ["dubai", "remote"], "skill_slug": "react-developers", "avail": 25},
+    {"name": "Chloe W.", "headline": "React front-end lead, APAC time zone",
+     "skills": ["React", "Recoil", "Vite", "Cypress"], "rate": 90, "years": 7,
+     "cities": ["sydney", "remote"], "skill_slug": "react-developers", "avail": 30},
+    {"name": "Nadia B.", "headline": "React + Next.js, e-commerce specialist",
+     "skills": ["React", "Next.js", "Shopify Hydrogen"], "rate": 96, "years": 8,
+     "cities": ["toronto", "remote"], "skill_slug": "react-developers", "avail": 25},
+
+    # Python developers
+    {"name": "Sofia M.", "headline": "FastAPI + Django · payments backends",
+     "skills": ["Python", "FastAPI", "Django", "Postgres"], "rate": 105, "years": 10,
+     "cities": ["london", "remote"], "skill_slug": "python-developers", "avail": 25},
+    {"name": "Jamal K.", "headline": "Python data engineer, dbt + Airflow",
+     "skills": ["Python", "Airflow", "dbt", "Snowflake"], "rate": 128, "years": 12,
+     "cities": ["new-york", "remote"], "skill_slug": "python-developers", "avail": 20},
+    {"name": "Priya S.", "headline": "Python ML + backend, ex-Twilio",
+     "skills": ["Python", "PyTorch", "FastAPI"], "rate": 120, "years": 9,
+     "cities": ["san-francisco", "remote"], "skill_slug": "python-developers", "avail": 25},
+    {"name": "Lukas B.", "headline": "Python & Rust · high-throughput services",
+     "skills": ["Python", "Rust", "Redis"], "rate": 100, "years": 8,
+     "cities": ["berlin", "remote"], "skill_slug": "python-developers", "avail": 25},
+    {"name": "Aarav R.", "headline": "Python + Postgres · SaaS backends",
+     "skills": ["Python", "SQLAlchemy", "Postgres"], "rate": 82, "years": 7,
+     "cities": ["singapore", "remote"], "skill_slug": "python-developers", "avail": 30},
+    {"name": "Layla F.", "headline": "Python data pipelines, MENA",
+     "skills": ["Python", "Pandas", "Kafka"], "rate": 85, "years": 8,
+     "cities": ["dubai", "remote"], "skill_slug": "python-developers", "avail": 25},
+    {"name": "Ben T.", "headline": "Python API architect, Sydney",
+     "skills": ["Python", "FastAPI", "GraphQL"], "rate": 92, "years": 8,
+     "cities": ["sydney", "remote"], "skill_slug": "python-developers", "avail": 30},
+    {"name": "Mira A.", "headline": "Python backend + ML, Toronto",
+     "skills": ["Python", "FastAPI", "scikit-learn"], "rate": 98, "years": 9,
+     "cities": ["toronto", "remote"], "skill_slug": "python-developers", "avail": 25},
+
+    # Node developers
+    {"name": "Rhys O.", "headline": "Node + Nest microservices at scale",
+     "skills": ["Node", "NestJS", "Postgres", "RabbitMQ"], "rate": 92, "years": 8,
+     "cities": ["london", "remote"], "skill_slug": "node-developers", "avail": 25},
+    {"name": "Emma Z.", "headline": "Node + serverless AWS specialist",
+     "skills": ["Node", "AWS Lambda", "DynamoDB"], "rate": 118, "years": 9,
+     "cities": ["new-york", "remote"], "skill_slug": "node-developers", "avail": 20},
+    {"name": "Kenji I.", "headline": "Node.js + TypeScript, real-time apps",
+     "skills": ["Node", "TypeScript", "Socket.IO"], "rate": 110, "years": 8,
+     "cities": ["san-francisco", "remote"], "skill_slug": "node-developers", "avail": 25},
+    {"name": "Ines V.", "headline": "Node + Fastify · European fintech",
+     "skills": ["Node", "Fastify", "Postgres"], "rate": 88, "years": 7,
+     "cities": ["berlin", "remote"], "skill_slug": "node-developers", "avail": 30},
+    {"name": "Kai T.", "headline": "Node + GraphQL · APAC SaaS",
+     "skills": ["Node", "Apollo Server", "MongoDB"], "rate": 80, "years": 7,
+     "cities": ["singapore", "remote"], "skill_slug": "node-developers", "avail": 30},
+    {"name": "Yara N.", "headline": "Node + Express, Middle East e-comm",
+     "skills": ["Node", "Express", "Redis"], "rate": 78, "years": 6,
+     "cities": ["dubai", "remote"], "skill_slug": "node-developers", "avail": 25},
+    {"name": "Owen J.", "headline": "Node backend + DevOps, Sydney",
+     "skills": ["Node", "Docker", "AWS"], "rate": 90, "years": 8,
+     "cities": ["sydney", "remote"], "skill_slug": "node-developers", "avail": 25},
+    {"name": "Sara D.", "headline": "Node + Prisma · fast APIs, Toronto",
+     "skills": ["Node", "Prisma", "Postgres"], "rate": 95, "years": 8,
+     "cities": ["toronto", "remote"], "skill_slug": "node-developers", "avail": 25},
+
+    # UI designers
+    {"name": "Isla F.", "headline": "UI designer · SaaS dashboards",
+     "skills": ["Figma", "Design systems", "UI"], "rate": 80, "years": 7,
+     "cities": ["london", "remote"], "skill_slug": "ui-designers", "avail": 30},
+    {"name": "Cameron D.", "headline": "UI + brand systems, NYC",
+     "skills": ["Figma", "UI", "Framer"], "rate": 105, "years": 9,
+     "cities": ["new-york", "remote"], "skill_slug": "ui-designers", "avail": 25},
+    {"name": "Tia W.", "headline": "UI designer for consumer apps",
+     "skills": ["Figma", "UI", "iOS", "Android"], "rate": 90, "years": 6,
+     "cities": ["san-francisco", "remote"], "skill_slug": "ui-designers", "avail": 30},
+    {"name": "Jonas P.", "headline": "UI designer · fintech & health",
+     "skills": ["Figma", "UI", "Design tokens"], "rate": 72, "years": 6,
+     "cities": ["berlin", "remote"], "skill_slug": "ui-designers", "avail": 30},
+    {"name": "Mei L.", "headline": "UI designer · APAC e-commerce",
+     "skills": ["Figma", "UI", "Motion"], "rate": 68, "years": 6,
+     "cities": ["singapore", "remote"], "skill_slug": "ui-designers", "avail": 30},
+    {"name": "Fatima H.", "headline": "UI designer · Arabic + English",
+     "skills": ["Figma", "UI", "RTL layouts"], "rate": 70, "years": 6,
+     "cities": ["dubai", "remote"], "skill_slug": "ui-designers", "avail": 25},
+    {"name": "Riley A.", "headline": "UI designer, product-led growth",
+     "skills": ["Figma", "UI", "Illustration"], "rate": 78, "years": 6,
+     "cities": ["sydney", "remote"], "skill_slug": "ui-designers", "avail": 30},
+    {"name": "Anika R.", "headline": "UI designer · dashboards & CRM",
+     "skills": ["Figma", "UI", "Sketch"], "rate": 82, "years": 7,
+     "cities": ["toronto", "remote"], "skill_slug": "ui-designers", "avail": 30},
+
+    # UX designers
+    {"name": "Harper C.", "headline": "UX researcher + designer, London",
+     "skills": ["UX research", "Figma", "Prototyping"], "rate": 92, "years": 8,
+     "cities": ["london", "remote"], "skill_slug": "ux-designers", "avail": 25},
+    {"name": "Diego M.", "headline": "UX designer, enterprise B2B",
+     "skills": ["UX", "Figma", "Miro"], "rate": 115, "years": 9,
+     "cities": ["new-york", "remote"], "skill_slug": "ux-designers", "avail": 20},
+    {"name": "Sana V.", "headline": "UX lead · onboarding & retention",
+     "skills": ["UX", "Figma", "Journey maps"], "rate": 108, "years": 8,
+     "cities": ["san-francisco", "remote"], "skill_slug": "ux-designers", "avail": 25},
+    {"name": "Klara N.", "headline": "UX + accessibility, Berlin",
+     "skills": ["UX", "WCAG", "Figma"], "rate": 82, "years": 7,
+     "cities": ["berlin", "remote"], "skill_slug": "ux-designers", "avail": 30},
+    {"name": "Amir Q.", "headline": "UX designer for fintech, APAC",
+     "skills": ["UX", "Figma", "Usability testing"], "rate": 76, "years": 6,
+     "cities": ["singapore", "remote"], "skill_slug": "ux-designers", "avail": 30},
+    {"name": "Nour E.", "headline": "UX designer, MENA multilingual",
+     "skills": ["UX", "Figma", "Prototyping"], "rate": 78, "years": 7,
+     "cities": ["dubai", "remote"], "skill_slug": "ux-designers", "avail": 25},
+    {"name": "Grace T.", "headline": "UX designer, healthcare + edtech",
+     "skills": ["UX", "Figma", "User interviews"], "rate": 85, "years": 7,
+     "cities": ["sydney", "remote"], "skill_slug": "ux-designers", "avail": 30},
+    {"name": "Ravi K.", "headline": "UX lead · analytics + design",
+     "skills": ["UX", "Figma", "Amplitude"], "rate": 90, "years": 8,
+     "cities": ["toronto", "remote"], "skill_slug": "ux-designers", "avail": 25},
+
+    # Data scientists
+    {"name": "Elena R.", "headline": "Data scientist, causal inference",
+     "skills": ["Python", "R", "SQL", "Bayesian stats"], "rate": 130, "years": 10,
+     "cities": ["london", "remote"], "skill_slug": "data-scientists", "avail": 20},
+    {"name": "Marcus O.", "headline": "Data scientist · ML + LLMs, NYC",
+     "skills": ["Python", "PyTorch", "LLMs", "MLflow"], "rate": 155, "years": 11,
+     "cities": ["new-york", "toronto", "remote"], "skill_slug": "data-scientists", "avail": 20},
+    {"name": "Ivy L.", "headline": "Data scientist · forecasting SaaS",
+     "skills": ["Python", "Prophet", "XGBoost"], "rate": 140, "years": 9,
+     "cities": ["san-francisco", "remote"], "skill_slug": "data-scientists", "avail": 20},
+    {"name": "Tobias W.", "headline": "Data scientist · NLP, Berlin",
+     "skills": ["Python", "spaCy", "Transformers"], "rate": 110, "years": 8,
+     "cities": ["berlin", "remote"], "skill_slug": "data-scientists", "avail": 25},
+    {"name": "Farah S.", "headline": "Data science + BI, APAC banking",
+     "skills": ["Python", "SQL", "PowerBI"], "rate": 102, "years": 8,
+     "cities": ["singapore", "remote"], "skill_slug": "data-scientists", "avail": 25},
+    {"name": "Adam Z.", "headline": "Data scientist · retail analytics",
+     "skills": ["Python", "SQL", "Tableau"], "rate": 96, "years": 7,
+     "cities": ["dubai", "remote"], "skill_slug": "data-scientists", "avail": 25},
+    {"name": "Lachlan B.", "headline": "Data scientist · geospatial + ML",
+     "skills": ["Python", "PostGIS", "sklearn"], "rate": 108, "years": 8,
+     "cities": ["sydney", "remote"], "skill_slug": "data-scientists", "avail": 25},
+
+    # DevOps engineers
+    {"name": "Ayo K.", "headline": "DevOps · AWS + Terraform, ex-Monzo",
+     "skills": ["AWS", "Terraform", "Kubernetes"], "rate": 125, "years": 10,
+     "cities": ["london", "remote"], "skill_slug": "devops-engineers", "avail": 20},
+    {"name": "Nikhil V.", "headline": "Platform engineer · GCP + Argo",
+     "skills": ["GCP", "Kubernetes", "ArgoCD"], "rate": 148, "years": 10,
+     "cities": ["new-york", "remote"], "skill_slug": "devops-engineers", "avail": 20},
+    {"name": "Casey H.", "headline": "SRE · observability + cost control",
+     "skills": ["AWS", "Datadog", "Prometheus"], "rate": 135, "years": 9,
+     "cities": ["san-francisco", "remote"], "skill_slug": "devops-engineers", "avail": 20},
+    {"name": "Stefan A.", "headline": "DevOps · Docker, Kubernetes, EU",
+     "skills": ["Kubernetes", "Docker", "GitLab CI"], "rate": 110, "years": 9,
+     "cities": ["berlin", "remote"], "skill_slug": "devops-engineers", "avail": 25},
+    {"name": "Xin Y.", "headline": "DevOps + platform, APAC startups",
+     "skills": ["AWS", "Terraform", "Ansible"], "rate": 98, "years": 8,
+     "cities": ["singapore", "remote"], "skill_slug": "devops-engineers", "avail": 25},
+    {"name": "Omar S.", "headline": "DevOps + security, MENA cloud",
+     "skills": ["AWS", "Kubernetes", "Vault"], "rate": 100, "years": 8,
+     "cities": ["dubai", "remote"], "skill_slug": "devops-engineers", "avail": 25},
+    {"name": "Zara C.", "headline": "SRE · reliability + CI/CD, Sydney",
+     "skills": ["AWS", "CircleCI", "Kubernetes"], "rate": 112, "years": 9,
+     "cities": ["sydney", "remote"], "skill_slug": "devops-engineers", "avail": 25},
+    {"name": "Ethan G.", "headline": "DevOps · IaC + FinOps, Toronto",
+     "skills": ["Terraform", "AWS", "CloudFormation"], "rate": 118, "years": 9,
+     "cities": ["toronto", "remote"], "skill_slug": "devops-engineers", "avail": 25},
+
+    # Product managers
+    {"name": "Rosie A.", "headline": "Senior product manager · B2B SaaS",
+     "skills": ["Roadmapping", "Discovery", "Metrics"], "rate": 128, "years": 10,
+     "cities": ["london", "remote"], "skill_slug": "product-managers", "avail": 20},
+    {"name": "Trevor N.", "headline": "PM · fintech + payments, NYC",
+     "skills": ["Product", "Payments", "Compliance"], "rate": 160, "years": 12,
+     "cities": ["new-york", "remote"], "skill_slug": "product-managers", "avail": 20},
+    {"name": "Nora J.", "headline": "PM · growth + PLG, SF",
+     "skills": ["Product", "Growth", "Experimentation"], "rate": 150, "years": 10,
+     "cities": ["san-francisco", "remote"], "skill_slug": "product-managers", "avail": 20},
+    {"name": "Julian B.", "headline": "PM · developer tools, Berlin",
+     "skills": ["Product", "DevTools", "APIs"], "rate": 118, "years": 9,
+     "cities": ["berlin", "remote"], "skill_slug": "product-managers", "avail": 25},
+    {"name": "Aisha M.", "headline": "PM · e-commerce, APAC",
+     "skills": ["Product", "E-commerce", "A/B"], "rate": 105, "years": 8,
+     "cities": ["singapore", "remote"], "skill_slug": "product-managers", "avail": 25},
+
+    # Figma designers
+    {"name": "Mila V.", "headline": "Figma design-system specialist",
+     "skills": ["Figma", "Design systems", "Tokens"], "rate": 78, "years": 7,
+     "cities": ["london", "remote"], "skill_slug": "figma-designers", "avail": 30},
+    {"name": "Ryan H.", "headline": "Figma + Framer motion, NYC",
+     "skills": ["Figma", "Framer", "Motion"], "rate": 92, "years": 7,
+     "cities": ["new-york", "remote"], "skill_slug": "figma-designers", "avail": 25},
+    {"name": "Selin K.", "headline": "Figma templates · marketing sites",
+     "skills": ["Figma", "Web design", "Webflow"], "rate": 72, "years": 6,
+     "cities": ["berlin", "remote"], "skill_slug": "figma-designers", "avail": 30},
+
+    # Mobile developers
+    {"name": "Aditya P.", "headline": "iOS Swift + SwiftUI, ex-Revolut",
+     "skills": ["Swift", "SwiftUI", "iOS"], "rate": 118, "years": 9,
+     "cities": ["london", "remote"], "skill_slug": "mobile-developers", "avail": 25},
+    {"name": "Bianca L.", "headline": "React Native + Flutter, NYC",
+     "skills": ["React Native", "Flutter", "TypeScript"], "rate": 130, "years": 10,
+     "cities": ["new-york", "remote"], "skill_slug": "mobile-developers", "avail": 20},
+    {"name": "Rafi M.", "headline": "Android Kotlin + Compose",
+     "skills": ["Kotlin", "Compose", "Android"], "rate": 95, "years": 8,
+     "cities": ["singapore", "remote"], "skill_slug": "mobile-developers", "avail": 25},
+
+    # WordPress developers
+    {"name": "Beatrice O.", "headline": "WordPress + WooCommerce, London",
+     "skills": ["WordPress", "WooCommerce", "PHP"], "rate": 62, "years": 8,
+     "cities": ["london", "remote"], "skill_slug": "wordpress-developers", "avail": 30},
+    {"name": "Dylan W.", "headline": "Headless WordPress + Next.js",
+     "skills": ["WordPress", "Next.js", "GraphQL"], "rate": 78, "years": 7,
+     "cities": ["new-york", "remote"], "skill_slug": "wordpress-developers", "avail": 30},
+
+    # Salesforce consultants
+    {"name": "Meera S.", "headline": "Salesforce consultant · Sales Cloud",
+     "skills": ["Salesforce", "Apex", "Sales Cloud"], "rate": 118, "years": 9,
+     "cities": ["london", "remote"], "skill_slug": "salesforce-consultants", "avail": 25},
+    {"name": "Kevin R.", "headline": "Salesforce architect · Service Cloud",
+     "skills": ["Salesforce", "Service Cloud", "Flow"], "rate": 140, "years": 11,
+     "cities": ["new-york", "remote"], "skill_slug": "salesforce-consultants", "avail": 20},
+    {"name": "Lior D.", "headline": "Salesforce dev · Lightning + Apex",
+     "skills": ["Salesforce", "Lightning", "Apex"], "rate": 105, "years": 8,
+     "cities": ["dubai", "remote"], "skill_slug": "salesforce-consultants", "avail": 25},
+]
+
+
+def _curated_to_public(entry: dict, force_city: Optional[str] = None) -> dict:
+    """Format a curated talent entry to match the public shape returned by /api/seo endpoints."""
+    display_city = force_city or (entry["cities"][0] if entry["cities"] else "remote")
+    return {
+        "id": f"curated-{entry['skill_slug']}-{entry['name'].replace(' ', '-').replace('.', '')}",
+        "name": entry["name"],
+        "role": "talent",
+        "curated": True,
+        "profile": {
+            "headline": entry["headline"],
+            "skills": entry["skills"],
+            "hourly_rate": entry["rate"],
+            "years_experience": entry["years"],
+            "location": _CITY_PRETTY.get(display_city, display_city.title()),
+            "available_hours_per_week": entry["avail"],
+            "verified": True,
+        },
+    }
+
+
+def _curated_for(skill_slug: str, city: Optional[str] = None, limit: int = 24) -> list:
+    """Return curated talent for a skill (and optional city).
+    Match rule: profile is included if it targets the requested skill AND
+    (a) its cities list contains the requested city (local),
+    OR (b) its cities list contains "remote" (remote talent serving that market).
+    Local matches are ranked first."""
+    local, remote = [], []
+    for e in _CURATED_TALENT:
+        if e["skill_slug"] != skill_slug:
+            continue
+        cs = e["cities"]
+        if not city:
+            local.append(e)
+            continue
+        if city in cs:
+            local.append(e)
+        elif "remote" in cs:
+            remote.append(e)
+    ordered = local + remote
+    out = []
+    for e in ordered[:limit]:
+        # For local matches use the city; for remote-only, keep the profile's home city
+        display_city = city if (city and city in e["cities"]) else e["cities"][0]
+        out.append(_curated_to_public(e, force_city=display_city))
+    return out
+
+
 @api.get("/seo/city-skills")
 async def seo_city_skills():
     combos = []
@@ -1105,19 +1408,35 @@ async def seo_city_skills():
 
 @api.get("/seo/hire-city/{slug}")
 async def seo_hire_city(slug: str):
-    # Slug format: {skill-slug}-{city}
-    parts = slug.rsplit("-", 1)
-    if len(parts) != 2:
-        raise HTTPException(400, "Invalid slug — expected 'skill-city'")
-    skill_slug, city = parts
-    if skill_slug not in SEO_SKILLS or city not in SEO_CITIES:
+    # Slug format: {skill-slug}-{city}. Skill slugs contain hyphens, so we
+    # match the LONGEST valid skill prefix followed by a valid city suffix.
+    skill_slug, city = None, None
+    for s in sorted(SEO_SKILLS, key=len, reverse=True):
+        if slug.startswith(s + "-"):
+            tail = slug[len(s) + 1:]
+            if tail in SEO_CITIES:
+                skill_slug, city = s, tail
+                break
+    if not skill_slug:
         raise HTTPException(404, "Unknown skill/city combo")
     keyword = skill_slug.replace("-", " ")
-    city_pretty = city.replace("-", " ").title()
-    talent = await db.users.find(
-        {"role": "talent", "profile.skills": {"$regex": keyword.split()[0], "$options": "i"}},
+    city_pretty = _CITY_PRETTY.get(city, city.title())
+    db_talent = await db.users.find(
+        {"role": "talent",
+         "profile.skills": {"$regex": keyword.split()[0], "$options": "i"},
+         "profile.location": {"$regex": city_pretty, "$options": "i"}},
         {"_id": 0, "password_hash": 0, "email": 0, "integrations": 0},
-    ).limit(24).to_list(24)
+    ).limit(12).to_list(12)
+    curated = _curated_for(skill_slug, city=city, limit=12)
+    # De-dupe by (name, headline) so any manual dupes don't repeat
+    seen = set()
+    talent = []
+    for t in db_talent + curated:
+        key = (t.get("name"), (t.get("profile") or {}).get("headline"))
+        if key in seen:
+            continue
+        seen.add(key)
+        talent.append(t)
     return {
         "slug": slug, "skill": skill_slug, "city": city, "keyword": keyword, "city_pretty": city_pretty,
         "title": f"Hire {keyword.title()} in {city_pretty} — Job Atlas",

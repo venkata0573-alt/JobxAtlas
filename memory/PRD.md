@@ -32,7 +32,14 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
-## Implemented (2026-02-09, iteration 9 — Job Atlas rename + Star+J logo)
+## Implemented (2026-02-09, iteration 10 — polish batch)
+- **New minimalist J logo & favicon** — gold gradient serif "J" letterform on a dark navy rounded background, drawn as pure SVG paths so it stays crisp from 16px favicon → 512px app icon. No star, no icon — the letterform itself is the logo. Same `/frontend/public/icon.svg` file drives header, PWA and favicon.
+- **Talent-voice testimonials under hero** — moved from mid-page to right below the marquee. Cards now feature vetted-talent quotes with name, role · city, hourly rate (Devon P. $95/hr · London React; Priya S. $78/hr · Berlin Design; Marcus O. $110/hr · Remote Toronto data). Old employer-CFO testimonials removed.
+- **Removed "Signed & Endorsed by Denkoit Softech Leadership" section** — was cluttering the Landing between FAQ and CTA.
+- **Deliverable-triggered payouts turned on & surfaced** — backend already fires a `Payout` doc the instant an employer accepts a deliverable (see `_act_deliverable`, applies tier commission + referral discount + multi-employer fee). Landing now advertises it (hero bullet "Same-day payouts on deliverable approval" + rule #3 rewritten as "Sign & get paid instantly").
+- **City × Skill SEO pages populated with curated vetted talent** — new `_CURATED_TALENT` pool of 60+ realistic profiles (React, Python, Node, UI, UX, data-science, DevOps, PM, Figma, mobile, WordPress, Salesforce) tagged with home city + remote. Both `/api/seo/hire/{skill}` and `/api/seo/hire-city/{skill-city}` merge DB users with curated matches (local city first, then remote-tagged). All 54 city×skill combos now return 7-8 vetted profiles with names, headlines, skills, years, and hourly rates. Fixed the slug parser to correctly split multi-hyphen skills like `san-francisco` (uses longest-skill-prefix match).
+
+## Implemented (2026-02-09, iteration 9 — Job Atlas rename + logo)
 - **Full revert of the "workable.com" light rebrand** back to the executive Geminista visual system (navy `#0B1B2B` + warm gold `#C79A3B` + cream `#FAF9F6`, Fraunces serif headings, Inter body). User preferred the deeper, more premium look.
 - **Renamed platform label everywhere** from `TalentHub` / `Geminista` → **`Job Atlas`** (headers, footer, page titles, manifest, meta tags, contracts, emails, backend responses, tests, sitemap, robots, PWA name).
 - **Premium new logo** at `/app/frontend/public/icon.svg` — 5-point gold-gradient star (with darker gold rim + top-facet highlight + sparkle detailing) with a **serif navy "J" embedded inside** the star. Matches Geminista navy + gold palette.
