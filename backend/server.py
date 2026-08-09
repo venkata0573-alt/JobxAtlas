@@ -712,7 +712,6 @@ async def delete_work_item(item_id: str, user: dict = Depends(get_current_user))
     return {"ok": True}
 
 
-@api.get("/dashboard/metrics")
 @app.on_event("startup")
 async def startup():
     await db.users.create_index("email", unique=True)
