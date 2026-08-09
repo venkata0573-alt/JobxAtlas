@@ -205,8 +205,30 @@ export default function Landing() {
         </div>
       </section>
 
+      <section className="border-t border-black/10 bg-[#FAF9F6]">
+        <div className="max-w-7xl mx-auto px-6 md:px-12 py-14">
+          <p className="overline text-[#C79A3B] mb-6 text-center">SIGNED &amp; ENDORSED BY DENKOIT SOFTECH LEADERSHIP</p>
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              { name: "Sowmya D.",     role: "Chief Executive Officer" },
+              { name: "Rajesh K.",     role: "Chief Technology Officer" },
+              { name: "Vikram M.",     role: "Head of Client Success" },
+            ].map(s => (
+              <div key={s.name} className="hard-border bg-white p-6 text-center">
+                <p className="font-signature text-4xl text-[#0B1B2B] leading-tight">{s.name}</p>
+                <div className="w-16 h-px bg-[#C79A3B] mx-auto my-3"/>
+                <p className="text-xs font-mono text-neutral-500 uppercase tracking-widest">{s.role}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-xs font-mono text-neutral-500 mt-8">
+            TalentHub is operated with the same standards of governance that define Geminista&apos;s enterprise practice.
+          </p>
+        </div>
+      </section>
+
       {/* CTA */}
-      <section className="border-t border-black/10 bg-[#0A0A0A] text-white">
+      <section className="border-t border-black/10 bg-[#0B1B2B] text-white">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-24 flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
           <div>
             <h2 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight">Ready when you are.</h2>

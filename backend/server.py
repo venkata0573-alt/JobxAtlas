@@ -121,7 +121,9 @@ class ProfileIn(BaseModel):
     location: Optional[str] = ""
     portfolio_url: Optional[str] = ""
     avatar_url: Optional[str] = ""
-    company: Optional[str] = ""  # employer only
+    company: Optional[str] = ""
+    company_logo_url: Optional[str] = ""
+    portfolio_images: List[str] = []
     timezone: Optional[str] = "UTC"
     weekly_capacity_hours: Optional[int] = 40
 
@@ -1176,6 +1178,14 @@ async def upload_file(file: UploadFile = File(...), kind: str = Form("generic"),
     if kind == "avatar":
         avatar_url = f"/api/files/{fid}"
         await db.users.update_one({"id": user["id"]}, {"$set": {"profile.avatar_url": avatar_url}})
+    if kind == "company_logo":
+        logo_url = f"/api/files/{fid}"
+        await db.users.update_one({"id": user["id"]}, {"$set": {"profile.company_logo_url": logo_url}})
+    if kind == "portfolio":
+        img_url = f"/api/files/{fid}"
+        await db.users.update_one({"id": user["id"]},
+                                  {"$push": {"profile.portfolio_images": {"$each": [img_url], "$slice": -6}}})
+    # Public read allowed for these kinds so they can display everywhere
     return {"file_id": fid, "url": f"/api/files/{fid}",
             "name": file.filename, "content_type": ctype, "size": len(data)}
 
@@ -1224,7 +1234,7 @@ async def download_file(file_id: str, user: dict = Depends(get_current_user)):
     if not rec:
         raise HTTPException(404, "File not found")
     # Avatars are readable by any authenticated user (used in profile displays)
-    if rec.get("kind") == "avatar":
+    if rec.get("kind") in ("avatar", "company_logo", "portfolio"):
         data, ctype = get_object(rec["storage_path"])
         from fastapi.responses import Response
         return Response(content=data, media_type=rec.get("content_type", ctype))

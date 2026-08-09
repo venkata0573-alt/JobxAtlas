@@ -178,7 +178,55 @@ export default function TalentProfile() {
           <div>
             <label className="overline block mb-2">Company</label>
             <input value={p.company || ""} onChange={(e) => setP({ ...p, company: e.target.value })}
-                   className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+                   className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#C79A3B]"/>
+            <label className="overline block mt-4 mb-2">Company logo</label>
+            <div className="flex items-center gap-4">
+              {p.company_logo_url && (
+                <img src={`${process.env.REACT_APP_BACKEND_URL}${p.company_logo_url}`}
+                     alt="logo" className="w-16 h-16 object-contain hard-border bg-neutral-50 p-1"/>
+              )}
+              <label className="btn-outline text-sm inline-block cursor-pointer">
+                {p.company_logo_url ? "Change logo" : "Upload logo"}
+                <input type="file" className="hidden" accept="image/*"
+                       onChange={async (e) => {
+                         const f = e.target.files?.[0]; if (!f) return;
+                         const form = new FormData(); form.append("file", f); form.append("kind", "company_logo");
+                         try {
+                           const r = await api.post("/files/upload", form, { headers: { "Content-Type": "multipart/form-data" } });
+                           setP({ ...p, company_logo_url: r.data.url });
+                           await refresh(); toast.success("Logo updated");
+                         } catch (err) { toast.error(formatErr(err)); }
+                       }}/>
+              </label>
+            </div>
+          </div>
+        )}
+
+        {!isEmployer && (
+          <div>
+            <label className="overline block mb-2">Portfolio gallery (up to 6)</label>
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-3">
+              {(p.portfolio_images || []).map((url, x) => (
+                <img key={x} src={`${process.env.REACT_APP_BACKEND_URL}${url}`} alt=""
+                     className="w-full aspect-square object-cover hard-border"/>
+              ))}
+              {(p.portfolio_images || []).length < 6 && (
+                <label className="w-full aspect-square hard-border bg-neutral-50 flex items-center justify-center text-2xl text-neutral-400 cursor-pointer hover:bg-[#0B1B2B] hover:text-white">
+                  +
+                  <input type="file" className="hidden" accept="image/*"
+                         onChange={async (e) => {
+                           const f = e.target.files?.[0]; if (!f) return;
+                           const form = new FormData(); form.append("file", f); form.append("kind", "portfolio");
+                           try {
+                             const r = await api.post("/files/upload", form, { headers: { "Content-Type": "multipart/form-data" } });
+                             setP({ ...p, portfolio_images: [...(p.portfolio_images || []), r.data.url].slice(-6) });
+                             await refresh(); toast.success("Added to gallery");
+                           } catch (err) { toast.error(formatErr(err)); }
+                         }}/>
+                </label>
+              )}
+            </div>
+            <p className="text-xs text-neutral-500 font-mono">Newest replaces oldest above 6. Displayed on your Browse card.</p>
           </div>
         )}
         <button type="submit" disabled={saving} data-testid={TID.profileSave}

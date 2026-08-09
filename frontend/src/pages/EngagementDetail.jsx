@@ -35,6 +35,8 @@ export default function EngagementDetail() {
   const [dDesc, setDDesc] = useState("");
   const [dLink, setDLink] = useState("");
   const [dHours, setDHours] = useState(1);
+  const [dFiles, setDFiles] = useState([]);      // uploaded file ids
+  const [dUploading, setDUploading] = useState(false);
 
   const [rating, setRating] = useState(0);
   const [rText, setRText] = useState("");
@@ -83,11 +85,24 @@ export default function EngagementDetail() {
       await api.post("/deliverables", {
         engagement_id: eng.id, title: dTitle, description: dDesc,
         link: dLink, hours_claimed: Number(dHours || 0),
+        file_ids: dFiles.map(f => f.file_id),
       });
       toast.success("Deliverable submitted");
-      setDTitle(""); setDDesc(""); setDLink(""); setDHours(1);
+      setDTitle(""); setDDesc(""); setDLink(""); setDHours(1); setDFiles([]);
       const dr = await api.get(`/deliverables/${eng.id}`); setDels(dr.data);
     } catch (err) { toast.error(formatErr(err)); }
+  };
+
+  const attachToDeliverable = async (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const form = new FormData(); form.append("file", f); form.append("kind", "deliverable");
+    setDUploading(true);
+    try {
+      const r = await api.post("/files/upload", form, { headers: { "Content-Type": "multipart/form-data" } });
+      setDFiles((x) => [...x, { file_id: r.data.file_id, name: r.data.name }]);
+      toast.success("Attached");
+    } catch (err) { toast.error(formatErr(err)); }
+    finally { setDUploading(false); e.target.value = ""; }
   };
 
   const actDeliverable = async (did, kind) => {
@@ -275,6 +290,17 @@ export default function EngagementDetail() {
                   <ArrowUp weight="bold" size={14} className="inline mr-1"/> Submit deliverable
                 </button>
               </div>
+              <div className="md:col-span-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="btn-outline text-xs inline-flex items-center gap-2 cursor-pointer">
+                    📎 {dUploading ? "Uploading…" : "Attach file"}
+                    <input type="file" className="hidden" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.csv" onChange={attachToDeliverable}/>
+                  </label>
+                  {dFiles.map((f, x) => (
+                    <span key={x} className="hard-border px-2 py-1 text-xs font-mono bg-white">📎 {f.name}</span>
+                  ))}
+                </div>
+              </div>
             </form>
           )}
 
@@ -289,6 +315,16 @@ export default function EngagementDetail() {
                       <p className="font-display font-extrabold text-lg tracking-tight">{d.title}</p>
                       {d.description && <p className="text-sm text-neutral-600 mt-1">{d.description}</p>}
                       {d.link && <a href={d.link} target="_blank" rel="noreferrer" className="text-xs underline underline-offset-4 font-mono">{d.link}</a>}
+                      {d.file_ids && d.file_ids.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {d.file_ids.map((fid) => (
+                            <a key={fid} href={`${process.env.REACT_APP_BACKEND_URL}/api/files/${fid}`} target="_blank" rel="noreferrer"
+                               className="hard-border bg-white px-2 py-1 text-xs font-mono inline-flex items-center gap-1 hover:bg-[#0B1B2B] hover:text-white">
+                              📎 attachment
+                            </a>
+                          ))}
+                        </div>
+                      )}
                       <p className="text-xs text-neutral-500 mt-2 font-mono">{d.hours_claimed}h · {new Date(d.submitted_at).toLocaleString()}</p>
                     </div>
                     <div className="text-right flex flex-col items-end gap-2">

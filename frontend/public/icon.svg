@@ -1,51 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="TalentHub">
-  <defs>
-    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#E4C069"/>
-      <stop offset="1" stop-color="#B8892F"/>
-    </linearGradient>
-  </defs>
-
-  <!-- Solid navy field -->
-  <rect width="512" height="512" fill="#0B1B2B"/>
-
-  <!-- Hairline frame in gold -->
-  <rect x="24" y="24" width="464" height="464" fill="none" stroke="url(#gold)" stroke-width="1.2"/>
-
-  <!-- Corner accents -->
-  <g stroke="url(#gold)" stroke-width="1.2" fill="none">
-    <path d="M40 40 h14 M40 40 v14"/>
-    <path d="M472 40 h-14 M472 40 v14"/>
-    <path d="M40 472 h14 M40 472 v-14"/>
-    <path d="M472 472 h-14 M472 472 v-14"/>
-  </g>
-
-  <!-- Elegant serif TH — using a broad-support display serif stack -->
-  <text x="256" y="330"
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="TalentHub · Th">
+  <rect width="512" height="512" rx="112" ry="112" fill="#0B1B2B"/>
+  <text x="256" y="368"
         text-anchor="middle"
-        fill="url(#gold)"
-        font-family="'Fraunces','Didot','Playfair Display','Bodoni 72','Times New Roman',Georgia,serif"
-        font-size="260"
-        font-weight="600"
-        letter-spacing="-6">TH</text>
-
-  <!-- Thin divider -->
-  <line x1="200" y1="380" x2="312" y2="380" stroke="url(#gold)" stroke-width="1"/>
-
-  <!-- Wordmark -->
-  <text x="256" y="418"
-        text-anchor="middle"
-        fill="#E4C069"
-        font-family="Georgia,'Times New Roman',serif"
-        font-size="16"
-        font-weight="400"
-        letter-spacing="9">TALENTHUB</text>
-
-  <!-- Sub-mark -->
-  <text x="256" y="450"
-        text-anchor="middle"
-        fill="#8A6B22"
-        font-family="Georgia,'Times New Roman',serif"
-        font-size="10"
-        letter-spacing="5">BY GEMINISTA</text>
+        fill="#C79A3B"
+        font-family="'Inter','Helvetica Neue','Segoe UI','Arial',sans-serif"
+        font-size="288"
+        font-weight="900"
+        letter-spacing="-12">Th</text>
 </svg>

@@ -56,16 +56,34 @@ export default function BrowseTalent() {
               <div key={t.id} className={`hard-border bg-white p-7 shadow-brutal-hover ${i % 3 === 1 ? "md:translate-y-6" : ""}`}
                    data-testid={TID.browseTalentCard(t.id)}>
                 <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <p className="overline text-[#002FA7]">{t.profile?.location || "Global"}</p>
-                    <h3 className="font-display font-extrabold text-2xl tracking-tight mt-1">{t.name}</h3>
-                    <p className="text-neutral-600 text-sm mt-1">{t.profile?.headline || "Independent professional"}</p>
+                  <div className="flex items-start gap-3 min-w-0">
+                    {t.profile?.avatar_url ? (
+                      <img src={`${process.env.REACT_APP_BACKEND_URL}${t.profile.avatar_url}`}
+                           alt={t.name} className="w-12 h-12 hard-border object-cover flex-shrink-0"/>
+                    ) : (
+                      <div className="w-12 h-12 hard-border bg-[#0B1B2B] text-[#C79A3B] font-display font-black text-lg flex items-center justify-center flex-shrink-0">
+                        {(t.name || "?").charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="overline text-[#C79A3B]">{t.profile?.location || "Global"}</p>
+                      <h3 className="font-display font-black text-2xl tracking-tight mt-1 truncate">{t.name}</h3>
+                      <p className="text-neutral-600 text-sm mt-1 line-clamp-2">{t.profile?.headline || "Independent professional"}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex-shrink-0">
                     <p className="overline text-neutral-400">Rate</p>
-                    <p className="font-display font-extrabold text-2xl">${t.profile?.hourly_rate || 0}<span className="text-sm text-neutral-500">/hr</span></p>
+                    <p className="font-display font-black text-2xl">${t.profile?.hourly_rate || 0}<span className="text-sm text-neutral-500">/hr</span></p>
                   </div>
                 </div>
+                {t.profile?.portfolio_images?.length > 0 && (
+                  <div className="grid grid-cols-3 gap-1 mb-3">
+                    {t.profile.portfolio_images.slice(0, 3).map((f) => (
+                      <img key={f} src={`${process.env.REACT_APP_BACKEND_URL}${f}`} alt="portfolio"
+                           className="w-full h-14 object-cover hard-border"/>
+                    ))}
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2 mb-5">
                   {(t.profile?.skills || []).slice(0, 5).map((s) => (
                     <span key={s} className="text-xs font-mono hard-border px-2 py-1 bg-[#F9F9F9]">{s}</span>
@@ -74,8 +92,7 @@ export default function BrowseTalent() {
                 <div className="flex items-center justify-between border-t border-black/10 pt-4">
                   <span className="text-sm flex items-center gap-1"><Star weight="fill" size={14}/> {t.profile?.years_experience || 0} yrs</span>
                   <Link to={`/employer`} className="btn-outline text-sm" data-testid={TID.hireBtn(t.id)}>View →</Link>
-                </div>
-              </div>
+                </div>              </div>
             ))}
           </div>
         )}
