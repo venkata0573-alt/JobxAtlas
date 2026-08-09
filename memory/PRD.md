@@ -32,7 +32,14 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
-## Implemented (2026-02-09)
+## Implemented (2026-02-09, iteration 3)
+- **On-site engagement clauses**: mode (remote/onsite/hybrid), location, dates, transport arrangement — surfaced in contract; both parties must acknowledge on-site health &amp; safety + illegal-conduct disclaimer before signing.
+- **Deliverables tracker**: talent submits work (title/link/hours), employer approves/rejects; approved deliverables increment `engagement.hours_used`.
+- **Mutual reviews with moderation**: one review per party per engagement (1–5★), admin approves/rejects; only approved reviews appear on `/api/reviews/user/{id}`.
+- **Grievance form**: public `/grievance` page, generates reference ID, admin console lists & resolves; routed to grievance@talenthub.io.
+- **Admin console** now has 3 tabs (Bank Transfers · Reviews · Grievances).
+- 54/54 backend tests passing.
+
 - Full auth (JWT httpOnly), admin seed, 41/41 backend tests passing.
 - Talent + employer profile, AI-powered rate suggestion (Claude Sonnet 5 with rule fallback).
 - Browse talent (contact hidden), mix-and-match engagement creation.
