@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { TID } from "@/constants/testIds";
 import { WarningOctagon, CheckCircle, Star, ArrowUp } from "@phosphor-icons/react";
+import EngagementChat from "@/components/EngagementChat";
 
 const Rating = ({ v, onChange, disabled }) => (
   <div className="flex gap-1">
@@ -328,6 +329,8 @@ export default function EngagementDetail() {
       <div className="mt-10 text-sm text-center">
         Have a concern? <Link to="/grievance" className="underline underline-offset-4">Raise a formal grievance →</Link>
       </div>
+
+      {canWork && <EngagementChat engagementId={eng.id}/>}
     </main>
   );
 }

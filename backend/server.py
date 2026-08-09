@@ -208,6 +208,21 @@ class GrievanceIn(BaseModel):
     incident_date: Optional[str] = ""
 
 
+class PayoutRunIn(BaseModel):
+    period_start: str
+    period_end: str
+    currency: str = "usd"
+
+
+class ReferralClaimIn(BaseModel):
+    code: str
+
+
+class MessageIn(BaseModel):
+    engagement_id: str
+    text: str
+
+
 class IntegrationConnectIn(BaseModel):
     provider: str
     api_token: str
@@ -333,6 +348,15 @@ async def list_talent(q: Optional[str] = None, skill: Optional[str] = None, min_
     items = await cursor.to_list(200)
     # Hide sensitive contact until purchased (email removed; keep name display)
     return items
+
+
+@api.get("/earnings/mine")
+async def my_earnings(user: dict = Depends(get_current_user), start: str = "", end: str = ""):
+    if user["role"] != "talent":
+        raise HTTPException(403, "Talent only")
+    end_iso = end or now().isoformat()
+    start_iso = start or (now() - timedelta(days=30)).isoformat()
+    return await _compute_talent_earnings(user["id"], start_iso, end_iso)
 
 
 @api.get("/talent/{talent_id}")
@@ -489,6 +513,10 @@ async def _credit_hours_if_paid(record: dict, session_obj) -> dict:
         )
         if upd:
             await db.users.update_one({"id": record["user_id"]}, {"$inc": {"hours_balance": record["hours"]}})
+            try:
+                await _credit_referral_bonus(record["user_id"], int(record["hours"]))
+            except Exception:
+                pass
             return await db.payment_transactions.find_one({"session_id": record["session_id"]}, {"_id": 0})
     return record
 
@@ -752,7 +780,225 @@ async def admin_resolve_grievance(gid: str, user: dict = Depends(get_current_use
     return {"ok": True}
 
 
-# ---------- Third-party integrations & work log ----------
+# ---------- Talent Payouts ----------
+COMMISSION_TIERS = [(40, 8), (120, 6), (250, 5), (10**9, 4)]
+MULTI_EMPLOYER_FEE_USD = 9.0
+
+
+def _pick_commission(hours: float) -> int:
+    for cap, pct in COMMISSION_TIERS:
+        if hours <= cap:
+            return pct
+    return COMMISSION_TIERS[-1][1]
+
+
+async def _compute_talent_earnings(talent_id: str, start_iso: str, end_iso: str) -> Dict[str, Any]:
+    dels = await db.deliverables.find({
+        "talent_id": talent_id, "status": "approved",
+        "reviewed_at": {"$gte": start_iso, "$lte": end_iso},
+    }, {"_id": 0}).to_list(1000)
+    talent = await db.users.find_one({"id": talent_id}, {"_id": 0}) or {}
+    rate = float((talent.get("profile") or {}).get("hourly_rate") or 0)
+    hours = sum(float(d.get("hours_claimed") or 0) for d in dels)
+    employers = {d.get("employer_id") for d in dels if d.get("employer_id")}
+    commission_pct = _pick_commission(hours)
+    gross = round(rate * hours, 2)
+    commission = round(gross * commission_pct / 100.0, 2)
+    multi_fee = MULTI_EMPLOYER_FEE_USD if len(employers) > 1 else 0.0
+    net = round(gross - commission - multi_fee, 2)
+    return {
+        "talent_id": talent_id, "talent_name": talent.get("name"),
+        "hourly_rate": rate, "hours": hours, "employers_count": len(employers),
+        "commission_pct": commission_pct, "gross": gross,
+        "commission": commission, "multi_employer_fee": multi_fee,
+        "net": net, "currency": "usd", "deliverables": dels,
+        "period_start": start_iso, "period_end": end_iso,
+    }
+
+
+@api.get("/payouts/mine")
+async def my_payouts(user: dict = Depends(get_current_user)):
+    if user["role"] != "talent":
+        raise HTTPException(403, "Talent only")
+    return await db.payouts.find({"talent_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
+
+
+@api.post("/admin/payouts/run")
+async def admin_run_payouts(payload: PayoutRunIn, user: dict = Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    run_id = new_id()
+    talents = await db.users.find({"role": "talent"}, {"_id": 0, "id": 1}).to_list(2000)
+    payouts: List[Dict[str, Any]] = []
+    total_net = 0.0
+    for t in talents:
+        e = await _compute_talent_earnings(t["id"], payload.period_start, payload.period_end)
+        if e["hours"] <= 0:
+            continue
+        doc = {
+            "id": new_id(), "run_id": run_id, "talent_id": e["talent_id"],
+            "talent_name": e["talent_name"], "hourly_rate": e["hourly_rate"],
+            "hours": e["hours"], "employers_count": e["employers_count"],
+            "commission_pct": e["commission_pct"], "gross": e["gross"],
+            "commission": e["commission"], "multi_employer_fee": e["multi_employer_fee"],
+            "net": e["net"], "currency": payload.currency,
+            "period_start": payload.period_start, "period_end": payload.period_end,
+            "status": "pending", "created_at": now().isoformat(),
+        }
+        await db.payouts.insert_one(doc)
+        payouts.append({k: v for k, v in doc.items() if k != "_id"})
+        total_net += float(e["net"])
+    run_doc = {
+        "id": run_id, "period_start": payload.period_start, "period_end": payload.period_end,
+        "currency": payload.currency, "count": len(payouts), "total_net": round(total_net, 2),
+        "created_by": user["id"], "created_at": now().isoformat(), "status": "generated",
+    }
+    await db.payout_runs.insert_one(run_doc)
+    run_doc.pop("_id", None)
+    return {"run": run_doc, "payouts": payouts}
+
+
+@api.get("/admin/payouts/runs")
+async def admin_list_runs(user: dict = Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    return await db.payout_runs.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+
+@api.get("/admin/payouts/{run_id}")
+async def admin_run_detail(run_id: str, user: dict = Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    run = await db.payout_runs.find_one({"id": run_id}, {"_id": 0})
+    if not run:
+        raise HTTPException(404, "Run not found")
+    items = await db.payouts.find({"run_id": run_id}, {"_id": 0}).to_list(1000)
+    return {"run": run, "payouts": items}
+
+
+@api.post("/admin/payouts/{payout_id}/mark-paid")
+async def admin_mark_paid(payout_id: str, user: dict = Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    r = await db.payouts.update_one({"id": payout_id}, {"$set": {"status": "paid",
+                                                                 "paid_at": now().isoformat()}})
+    return {"ok": True}
+
+
+# ---------- Referrals ----------
+def _ref_code(uid: str) -> str:
+    return "TH-" + uid.replace("-", "")[:6].upper()
+
+
+@api.get("/referrals/mine")
+async def my_referral(user: dict = Depends(get_current_user)):
+    code = _ref_code(user["id"])
+    claims = await db.referrals.find({"referrer_id": user["id"]}, {"_id": 0}).to_list(500)
+    earned = sum(float(c.get("bonus_hours") or 0) for c in claims if c.get("status") == "credited")
+    return {"code": code, "share_url": f"/register?ref={code}",
+            "reward": "2% of hours purchased in the first 90 days",
+            "claims": claims, "total_bonus_hours": earned}
+
+
+@api.post("/referrals/claim")
+async def claim_referral(payload: ReferralClaimIn, user: dict = Depends(get_current_user)):
+    code = payload.code.strip().upper()
+    if not code.startswith("TH-"):
+        raise HTTPException(400, "Invalid referral code")
+    # Prevent self-referral
+    if code == _ref_code(user["id"]):
+        raise HTTPException(400, "Cannot use your own code")
+    existing = await db.referrals.find_one({"referred_id": user["id"]})
+    if existing:
+        raise HTTPException(400, "You've already claimed a referral")
+    # Find referrer
+    all_users = await db.users.find({}, {"_id": 0, "id": 1}).to_list(5000)
+    referrer_id = next((u["id"] for u in all_users if _ref_code(u["id"]) == code), None)
+    if not referrer_id:
+        raise HTTPException(404, "Referral code not found")
+    doc = {
+        "id": new_id(), "code": code,
+        "referrer_id": referrer_id, "referred_id": user["id"],
+        "referred_name": user.get("name", ""), "status": "pending",
+        "bonus_hours": 0, "claimed_at": now().isoformat(),
+        "expires_at": (now() + timedelta(days=90)).isoformat(),
+    }
+    await db.referrals.insert_one(doc)
+    doc.pop("_id", None)
+    return {"ok": True, "referral": doc}
+
+
+# Hook this into checkout success (call from _credit_hours_if_paid)
+async def _credit_referral_bonus(user_id: str, hours: int):
+    ref = await db.referrals.find_one({"referred_id": user_id, "status": "pending"})
+    if not ref or ref["expires_at"] < now().isoformat():
+        return
+    bonus = max(1, int(round(hours * 0.02)))
+    await db.referrals.update_one({"id": ref["id"]}, {"$set": {"status": "credited",
+                                                                "bonus_hours": bonus,
+                                                                "credited_at": now().isoformat()}})
+    await db.users.update_one({"id": ref["referrer_id"]}, {"$inc": {"hours_balance": bonus}})
+
+
+# ---------- In-platform Messages ----------
+@api.get("/messages/{engagement_id}")
+async def list_messages(engagement_id: str, user: dict = Depends(get_current_user)):
+    eng = await db.engagements.find_one({"id": engagement_id})
+    if not eng or user["id"] not in (eng.get("employer_id"), eng.get("talent_id")):
+        raise HTTPException(404, "Not found")
+    items = await db.messages.find({"engagement_id": engagement_id}, {"_id": 0}).sort("created_at", 1).to_list(1000)
+    return items
+
+
+@api.post("/messages")
+async def post_message(payload: MessageIn, user: dict = Depends(get_current_user)):
+    eng = await db.engagements.find_one({"id": payload.engagement_id})
+    if not eng or user["id"] not in (eng.get("employer_id"), eng.get("talent_id")):
+        raise HTTPException(404, "Engagement not found")
+    text = payload.text.strip()
+    if not text:
+        raise HTTPException(400, "Message cannot be empty")
+    # Basic PII / off-platform contact regex — flag but don't hard-block (moderation later)
+    import re as _re
+    flagged = bool(_re.search(r"(\+?\d[\d\s-]{7,}|\b[\w.+-]+@[\w-]+\.[\w.-]+\b|whatsapp|telegram|signal)", text.lower()))
+    doc = {
+        "id": new_id(), "engagement_id": payload.engagement_id,
+        "sender_id": user["id"], "sender_name": user["name"],
+        "text": text[:2000], "flagged": flagged, "created_at": now().isoformat(),
+    }
+    await db.messages.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+# ---------- SEO skill landing pages ----------
+SEO_SKILLS = [
+    "react-developers", "python-developers", "node-developers", "ui-designers",
+    "ux-designers", "data-scientists", "devops-engineers", "product-managers",
+    "figma-designers", "mobile-developers", "wordpress-developers", "salesforce-consultants",
+]
+
+
+@api.get("/seo/skills")
+async def seo_skills():
+    return {"skills": SEO_SKILLS}
+
+
+@api.get("/seo/hire/{skill_slug}")
+async def seo_hire(skill_slug: str):
+    if skill_slug not in SEO_SKILLS:
+        raise HTTPException(404, "Unknown skill")
+    keyword = skill_slug.replace("-", " ")
+    talent = await db.users.find(
+        {"role": "talent", "profile.skills": {"$regex": keyword.split()[0], "$options": "i"}},
+        {"_id": 0, "password_hash": 0, "email": 0, "integrations": 0},
+    ).limit(24).to_list(24)
+    return {
+        "slug": skill_slug, "keyword": keyword,
+        "title": f"Hire {keyword.title()} by the hour — TalentHub",
+        "description": f"Hire vetted {keyword} on TalentHub. Buy hours in bulk, sign contracts, integrate with Jira & Asana. From $29/mo.",
+        "talent": talent,
+    }
 @api.get("/integrations/providers")
 async def integration_providers():
     return list_supported_providers()

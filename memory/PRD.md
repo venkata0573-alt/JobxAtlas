@@ -32,7 +32,13 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
-## Implemented (2026-02-09, iteration 5 — brand, SEO & native shell)
+## Implemented (2026-02-09, iteration 6 — payouts, growth, chat, SEO, walkthrough)
+- **Talent Payouts engine**: `/api/earnings/mine` (rolling 30-day statement), `/api/payouts/mine`, `/api/admin/payouts/run` (aggregates approved deliverables into per-talent payouts with commission tiers + multi-employer fee). Admin console has a new **Payouts** tab; talent has a `/talent/earnings` page with downloadable statement.
+- **Referral loop**: every user gets a `TH-XXXXXX` code. Invitees paste it at signup; on their first Stripe checkout the referrer is auto-credited 2% of purchased hours (`_credit_referral_bonus` hook). Page at `/referrals` with copy-to-share + claims table.
+- **SEO landing pages per skill**: `/hire/:slug` renders vetted talent for react-developers, python-developers, ui-designers, etc. Backend endpoints `/api/seo/skills` and `/api/seo/hire/{slug}` power them.
+- **In-platform chat** on every signed engagement (`/api/messages/{eng_id}` + POST). Off-platform contact patterns (phones, emails, WhatsApp/Telegram) are flagged for moderation. UI polls every 8s.
+- **Step-by-step "How it works" walkthrough**: replaced the auto-play video demo with a **user-paced, click-through, 5-step module** using real product screenshots, visual hotspots outlining the UI element for each step, "What you do / Why it matters" cards, Prev/Next controls, and an optional "Narrate this step" button (browser TTS — not auto-playing).
+
 - **Brand spelling corrected everywhere**: Geminsta → **Geminista** across backend, frontend, PWA manifest, HTML meta, tests, PRD.
 - **Real bank details wired**: ICICI Bank, Denkoit Softech Pvt. Ltd., A/C `112405000771`, IFSC `ICIC0001124`, UPI `MSDENKOITSOFTECHPVTLTD.eazypay@icici`. Purchase-hours page now shows a live-generated **UPI QR code** alongside the copyable fields.
 - **International premium marketing tone**: rewrote Landing (hero: "Hire experts by the hour. Ship projects by the week."), added trust-bar of integration logos, testimonials, and an FAQ section marked up with `schema.org/FAQPage` for Google rich results.

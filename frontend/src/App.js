@@ -26,6 +26,9 @@ import Accounts from "@/pages/Accounts";
 import Admin from "@/pages/Admin";
 import Grievance from "@/pages/Grievance";
 import Legal from "@/pages/Legal";
+import Earnings from "@/pages/Earnings";
+import Referral from "@/pages/Referral";
+import SkillLanding from "@/pages/SkillLanding";
 
 function App() {
   return (
@@ -53,6 +56,9 @@ function App() {
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             <Route path="/grievance" element={<Grievance />} />
             <Route path="/legal" element={<Legal />} />
+            <Route path="/talent/earnings" element={<ProtectedRoute role="talent"><Earnings /></ProtectedRoute>} />
+            <Route path="/referrals" element={<ProtectedRoute><Referral /></ProtectedRoute>} />
+            <Route path="/hire/:slug" element={<SkillLanding />} />
           </Routes>
           <Toaster position="top-right" richColors />
         </AuthProvider>

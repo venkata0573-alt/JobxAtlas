@@ -28,6 +28,7 @@ export default function TalentDashboard() {
           <p className="text-neutral-600 mt-2">Everything you&apos;re working on — in one grid.</p>
         </div>
         <Link to="/talent/profile" className="btn-outline text-sm">Edit profile →</Link>
+      <Link to="/talent/earnings" className="btn-outline text-sm ml-2">View earnings →</Link>
       </div>
 
       <DashboardMetrics metrics={metrics} role="talent"/>
