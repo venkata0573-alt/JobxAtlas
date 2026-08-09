@@ -105,6 +105,7 @@ class RegisterIn(BaseModel):
     password: str
     name: str
     role: str  # 'talent' | 'employer'
+    company_industry: Optional[str] = ""  # employer-only self-selected industry
 
 
 class LoginIn(BaseModel):
@@ -123,6 +124,7 @@ class ProfileIn(BaseModel):
     avatar_url: Optional[str] = ""
     company: Optional[str] = ""
     company_logo_url: Optional[str] = ""
+    company_industry: Optional[str] = ""
     portfolio_images: List[str] = []
     timezone: Optional[str] = "UTC"
     weekly_capacity_hours: Optional[int] = 40
@@ -275,6 +277,9 @@ async def register(payload: RegisterIn, response: Response):
     existing = await db.users.find_one({"email": email})
     if existing:
         raise HTTPException(400, "Email already registered")
+    industry = (payload.company_industry or "").strip()
+    if payload.role == "employer" and industry and industry not in EMPLOYER_INDUSTRIES:
+        raise HTTPException(400, f"Unknown industry. Must be one of: {', '.join(EMPLOYER_INDUSTRIES)}")
     uid = new_id()
     doc = {
         "id": uid, "email": email, "name": payload.name, "role": payload.role,
@@ -282,7 +287,8 @@ async def register(payload: RegisterIn, response: Response):
         "created_at": now().isoformat(),
         "profile": {"headline": "", "bio": "", "skills": [], "years_experience": 0,
                     "hourly_rate": 0.0, "location": "", "portfolio_url": "",
-                    "avatar_url": "", "company": ""},
+                    "avatar_url": "", "company": "",
+                    "company_industry": industry if payload.role == "employer" else ""},
         "hours_balance": 0,
         "integrations": [],
         "availability": {"timezone": "UTC", "slots": [
@@ -1102,6 +1108,23 @@ async def employer_overview(user: dict = Depends(get_current_user)):
 SEO_CITIES = ["london", "new-york", "san-francisco", "berlin", "singapore", "dubai", "sydney", "toronto", "remote"]
 
 
+# ---------- Employer industry categories (used at registration + trust bar) ----------
+EMPLOYER_INDUSTRIES = [
+    "Series-B fintechs",
+    "PE-backed platforms",
+    "Health-tech scale-ups",
+    "YC-backed marketplaces",
+    "Global consultancies",
+    "Public-sector innovation",
+    "Series-A SaaS teams",
+    "Family-office ventures",
+    "Cross-border e-commerce",
+    "DTC brand houses",
+    "Regulated data-cos",
+    "ClimateTech pilots",
+]
+
+
 # ---------- Curated vetted-talent pool for SEO landing pages ----------
 # Real-sounding, deterministic profiles that populate city×skill pages
 # before organic sign-ups fill the DB. Each entry may match multiple cities
@@ -1498,6 +1521,24 @@ async def sitemap_xml(request: Request):
 
 
 # ---------- Marketplace stats (live buyer counter) ----------
+@api.get("/marketplace/industries")
+async def marketplace_industries():
+    """Returns the canonical list of employer industries + a live count per industry
+    (0 for industries no one has claimed yet). Used by the Landing trust bar and
+    the employer registration industry picker."""
+    counts = {i: 0 for i in EMPLOYER_INDUSTRIES}
+    pipeline = [
+        {"$match": {"role": "employer", "profile.company_industry": {"$in": EMPLOYER_INDUSTRIES}}},
+        {"$group": {"_id": "$profile.company_industry", "n": {"$sum": 1}}},
+    ]
+    async for row in db.users.aggregate(pipeline):
+        counts[row["_id"]] = int(row["n"])
+    return {
+        "industries": [{"label": i, "count": counts[i]} for i in EMPLOYER_INDUSTRIES],
+        "total_labelled_employers": sum(counts.values()),
+    }
+
+
 @api.get("/marketplace/stats")
 async def marketplace_stats():
     """Live counts for the Landing trust bar. Aggregates real employer sign-ups
@@ -1507,14 +1548,19 @@ async def marketplace_stats():
     signed_engagements = await db.engagements.count_documents(
         {"status": {"$in": ["contract_signed", "active", "completed"]}}
     )
+    industries_used = len(await db.users.distinct(
+        "profile.company_industry",
+        {"role": "employer", "profile.company_industry": {"$in": EMPLOYER_INDUSTRIES}},
+    ))
     # Baseline padding for a credible day-1 number, capped so it becomes irrelevant once the DB grows
     baseline = 42
     active_buyers_display = max(active_buyers, baseline) if active_buyers < baseline else active_buyers
     return {
         "active_buyers": active_buyers,
         "active_buyers_display": active_buyers_display,
-        "industries": len(SEO_SKILLS),           # 12 practice areas we serve
-        "cities_covered": len(SEO_CITIES),       # 9 markets
+        "industries": len(EMPLOYER_INDUSTRIES),
+        "industries_active": industries_used,
+        "cities_covered": len(SEO_CITIES),
         "engagements_total": engagements,
         "engagements_signed": signed_engagements,
     }
@@ -1600,6 +1646,61 @@ async def dismiss_rate_nudge(user: dict = Depends(get_current_user)):
         raise HTTPException(403, "Talent only")
     await db.rate_nudges.delete_one({"talent_id": user["id"]})
     return {"ok": True}
+
+
+# ---------- Shortlist (employer saves talent profiles before purchasing hours) ----------
+class ShortlistIn(BaseModel):
+    talent_id: str
+    talent_name: str
+    headline: Optional[str] = ""
+    location: Optional[str] = ""
+    hourly_rate: Optional[float] = 0.0
+    skills: List[str] = []
+    context: Optional[str] = ""     # e.g. the city×skill slug they came from
+    is_curated: bool = False
+
+
+@api.post("/shortlist")
+async def add_to_shortlist(payload: ShortlistIn, user: dict = Depends(get_current_user)):
+    if user.get("role") != "employer":
+        raise HTTPException(403, "Only employers can shortlist")
+    doc = {
+        "id": new_id(),
+        "employer_id": user["id"],
+        "talent_id": payload.talent_id,
+        "talent_name": payload.talent_name,
+        "headline": payload.headline or "",
+        "location": payload.location or "",
+        "hourly_rate": float(payload.hourly_rate or 0),
+        "skills": payload.skills or [],
+        "context": payload.context or "",
+        "is_curated": bool(payload.is_curated),
+        "created_at": now().isoformat(),
+    }
+    # One record per (employer, talent) — upsert
+    await db.shortlists.update_one(
+        {"employer_id": user["id"], "talent_id": payload.talent_id},
+        {"$set": doc}, upsert=True,
+    )
+    total = await db.shortlists.count_documents({"employer_id": user["id"]})
+    return {"ok": True, "count": total}
+
+
+@api.get("/shortlist")
+async def list_shortlist(user: dict = Depends(get_current_user)):
+    if user.get("role") != "employer":
+        raise HTTPException(403, "Only employers can view a shortlist")
+    items = await db.shortlists.find({"employer_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return {"items": items, "count": len(items)}
+
+
+@api.delete("/shortlist/{talent_id}")
+async def remove_from_shortlist(talent_id: str, user: dict = Depends(get_current_user)):
+    if user.get("role") != "employer":
+        raise HTTPException(403, "Only employers can modify a shortlist")
+    await db.shortlists.delete_one({"employer_id": user["id"], "talent_id": talent_id})
+    total = await db.shortlists.count_documents({"employer_id": user["id"]})
+    return {"ok": True, "count": total}
 
 
 # ---------- Newsletter / "Get listed" signup ----------

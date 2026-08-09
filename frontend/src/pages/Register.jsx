@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -6,15 +6,26 @@ import { TID } from "@/constants/testIds";
 import { toast } from "sonner";
 
 export default function Register() {
-  const [f, setF] = useState({ name: "", email: "", password: "", role: "talent" });
+  const [f, setF] = useState({ name: "", email: "", password: "", role: "talent", company_industry: "" });
   const [loading, setLoading] = useState(false);
+  const [industries, setIndustries] = useState([]);
   const nav = useNavigate();
   const { setUser } = useAuth();
+
+  useEffect(() => {
+    api.get("/marketplace/industries")
+      .then((r) => setIndustries(r.data.industries || []))
+      .catch(() => {});
+  }, []);
 
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
   const submit = async (e) => {
     e.preventDefault();
+    if (f.role === "employer" && !f.company_industry) {
+      toast.error("Please select the industry that best describes your company");
+      return;
+    }
     setLoading(true);
     try {
       const r = await api.post("/auth/register", f);
@@ -61,6 +72,30 @@ export default function Register() {
                  value={f.password} onChange={set("password")}
                  className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
         </div>
+
+        {/* Employer-only: industry self-selection (feeds the Landing trust bar) */}
+        {f.role === "employer" && (
+          <div>
+            <label className="overline block mb-2">Which best describes your company?</label>
+            <select
+              value={f.company_industry}
+              onChange={set("company_industry")}
+              required
+              data-testid="register-industry"
+              className="w-full hard-border px-3 py-3 bg-white focus:outline-none focus:border-[#C79A3B]">
+              <option value="">Choose an industry —</option>
+              {industries.map((i) => (
+                <option key={i.label} value={i.label}>
+                  {i.label}{i.count ? ` · ${i.count} on platform` : ""}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-neutral-500 mt-2">
+              Anonymised in aggregate on our public trust bar. Your company name is never shown.
+            </p>
+          </div>
+        )}
+
         <button type="submit" disabled={loading}
                 data-testid={TID.registerSubmit} className="btn-primary w-full">
           {loading ? "Creating account…" : "Create account →"}
