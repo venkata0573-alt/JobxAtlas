@@ -104,7 +104,7 @@ export default function Pricing() {
       </div>
 
       <p className="text-xs text-neutral-500 mt-4 font-mono">
-        {p.brand.product} is a product of {p.brand.brand} · operated by {p.brand.operator} · {p.brand.city} · GSTIN {p.brand.gstin}
+        {p.brand.product} · operated by {p.brand.operator} · {p.brand.city} · GSTIN {p.brand.gstin}
       </p>
     </main>
   );

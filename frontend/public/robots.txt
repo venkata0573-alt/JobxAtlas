@@ -4,4 +4,4 @@ Disallow: /admin
 Disallow: /talent/profile
 Disallow: /employer/purchase
 Disallow: /payment/
-Sitemap: https://jobatlas.io/sitemap.xml
+Sitemap: https://talenthub.io/sitemap.xml

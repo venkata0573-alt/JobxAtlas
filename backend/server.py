@@ -37,7 +37,7 @@ stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or "sk_test_emergent"
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 
-app = FastAPI(title="TalentHub API")
+app = FastAPI(title="Job Atlas API")
 api = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -104,12 +104,7 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str
     name: str
-    role: str
-
-
-class ResumeParseIn(BaseModel):
-    text: str = ""
-    linkedin_url: Optional[str] = ""
+    role: str  # 'talent' | 'employer'
 
 
 class LoginIn(BaseModel):
@@ -255,10 +250,10 @@ PACKAGES = {
     "enterprise_500": {"name": "Enterprise", "hours": 500, "amount": 12000.0, "amount_inr": 12000 * USD_TO_INR, "currency": "usd"},
 }
 
-# Receiving bank — Denkoit Softech Pvt. Ltd. (Geminista / TalentHub)
+# Receiving bank — Denkoit Softech Pvt. Ltd. (Job Atlas / Job Atlas)
 COMPANY_BANK = {
     "beneficiary": "Denkoit Softech Pvt. Ltd.",
-    "brand": "Geminista",
+    "brand": "Job Atlas",
     "product": "Job Atlas",
     "bank": "ICICI Bank",
     "branch": "—",
@@ -336,49 +331,7 @@ async def update_profile(payload: ProfileIn, user: dict = Depends(get_current_us
     return updated
 
 
-@api.post("/profile/parse-resume")
-async def parse_resume(payload: ResumeParseIn, user: dict = Depends(get_current_user)):
-    """Given raw resume text or a LinkedIn URL, use Claude to extract skills,
-    years of experience, headline, and bio; caller can then save via /profile."""
-    source = payload.text.strip()
-    if not source and payload.linkedin_url:
-        source = f"LinkedIn profile URL provided: {payload.linkedin_url}. Infer likely skills, experience level and headline for a professional consistent with the URL slug."
-    if not source:
-        raise HTTPException(400, "Provide either resume text or a LinkedIn URL")
-    from ai_service import EMERGENT_LLM_KEY as _K
-    if not _K:
-        return {"headline": "", "bio": "", "skills": [], "years_experience": 0,
-                "note": "LLM key missing; please fill manually."}
-    try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        import json as _json, re as _re
-        chat = LlmChat(api_key=_K, session_id=f"resume-{user['id']}",
-                       system_message=("You extract a structured profile from a resume or LinkedIn text. "
-                                       "Reply ONLY with strict JSON of the form "
-                                       '{"headline":"...","bio":"...","skills":["..."],"years_experience":<int>}'))
-        chat.with_model("anthropic", "claude-sonnet-4-5-20250929").with_max_tokens(600)
-        resp = await chat.send_message(UserMessage(text=source[:8000]))
-        m = _re.search(r"\{.*\}", str(resp), _re.DOTALL)
-        if m:
-            data = _json.loads(m.group(0))
-            data["skills"] = [s for s in data.get("skills", []) if isinstance(s, str)][:20]
-            data["years_experience"] = int(data.get("years_experience", 0) or 0)
-            data["headline"] = str(data.get("headline", ""))[:120]
-            data["bio"] = str(data.get("bio", ""))[:600]
-            return data
-    except Exception as e:
-        logger.warning(f"resume parse failed: {e}")
-    return {"headline": "", "bio": "", "skills": [], "years_experience": 0}
-
-
-@api.post("/profile/verified-count")
-async def _dummy(): return {}
-
-
-@api.get("/talent/{talent_id}/verified")
-async def is_verified(talent_id: str):
-    count = await db.deliverables.count_documents({"talent_id": talent_id, "status": "approved"})
-    return {"verified": count >= 3, "approved_deliverables": count}
+@api.post("/profile/suggest-rate")
 async def suggest_rate(payload: RateSuggestIn, user: dict = Depends(get_current_user)):
     result = await suggest_hourly_rate(payload.skills, payload.years_experience, payload.location or "Global")
     return result
@@ -535,7 +488,7 @@ async def create_checkout(payload: CheckoutIn, user: dict = Depends(get_current_
     origin = payload.origin_url.rstrip("/")
     session = stripe.checkout.Session.create(
         line_items=[{"price_data": {"currency": pkg["currency"],
-                                     "product_data": {"name": f"TalentHub {pkg['name']} - {pkg['hours']} hours"},
+                                     "product_data": {"name": f"Job Atlas {pkg['name']} - {pkg['hours']} hours"},
                                      "unit_amount": int(pkg["amount"] * 100)}, "quantity": 1}],
         mode="payment",
         success_url=f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
@@ -1087,7 +1040,7 @@ async def seo_hire(skill_slug: str):
     ).limit(24).to_list(24)
     return {
         "slug": skill_slug, "keyword": keyword,
-        "title": f"Hire {keyword.title()} by the hour — TalentHub",
+        "title": f"Hire {keyword.title()} by the hour — Job Atlas",
         "description": f"Hire vetted {keyword} on Job Atlas. Buy hours in bulk, sign contracts, integrate with Jira & Asana. From $29/mo.",
         "talent": talent,
     }
@@ -1570,7 +1523,7 @@ async def get_pricing():
     return {
         "brand": {
             "product": "Job Atlas",
-            "brand": "Geminista",
+            "brand": "Job Atlas",
             "operator": "Denkoit Softech Pvt. Ltd.",
             "gstin": "36AAGCD3748K1ZC",
         },
@@ -1608,7 +1561,7 @@ async def get_legal():
     return {
         "company": {
             "legal_name": "Denkoit Softech Pvt. Ltd.",
-            "brand": "Geminista",
+            "brand": "Job Atlas",
             "product": "Job Atlas",
             "registered_office": "Hyderabad, Telangana, India",
             "gstin": "36AAGCD3748K1ZC",

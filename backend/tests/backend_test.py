@@ -1,4 +1,4 @@
-"""Backend integration tests for TalentHub API."""
+"""Backend integration tests for Job Atlas API."""
 import io
 import os
 import uuid
@@ -594,8 +594,8 @@ class TestPricing:
         r = requests.get(f"{API}/pricing")
         assert r.status_code == 200
         b = r.json().get("brand", {})
-        assert b.get("product") == "TalentHub"
-        assert b.get("brand") == "Geminista"
+        assert b.get("product") == "Job Atlas"
+        assert b.get("brand") == "Job Atlas"
         assert b.get("operator") == "Denkoit Softech Pvt. Ltd."
         assert b.get("gstin") == "36AAGCD3748K1ZC"
 
@@ -623,8 +623,8 @@ class TestLegal:
         c = r.json().get("company", {})
         assert c.get("legal_name") == "Denkoit Softech Pvt. Ltd."
         assert c.get("gstin") == "36AAGCD3748K1ZC"
-        assert c.get("brand") == "Geminista"
-        assert c.get("product") == "TalentHub"
+        assert c.get("brand") == "Job Atlas"
+        assert c.get("product") == "Job Atlas"
 
 
 # ---------- Packages bank/brand ----------

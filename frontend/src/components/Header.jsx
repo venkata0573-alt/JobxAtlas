@@ -39,7 +39,7 @@ export default function Header() {
           <img src="/icon.svg" alt="Job Atlas" className="w-11 h-11"/>
           <div className="leading-tight">
             <span className="font-display font-black text-xl tracking-tight block">Job Atlas</span>
-            <span className="text-[9px] font-mono text-[#6B6B6B] tracking-[0.25em] uppercase">by Geminista</span>
+            <span className="text-[9px] font-mono text-[#6B6B6B] tracking-[0.25em] uppercase">Vetted talent · Buy the hour</span>
           </div>
         </Link>
 

@@ -1,4 +1,4 @@
-"""Emergent Object Storage client for TalentHub attachments."""
+"""Emergent Object Storage client for Job Atlas attachments."""
 import os
 import requests
 from typing import Tuple

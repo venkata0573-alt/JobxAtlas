@@ -1,57 +1,53 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&family=Caveat:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Caveat:wght@400;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Job Atlas brand — Workable-inspired */
+/* Job Atlas-aligned brand tokens */
 :root {
-    --brand-primary: #5A34E8;         /* deep purple */
-    --brand-primary-hover: #4526C4;
-    --brand-star: #F5B90E;            /* accent gold star */
-    --brand-ink: #1A1B2E;
-    --brand-muted: #6B7280;
-    --brand-surface: #FFFFFF;
-    --brand-bg: #F7F7FB;
-    --brand-border: #E5E7EB;
+    --brand-navy: #0B1B2B;
+    --brand-gold: #C79A3B;
+    --brand-cream: #FAF9F6;
+    --brand-ink: #0B1B2B;
+    --brand-muted: #6B6B6B;
 
-    --background: 240 33% 98%;
-    --foreground: 235 26% 14%;
+    --background: 40 33% 97%;
+    --foreground: 210 60% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 235 26% 14%;
+    --card-foreground: 210 60% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 235 26% 14%;
-    --primary: 254 78% 55%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 15% 96%;
-    --secondary-foreground: 235 26% 14%;
-    --muted: 240 15% 96%;
-    --muted-foreground: 220 9% 46%;
-    --accent: 41 92% 51%;
-    --accent-foreground: 235 26% 14%;
-    --destructive: 0 84% 55%;
+    --popover-foreground: 210 60% 11%;
+    --primary: 210 60% 11%;              /* navy */
+    --primary-foreground: 40 33% 97%;
+    --secondary: 40 15% 92%;
+    --secondary-foreground: 210 60% 11%;
+    --muted: 40 15% 94%;
+    --muted-foreground: 0 0% 32%;
+    --accent: 40 55% 51%;                /* gold */
+    --accent-foreground: 210 60% 11%;
+    --destructive: 0 84% 45%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 254 78% 55%;
-    --radius: 10px;
+    --border: 210 15% 85%;
+    --input: 210 15% 85%;
+    --ring: 40 55% 51%;
+    --radius: 2px;
 }
 
 body {
     margin: 0;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background: var(--brand-bg);
+    background: var(--brand-cream);
     color: var(--brand-ink);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, h5, h6, .font-display {
-    font-family: 'Inter', system-ui, sans-serif;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    line-height: 1.1;
-    color: var(--brand-ink);
+    font-family: 'Fraunces', 'Playfair Display', Georgia, serif;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    line-height: 1.08;
 }
 
 .font-signature { font-family: 'Caveat', cursive; }
@@ -59,59 +55,56 @@ h1, h2, h3, h4, h5, h6, .font-display {
 
 .overline {
     text-transform: uppercase;
-    letter-spacing: 0.14em;
-    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    font-size: 0.7rem;
     font-weight: 600;
-    color: var(--brand-primary);
+    color: var(--brand-muted);
 }
 
-/* Rounded soft card feel — Workable style */
-.shadow-brutal        { box-shadow: 0 1px 3px rgba(24,25,46,0.06), 0 6px 16px rgba(24,25,46,0.06); }
-.shadow-brutal-lg     { box-shadow: 0 8px 30px rgba(24,25,46,0.12); }
-.shadow-brutal-hover  { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-.shadow-brutal-hover:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(24,25,46,0.12); }
+.shadow-brutal { box-shadow: 3px 3px 0 0 var(--brand-navy); }
+.shadow-brutal-lg { box-shadow: 6px 6px 0 0 var(--brand-navy); }
+.shadow-brutal-hover { transition: transform 0.2s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s cubic-bezier(0.4,0,0.2,1); }
+.shadow-brutal-hover:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 0 var(--brand-navy); }
 
-.hard-border { border: 1px solid var(--brand-border); border-radius: 10px; }
-.soft-border { border: 1px solid var(--brand-border); border-radius: 8px; }
+.hard-border { border: 1px solid var(--brand-navy); }
+.soft-border { border: 1px solid rgba(11,27,43,0.14); }
 
 .btn-primary {
-    background: var(--brand-primary); color: #fff; padding: 0.75rem 1.4rem;
-    font-weight: 600; border: 1px solid var(--brand-primary); border-radius: 10px;
-    transition: background 0.15s;
+    background: var(--brand-navy); color: #fff; padding: 0.85rem 1.6rem;
+    font-weight: 600; border: 1px solid var(--brand-navy);
+    transition: background 0.2s, color 0.2s;
+    letter-spacing: 0.02em;
 }
-.btn-primary:hover { background: var(--brand-primary-hover); border-color: var(--brand-primary-hover); }
+.btn-primary:hover { background: var(--brand-gold); color: var(--brand-navy); border-color: var(--brand-gold); }
 
 .btn-outline {
-    background: #fff; color: var(--brand-ink); padding: 0.75rem 1.4rem;
-    font-weight: 600; border: 1px solid var(--brand-border); border-radius: 10px;
-    transition: background 0.15s, border-color 0.15s;
+    background: transparent; color: var(--brand-navy); padding: 0.85rem 1.6rem;
+    font-weight: 600; border: 1px solid var(--brand-navy);
+    transition: background 0.2s, color 0.2s;
 }
-.btn-outline:hover { background: var(--brand-bg); border-color: var(--brand-primary); }
+.btn-outline:hover { background: var(--brand-navy); color: #fff; }
 
 .btn-accent {
-    background: var(--brand-star); color: var(--brand-ink); padding: 0.75rem 1.4rem;
-    font-weight: 700; border: 1px solid var(--brand-star); border-radius: 10px;
+    background: var(--brand-gold); color: var(--brand-navy); padding: 0.85rem 1.6rem;
+    font-weight: 700; border: 1px solid var(--brand-gold);
+    transition: background 0.2s;
 }
-.btn-accent:hover { filter: brightness(0.95); }
+.btn-accent:hover { background: var(--brand-navy); color: var(--brand-gold); border-color: var(--brand-navy); }
 
 .marquee-track {
     display: inline-flex; gap: 3rem; padding-right: 3rem;
-    animation: marquee 30s linear infinite; white-space: nowrap;
+    animation: marquee 30s linear infinite;
+    white-space: nowrap;
 }
 @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 
 .App { text-align: left; }
-@layer base { * { @apply border-border; } }
 
-.ticker-item {
-    font-family: 'Inter', sans-serif; font-weight: 700;
-    letter-spacing: 0.12em; font-size: 0.85rem;
+@layer base {
+    * { @apply border-border; }
 }
 
-/* Verified badge */
-.verified-tick {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 18px; height: 18px; border-radius: 50%;
-    background: var(--brand-star); color: #fff; font-size: 12px; font-weight: 900;
-    box-shadow: 0 0 0 2px #fff;
-}
+.ticker-item { font-family: 'Fraunces', serif; font-weight: 500; letter-spacing: 0.15em; font-size: 0.875rem; }
+
+/* Backwards-compat colour keywords used in existing components: map old #002FA7 & #FF0A0A to brand palette */
+[style*="#002FA7"], [style*="#0A0A0A"] { }

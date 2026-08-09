@@ -3,28 +3,19 @@ import { Link } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
 import { TID } from "@/constants/testIds";
 import { toast } from "sonner";
-import { MagnifyingGlass, Star, SealCheck } from "@phosphor-icons/react";
+import { MagnifyingGlass, Star } from "@phosphor-icons/react";
 
 export default function BrowseTalent() {
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
   const [skill, setSkill] = useState("");
   const [loading, setLoading] = useState(true);
-  const [verifiedMap, setVerifiedMap] = useState({});
-  const [lightbox, setLightbox] = useState(null);
 
   const load = async () => {
     setLoading(true);
     try {
       const r = await api.get("/talent", { params: { q, skill } });
       setItems(r.data);
-      // Fetch verified state per talent (best-effort)
-      const map = {};
-      await Promise.all(r.data.slice(0, 24).map(async (t) => {
-        try { const v = await api.get(`/talent/${t.id}/verified`); map[t.id] = v.data.verified; }
-        catch { map[t.id] = false; }
-      }));
-      setVerifiedMap(map);
     } catch (e) { toast.error(formatErr(e)); }
     finally { setLoading(false); }
   };
@@ -89,8 +80,7 @@ export default function BrowseTalent() {
                   <div className="grid grid-cols-3 gap-1 mb-3">
                     {t.profile.portfolio_images.slice(0, 3).map((f) => (
                       <img key={f} src={`${process.env.REACT_APP_BACKEND_URL}${f}`} alt="portfolio"
-                           onClick={(e) => { e.preventDefault(); setLightbox(`${process.env.REACT_APP_BACKEND_URL}${f}`); }}
-                           className="w-full h-14 object-cover hard-border cursor-pointer hover:opacity-80"/>
+                           className="w-full h-14 object-cover hard-border"/>
                     ))}
                   </div>
                 )}
@@ -106,12 +96,6 @@ export default function BrowseTalent() {
             ))}
           </div>
         )}
-      {lightbox && (
-        <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-6" onClick={() => setLightbox(null)}>
-          <img src={lightbox} alt="portfolio" className="max-w-full max-h-full object-contain"/>
-          <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 hard-border bg-white p-2">✕</button>
-        </div>
-      )}
     </main>
   );
 }

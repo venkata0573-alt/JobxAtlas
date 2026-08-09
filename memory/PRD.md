@@ -32,6 +32,14 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
+## Implemented (2026-02-09, iteration 9 — Job Atlas rename + Star+J logo)
+- **Full revert of the "workable.com" light rebrand** back to the executive Geminista visual system (navy `#0B1B2B` + warm gold `#C79A3B` + cream `#FAF9F6`, Fraunces serif headings, Inter body). User preferred the deeper, more premium look.
+- **Renamed platform label everywhere** from `TalentHub` / `Geminista` → **`Job Atlas`** (headers, footer, page titles, manifest, meta tags, contracts, emails, backend responses, tests, sitemap, robots, PWA name).
+- **Premium new logo** at `/app/frontend/public/icon.svg` — 5-point gold-gradient star (with darker gold rim + top-facet highlight + sparkle detailing) with a **serif navy "J" embedded inside** the star. Matches Geminista navy + gold palette.
+- Header sub-tag updated: `VETTED TALENT · BUY THE HOUR` (replacing the old "by Geminista" line so the branding reads cleanly).
+- Landing footer / Legal / Pricing / Earnings cleaned up to remove redundant "a product of Job Atlas" phrasing → now shows "operated by Denkoit Softech Pvt. Ltd." where appropriate.
+- Verified visually on `/`, `/browse`, `/register` — theme, logo, name all render correctly.
+
 ## Implemented (2026-02-09, iteration 8 — Geminista rebrand + attachments + city×skill)
 - **Full Geminista rebrand**: swapped generic "brutalist" theme for an executive/PMO look aligned with geminista.com — deep navy `#0B1B2B` + warm gold `#C79A3B` on a cream `#FAF9F6` background; Fraunces serif for headings, Inter for body; custom TH-in-diamond SVG logo with gold accent.
 - **City × Skill programmatic SEO**: new `/api/seo/hire-city/{slug}` endpoint (e.g. `react-developers-london`) and enhanced `/hire/:slug` route that auto-detects skill or skill+city format. Each page carries a title/description tuned for the {skill, city} pair, and two CTA cards — a **"Notify me" signup for buyers** (when talent is empty for that combo) and a **"Get listed" invitation** for the talent side. Both write into `newsletter_signups` for outreach.

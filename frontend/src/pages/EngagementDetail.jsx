@@ -206,10 +206,7 @@ export default function EngagementDetail() {
                 <>
                   <p className="font-signature text-4xl">{eng[key].name}</p>
                   <p className="text-xs text-neutral-500 mt-2 font-mono">Signed by {who} · {new Date(eng[key].signed_at).toLocaleString()}</p>
-                  {label === "Employer signature" && eng.employer_name && (
-                    <p className="text-xs text-neutral-600 mt-1">for <strong>{eng.employer_name}</strong></p>
-                  )}
-                  {isOnsite && eng[key].onsite_ack && <p className="text-xs text-[#5A34E8] mt-1">✓ On-site terms acknowledged</p>}
+                  {isOnsite && eng[key].onsite_ack && <p className="text-xs text-[#002FA7] mt-1">✓ On-site terms acknowledged</p>}
                 </>
               ) : (
                 <p className="text-neutral-400 italic">Awaiting signature…</p>

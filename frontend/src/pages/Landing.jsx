@@ -208,8 +208,12 @@ export default function Landing() {
       <section className="border-t border-black/10 bg-[#FAF9F6]">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-14">
           <p className="overline text-[#C79A3B] mb-6 text-center">SIGNED &amp; ENDORSED BY DENKOIT SOFTECH LEADERSHIP</p>
-          <div className="max-w-md mx-auto">
-            {[{ name: "Naveed Hasan", role: "Founder · Denkoit Softech Pvt. Ltd." }].map(s => (
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              { name: "Sowmya D.",     role: "Chief Executive Officer" },
+              { name: "Rajesh K.",     role: "Chief Technology Officer" },
+              { name: "Vikram M.",     role: "Head of Client Success" },
+            ].map(s => (
               <div key={s.name} className="hard-border bg-white p-6 text-center">
                 <p className="font-signature text-4xl text-[#0B1B2B] leading-tight">{s.name}</p>
                 <div className="w-16 h-px bg-[#C79A3B] mx-auto my-3"/>
@@ -218,7 +222,7 @@ export default function Landing() {
             ))}
           </div>
           <p className="text-center text-xs font-mono text-neutral-500 mt-8">
-            Job Atlas is operated with the same standards of governance that define Geminista&apos;s enterprise practice.
+            Job Atlas is operated with the same standards of governance that define Job Atlas&apos;s enterprise practice.
           </p>
         </div>
       </section>
@@ -242,7 +246,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-12 grid md:grid-cols-4 gap-8 font-mono">
           <div>
             <p className="text-white font-display font-extrabold tracking-tight text-lg mb-2">JOB ATLAS</p>
-            <p>A product of <span className="text-white">Geminista</span></p>
+            <p>Operated by <span className="text-white">Denkoit Softech Pvt. Ltd.</span></p>
             <p className="mt-2">Structured hiring for a global workforce.</p>
           </div>
           <div>
@@ -261,11 +265,11 @@ export default function Landing() {
           </div>
           <div>
             <p className="text-neutral-300 mb-2">Contact</p>
-            <p>hello@jobatlas.io</p>
-            <p>grievance@jobatlas.io</p>
+            <p>hello@talenthub.io</p>
+            <p>grievance@talenthub.io</p>
             <p className="mt-4 text-neutral-600">Operated by Denkoit Softech Pvt. Ltd.</p>
             <p className="text-neutral-600">GSTIN 36AAGCD3748K1ZC</p>
-            <p className="mt-3">© 2026 Geminista</p>
+            <p className="mt-3">© 2026 Job Atlas</p>
           </div>
         </div>
       </footer>

@@ -1,7 +1,7 @@
 {
-  "name": "Job Atlas — by Geminista",
+  "name": "Job Atlas — by Job Atlas",
   "short_name": "Job Atlas",
-  "description": "Premium marketplace to hire vetted freelancers by the hour. Structured contracts, integrated with Jira & Asana. A product of Geminista.",
+  "description": "Premium marketplace to hire vetted freelancers by the hour. Structured contracts, integrated with Jira & Asana. Operated by Denkoit Softech Pvt. Ltd.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
