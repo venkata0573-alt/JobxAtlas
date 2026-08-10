@@ -1,5 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Global talent atlas">
   <defs>
+    <style><![CDATA[
+      /* Arcs flow like live engagements traversing the globe */
+      .ha-arc { stroke-dasharray: 6 14; stroke-dashoffset: 400; animation: ha-flow 6s linear infinite; }
+      .ha-arc-2 { animation-duration: 8s; animation-direction: reverse; }
+      .ha-arc-3 { animation-duration: 10s; }
+      .ha-arc-4 { animation-duration: 7s; animation-direction: reverse; }
+      .ha-arc-5 { animation-duration: 12s; }
+      .ha-arc-6 { animation-duration: 9s; animation-direction: reverse; }
+
+      /* Hub cities pulse gently — one at a time via staggered delays */
+      .ha-hub-glow { transform-box: fill-box; transform-origin: center; animation: ha-pulse 3.6s ease-in-out infinite; }
+      .ha-hub-1 { animation-delay: 0s; }
+      .ha-hub-2 { animation-delay: 0.6s; }
+      .ha-hub-3 { animation-delay: 1.2s; }
+      .ha-hub-4 { animation-delay: 1.8s; }
+      .ha-hub-5 { animation-delay: 2.4s; }
+
+      @keyframes ha-flow {
+        from { stroke-dashoffset: 400; }
+        to   { stroke-dashoffset: 0; }
+      }
+      @keyframes ha-pulse {
+        0%, 100% { transform: scale(1);   opacity: 0.35; }
+        50%      { transform: scale(1.6); opacity: 0.15; }
+      }
+
+      /* Respect users who prefer reduced motion */
+      @media (prefers-reduced-motion: reduce) {
+        .ha-arc, .ha-hub-glow { animation: none; }
+        .ha-arc { stroke-dashoffset: 0; }
+      }
+    ]]></style>
+
     <radialGradient id="ha-glow" cx="60%" cy="45%" r="55%">
       <stop offset="0%"   stop-color="#122740" stop-opacity="1"/>
       <stop offset="55%"  stop-color="#0B1B2B" stop-opacity="1"/>
@@ -97,28 +130,29 @@
     </g>
   </g>
 
-  <!-- A few gently glowing "hub" cities -->
+  <!-- A few gently glowing "hub" cities (each pulses with staggered timing) -->
   <g>
-    <circle cx="835" cy="345" r="6" fill="#F0C260" opacity="0.35"/>
-    <circle cx="835" cy="345" r="2.8" fill="#FFE79A"/>
-    <circle cx="1185" cy="365" r="6" fill="#F0C260" opacity="0.35"/>
+    <circle cx="835"  cy="345" r="6"   fill="#F0C260" class="ha-hub-glow ha-hub-1"/>
+    <circle cx="835"  cy="345" r="2.8" fill="#FFE79A"/>
+    <circle cx="1185" cy="365" r="6"   fill="#F0C260" class="ha-hub-glow ha-hub-2"/>
     <circle cx="1185" cy="365" r="2.8" fill="#FFE79A"/>
-    <circle cx="1440" cy="355" r="6" fill="#F0C260" opacity="0.35"/>
+    <circle cx="1440" cy="355" r="6"   fill="#F0C260" class="ha-hub-glow ha-hub-3"/>
     <circle cx="1440" cy="355" r="2.8" fill="#FFE79A"/>
-    <circle cx="1300" cy="440" r="6" fill="#F0C260" opacity="0.35"/>
+    <circle cx="1300" cy="440" r="6"   fill="#F0C260" class="ha-hub-glow ha-hub-4"/>
     <circle cx="1300" cy="440" r="2.8" fill="#FFE79A"/>
-    <circle cx="1610" cy="600" r="6" fill="#F0C260" opacity="0.35"/>
+    <circle cx="1610" cy="600" r="6"   fill="#F0C260" class="ha-hub-glow ha-hub-5"/>
     <circle cx="1610" cy="600" r="2.8" fill="#FFE79A"/>
   </g>
 
-  <!-- Connection arcs between hub cities — the "engagements" traversing the globe -->
-  <g fill="none" stroke="url(#ha-arc)" stroke-width="1.2" filter="url(#ha-blur)">
-    <path d="M 835 345 Q 1010 220 1185 365"/>
-    <path d="M 1185 365 Q 1310 260 1440 355"/>
-    <path d="M 1185 365 Q 1240 400 1300 440"/>
-    <path d="M 1440 355 Q 1530 480 1610 600"/>
-    <path d="M 835 345 Q 1170 640 1610 600"/>
-    <path d="M 1300 440 Q 1450 500 1610 600"/>
+  <!-- Connection arcs between hub cities — the "engagements" traversing the globe.
+       Each path animates its stroke-dashoffset so the dashes appear to flow. -->
+  <g fill="none" stroke="url(#ha-arc)" stroke-width="1.4" stroke-linecap="round" filter="url(#ha-blur)">
+    <path class="ha-arc ha-arc-1" d="M 835 345 Q 1010 220 1185 365"/>
+    <path class="ha-arc ha-arc-2" d="M 1185 365 Q 1310 260 1440 355"/>
+    <path class="ha-arc ha-arc-3" d="M 1185 365 Q 1240 400 1300 440"/>
+    <path class="ha-arc ha-arc-4" d="M 1440 355 Q 1530 480 1610 600"/>
+    <path class="ha-arc ha-arc-5" d="M 835 345 Q 1170 640 1610 600"/>
+    <path class="ha-arc ha-arc-6" d="M 1300 440 Q 1450 500 1610 600"/>
   </g>
 
   <!-- Subtle scanline / vignette to add texture -->

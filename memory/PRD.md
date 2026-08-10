@@ -32,6 +32,12 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
+## Implemented (2026-02-09, iteration 18 — animated hero atlas)
+- **Hero arcs now flow** and hub cities **pulse in staggered sequence**. Added inline `<style>` in `/frontend/public/hero-atlas.svg` with two keyframe animations: `ha-flow` (arcs animate `stroke-dashoffset` 400 → 0 in a loop, 6 arcs each at a different duration 6-12s + alternating direction so they don't sync) and `ha-pulse` (hub glow circles scale 1→1.6× with opacity 0.35→0.15, 5 hubs on 0.6s stagger). Arcs now render with `stroke-dasharray: 6 14` for a dotted-flow look.
+- **Critical fix**: switched the hero from `background-image: url(...)` to a proper `<img src={HERO}>` element in Landing.jsx. CSS `background-image` freezes SVG internal animations across all browsers; `<img>` preserves them. Overlays now sit above the `<img>` via absolute positioning.
+- **Accessibility**: added `@media (prefers-reduced-motion: reduce)` inside the SVG so users who disable motion see the static composition. Image also carries `alt=""` + `aria-hidden="true"` since it's purely decorative.
+- Verified via two screenshots ~1.8s apart — arc dashes and hub-glow radii visibly shift between frames.
+
 ## Implemented (2026-02-09, iteration 17 — bespoke hero background)
 - **New hero background** at `/frontend/public/hero-atlas.svg` — replaces the generic Pexels photo with a custom, dependency-free SVG that literally illustrates "Job Atlas": a stylised wireframe globe (latitude / longitude ellipses), dot-matrix continent clusters representing every SEO city cluster we cover (North America, South America, Europe, Middle East, Africa, Asia, Oceania), five glowing "hub" cities, and gently-glowing gold arcs connecting them (the "engagements crossing the globe" metaphor).
 - Palette matches the Geminista dark navy + warm-gold system (`#0B1B2B`, `#122740`, `#C79A3B`, `#F0C260`). Hero overlay refined to a left-heavy gradient (`from-[#0A0A0A]/85 via-[#0A0A0A]/55 to-transparent`) plus a bottom vignette so the copy stays crisp while the illustration breathes on the right.

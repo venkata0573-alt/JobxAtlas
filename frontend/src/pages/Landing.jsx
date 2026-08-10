@@ -55,8 +55,13 @@ export default function Landing() {
   return (
     <main className="bg-white">
       {/* HERO */}
-      <section className="relative border-b border-black bg-[#0A0A0A] text-white">
-        <div className="absolute inset-0 opacity-95" style={{ backgroundImage: `url(${HERO})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+      <section className="relative border-b border-black bg-[#0A0A0A] text-white overflow-hidden">
+        <img
+          src={HERO}
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+        />
         <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A0A]/85 via-[#0A0A0A]/55 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0A0A0A]/60" />
         <div className="relative max-w-7xl mx-auto px-6 md:px-12 py-24 md:py-40">
