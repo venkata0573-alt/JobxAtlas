@@ -32,6 +32,11 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
+## Implemented (2026-02-09, iteration 19 — trust-bar filter + hero verb rotator)
+- **Public Trust Bar Filter**: every industry chip on Landing is now a `<Link>` to `/browse?industry=<label>`. Chip UI shows a `→` arrow when there are no employers yet (invites click) or `×N` when employers exist. `BrowseTalent.jsx` reads `useSearchParams` and renders a dark-navy `data-testid="industry-filter-banner"` at the top ("FILTERED BY INDUSTRY · <label>") with a `data-testid="clear-industry-filter"` button that removes the query param. Talent grid is not filtered yet (talents don't carry an industry tag today) — the banner is the entry point for that future work.
+- **Hero Verb Rotator**: the red-highlighted verb in the hero headline cycles through **Grow → Ship → Scale → Build → …** every 3.2s with a 260ms fade-and-lift transition. `data-testid="hero-verb-rotator"` for testability. Honours `(prefers-reduced-motion: reduce)` — the interval is not started for users who prefer no motion.
+- Playwright verified: chip click routes correctly with URL-encoded label; verb rotator captured 3 consecutive different values over 10s.
+
 ## Implemented (2026-02-09, iteration 18 — animated hero atlas)
 - **Hero arcs now flow** and hub cities **pulse in staggered sequence**. Added inline `<style>` in `/frontend/public/hero-atlas.svg` with two keyframe animations: `ha-flow` (arcs animate `stroke-dashoffset` 400 → 0 in a loop, 6 arcs each at a different duration 6-12s + alternating direction so they don't sync) and `ha-pulse` (hub glow circles scale 1→1.6× with opacity 0.35→0.15, 5 hubs on 0.6s stagger). Arcs now render with `stroke-dasharray: 6 14` for a dotted-flow look.
 - **Critical fix**: switched the hero from `background-image: url(...)` to a proper `<img src={HERO}>` element in Landing.jsx. CSS `background-image` freezes SVG internal animations across all browsers; `<img>` preserves them. Overlays now sit above the `<img>` via absolute positioning.

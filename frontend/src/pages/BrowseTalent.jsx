@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
 import { TID } from "@/constants/testIds";
 import { toast } from "sonner";
-import { MagnifyingGlass, Star } from "@phosphor-icons/react";
+import { MagnifyingGlass, Star, X } from "@phosphor-icons/react";
 
 export default function BrowseTalent() {
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
   const [skill, setSkill] = useState("");
   const [loading, setLoading] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const industryFilter = searchParams.get("industry") || "";
 
   const load = async () => {
     setLoading(true);
@@ -21,6 +23,12 @@ export default function BrowseTalent() {
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
+  const clearIndustry = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("industry");
+    setSearchParams(next);
+  };
+
   return (
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
       <div className="flex items-baseline justify-between mb-10">
@@ -30,6 +38,29 @@ export default function BrowseTalent() {
         </div>
         <p className="hidden md:block text-sm text-neutral-500 max-w-xs">Contact details are unlocked after you purchase hours and both parties sign the contract.</p>
       </div>
+
+      {/* Industry filter banner — set via /browse?industry=<label> from the Landing trust bar */}
+      {industryFilter && (
+        <div className="hard-border bg-[#0B1B2B] text-white p-4 mb-6 flex items-center justify-between gap-4"
+             data-testid="industry-filter-banner">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#C79A3B] shrink-0"/>
+            <p className="text-sm">
+              <span className="overline text-[#C79A3B] mr-2">FILTERED BY INDUSTRY</span>
+              <span className="font-display font-extrabold">{industryFilter}</span>
+              <span className="hidden md:inline text-neutral-400 ml-3 text-xs">
+                · Showing all vetted talent — apply skill / search filters below to narrow further
+              </span>
+            </p>
+          </div>
+          <button
+            onClick={clearIndustry}
+            className="text-sm text-neutral-300 hover:text-white inline-flex items-center gap-1"
+            data-testid="clear-industry-filter">
+            <X size={14}/> Clear
+          </button>
+        </div>
+      )}
 
       <div className="hard-border bg-white p-6 shadow-brutal grid md:grid-cols-[1fr_1fr_auto] gap-3 mb-10">
         <div className="flex items-center gap-2 hard-border px-3">

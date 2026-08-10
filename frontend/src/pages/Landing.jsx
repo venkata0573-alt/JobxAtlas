@@ -47,9 +47,27 @@ const FAQ = [
 export default function Landing() {
   const [stats, setStats] = useState({ active_buyers_display: 42, industries: 12, engagements_signed: 20 });
   const [industries, setIndustries] = useState([]);
+  const HERO_VERBS = ["Grow", "Ship", "Scale", "Build"];
+  const [verbIndex, setVerbIndex] = useState(0);
+  const [verbFade, setVerbFade] = useState(true);
+
   useEffect(() => {
     api.get("/marketplace/stats").then((r) => setStats(r.data)).catch(() => {});
     api.get("/marketplace/industries").then((r) => setIndustries(r.data.industries || [])).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    // Rotate the red-highlighted verb every 3s with a short fade transition
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const id = setInterval(() => {
+      setVerbFade(false);
+      setTimeout(() => {
+        setVerbIndex((i) => (i + 1) % HERO_VERBS.length);
+        setVerbFade(true);
+      }, 260);
+    }, 3200);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -69,7 +87,12 @@ export default function Landing() {
           <h1 className="font-display font-extrabold text-5xl sm:text-6xl lg:text-7xl tracking-tight leading-[0.95] max-w-4xl">
             Hire experts by the hour.<br/>
             Ship projects by the week.<br/>
-            <span className="text-[#FF0A0A]">Grow without the guesswork.</span>
+            <span
+              className="text-[#FF0A0A] inline-block transition-all duration-300 ease-out"
+              style={{ opacity: verbFade ? 1 : 0, transform: verbFade ? "translateY(0)" : "translateY(-4px)" }}
+              data-testid="hero-verb-rotator">
+              {HERO_VERBS[verbIndex]} without the guesswork.
+            </span>
           </h1>
           <p className="mt-8 max-w-2xl text-lg text-neutral-300 leading-relaxed">
             Job Atlas connects world-class freelance developers, designers and consultants with the companies
@@ -164,16 +187,21 @@ export default function Landing() {
                 { label: "Non-profit & Public Sector", count: 0 },   { label: "Logistics & Supply Chain", count: 0 },
                 { label: "Cybersecurity", count: 0 },                { label: "AI & Data Platforms", count: 0 },
               ]).map((row) => (
-                <div key={row.label}
-                     className="hard-border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] transition-colors px-4 py-3 flex items-center justify-between gap-3">
+                <Link
+                  key={row.label}
+                  to={`/browse?industry=${encodeURIComponent(row.label)}`}
+                  data-testid={`trust-industry-${row.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`}
+                  className="hard-border border-white/15 bg-white/[0.03] hover:bg-white/[0.10] hover:border-[#C79A3B]/50 transition-colors px-4 py-3 flex items-center justify-between gap-3 group">
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#C79A3B] shrink-0"/>
-                    <span className="text-sm text-neutral-200 leading-tight truncate">{row.label}</span>
+                    <span className="text-sm text-neutral-200 group-hover:text-white leading-tight truncate">{row.label}</span>
                   </div>
-                  {row.count > 0 && (
+                  {row.count > 0 ? (
                     <span className="text-[10px] font-mono text-[#C79A3B] tabular-nums shrink-0">×{row.count}</span>
+                  ) : (
+                    <span className="text-[10px] font-mono text-white/30 group-hover:text-[#C79A3B] tabular-nums shrink-0">→</span>
                   )}
-                </div>
+                </Link>
               ))}
             </div>
 
