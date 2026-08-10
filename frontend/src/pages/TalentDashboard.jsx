@@ -4,7 +4,7 @@ import api, { formatErr } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { TID } from "@/constants/testIds";
-import { Sparkle, ArrowsClockwise, WarningCircle, X } from "@phosphor-icons/react";
+import { Sparkle, ArrowsClockwise, WarningCircle, X, Envelope } from "@phosphor-icons/react";
 import DashboardMetrics from "@/components/DashboardMetrics";
 
 export default function TalentDashboard() {
@@ -16,6 +16,7 @@ export default function TalentDashboard() {
   const [applying, setApplying] = useState(false);
   const [nudge, setNudge] = useState(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  const [broadcasts, setBroadcasts] = useState([]);
 
   const profile = user?.profile || {};
   const currentRate = Number(profile.hourly_rate || 0);
@@ -25,15 +26,24 @@ export default function TalentDashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const [a, m, n] = await Promise.all([
+        const [a, m, n, b] = await Promise.all([
           api.get("/engagements"),
           api.get("/dashboard/metrics"),
           api.get("/talent/me/rate-nudge").catch(() => ({ data: { nudge: null } })),
+          api.get("/talent/me/broadcasts").catch(() => ({ data: { items: [] } })),
         ]);
         setEngs(a.data); setMetrics(m.data); setNudge(n.data?.nudge || null);
+        setBroadcasts(b.data?.items || []);
       } catch (e) { toast.error(formatErr(e)); }
     })();
   }, []);
+
+  const markBroadcastRead = async (docId) => {
+    try {
+      await api.post(`/talent/me/broadcasts/${docId}/read`);
+      setBroadcasts((prev) => prev.map((x) => x.id === docId ? { ...x, read: true } : x));
+    } catch (e) { /* silent */ }
+  };
 
   const dismissNudge = async () => {
     setNudgeDismissed(true);
@@ -202,6 +212,42 @@ export default function TalentDashboard() {
           </div>
         )}
       </section>
+
+      {/* Broadcasts inbox — employer "I'm ready to hire" notes */}
+      {broadcasts.length > 0 && (
+        <section className="hard-border bg-white p-8 shadow-brutal mt-8" data-testid="broadcasts-inbox">
+          <div className="flex items-baseline justify-between mb-6 gap-4 flex-wrap">
+            <div>
+              <p className="overline text-[#C79A3B] mb-1">HIRE-INTENT INBOX</p>
+              <h2 className="font-display font-extrabold text-2xl tracking-tight">
+                {broadcasts.filter((b) => !b.read).length > 0
+                  ? `${broadcasts.filter((b) => !b.read).length} employer${broadcasts.filter((b) => !b.read).length === 1 ? " is" : "s are"} ready to hire you.`
+                  : "Recent hire-intent notes."}
+              </h2>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {broadcasts.slice(0, 5).map((b) => (
+              <div
+                key={b.id}
+                onClick={() => !b.read && markBroadcastRead(b.id)}
+                className={`hard-border p-5 cursor-pointer transition-colors ${b.read ? "bg-[#FAF9F6]" : "bg-white hover:bg-[#FDF6E3] border-[#C79A3B]"}`}
+                data-testid={`broadcast-${b.id}`}>
+                <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                  <p className="font-display font-extrabold text-lg tracking-tight inline-flex items-center gap-2">
+                    <Envelope size={16} weight={b.read ? "regular" : "fill"} color={b.read ? "#666" : "#C79A3B"}/>
+                    {b.employer_name}
+                  </p>
+                  <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+                    {new Date(b.created_at).toLocaleDateString()}{!b.read && " · NEW"}
+                  </span>
+                </div>
+                <p className="text-sm text-[#333] leading-relaxed whitespace-pre-line">{b.message}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="hard-border bg-white p-8 shadow-brutal mt-8">
         <h2 className="font-display font-extrabold text-2xl tracking-tight mb-6">Engagements</h2>

@@ -26,77 +26,25 @@ from ai_service import suggest_hourly_rate
 from work_integrations import parse_excel_bytes, parse_project_xml_bytes, list_supported_providers, fetch_from_provider
 from storage_client import init_storage, put_object, get_object, APP_NAME as STORAGE_APP
 
-# ---------- Setup ----------
-MONGO_URL = os.environ["MONGO_URL"]
-DB_NAME = os.environ["DB_NAME"]
-JWT_SECRET = os.environ["JWT_SECRET"]
-JWT_ALGO = "HS256"
-STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+# Shared deps (single source of truth for db + api router + auth helpers + constants)
+from deps import (
+    api, db, client, logger,
+    MONGO_URL, DB_NAME, JWT_SECRET, JWT_ALGO, STRIPE_WEBHOOK_SECRET,
+    hash_pw, verify_pw, now, new_id, create_token,
+    get_current_user, set_auth_cookies,
+    SEO_SKILLS, SEO_CITIES, EMPLOYER_INDUSTRIES, CITY_PRETTY,
+    RATE_DRIFT_THRESHOLD_PCT,
+)
+
+# ---------- App bootstrapping ----------
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or "sk_test_emergent"
 
-client = AsyncIOMotorClient(MONGO_URL)
-db = client[DB_NAME]
-
 app = FastAPI(title="Job Atlas API")
-api = APIRouter(prefix="/api")
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-logger = logging.getLogger("talenthub")
 
 
-# ---------- Utils ----------
-def hash_pw(pw: str) -> str:
-    return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
-
-
-def verify_pw(pw: str, h: str) -> bool:
-    try:
-        return bcrypt.checkpw(pw.encode(), h.encode())
-    except Exception:
-        return False
-
-
-def now() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def create_token(user_id: str, kind: str = "access") -> str:
-    exp = now() + (timedelta(minutes=60 * 24 * 7) if kind == "refresh" else timedelta(hours=12))
-    payload = {"sub": user_id, "type": kind, "exp": exp}
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
-
-
-def new_id() -> str:
-    return str(uuid.uuid4())
-
-
-async def get_current_user(request: Request) -> dict:
-    token = request.cookies.get("access_token")
-    if not token:
-        auth = request.headers.get("Authorization", "")
-        if auth.startswith("Bearer "):
-            token = auth[7:]
-    if not token:
-        raise HTTPException(401, "Not authenticated")
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
-        if payload.get("type") != "access":
-            raise HTTPException(401, "Invalid token")
-        user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0, "password_hash": 0})
-        if not user:
-            raise HTTPException(401, "User not found")
-        return user
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(401, "Token expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(401, "Invalid token")
-
-
-def set_auth_cookies(resp: Response, uid: str):
-    access = create_token(uid, "access")
-    refresh = create_token(uid, "refresh")
-    resp.set_cookie("access_token", access, httponly=True, secure=True, samesite="none", max_age=43200, path="/")
-    resp.set_cookie("refresh_token", refresh, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
+# ---------- Utils moved to deps.py ----------
+# hash_pw, verify_pw, now, create_token, new_id, get_current_user, set_auth_cookies
+# are all imported from `deps` above.
 
 
 # ---------- Models ----------
@@ -268,79 +216,11 @@ COMPANY_BANK = {
 }
 
 
-# ---------- Auth Routes ----------
-@api.post("/auth/register")
-async def register(payload: RegisterIn, response: Response):
-    email = payload.email.lower()
-    if payload.role not in ("talent", "employer"):
-        raise HTTPException(400, "role must be talent or employer")
-    existing = await db.users.find_one({"email": email})
-    if existing:
-        raise HTTPException(400, "Email already registered")
-    industry = (payload.company_industry or "").strip()
-    if payload.role == "employer" and industry and industry not in EMPLOYER_INDUSTRIES:
-        raise HTTPException(400, f"Unknown industry. Must be one of: {', '.join(EMPLOYER_INDUSTRIES)}")
-    uid = new_id()
-    doc = {
-        "id": uid, "email": email, "name": payload.name, "role": payload.role,
-        "password_hash": hash_pw(payload.password),
-        "created_at": now().isoformat(),
-        "profile": {"headline": "", "bio": "", "skills": [], "years_experience": 0,
-                    "hourly_rate": 0.0, "location": "", "portfolio_url": "",
-                    "avatar_url": "", "company": "",
-                    "company_industry": industry if payload.role == "employer" else ""},
-        "hours_balance": 0,
-        "integrations": [],
-        "availability": {"timezone": "UTC", "slots": [
-            {"day": 1, "start": "09:00", "end": "17:00"},
-            {"day": 2, "start": "09:00", "end": "17:00"},
-            {"day": 3, "start": "09:00", "end": "17:00"},
-            {"day": 4, "start": "09:00", "end": "17:00"},
-            {"day": 5, "start": "09:00", "end": "17:00"},
-        ]},
-    }
-    await db.users.insert_one(doc)
-    set_auth_cookies(response, uid)
-    doc.pop("password_hash", None)
-    doc.pop("_id", None)
-    return doc
-
-
-@api.post("/auth/login")
-async def login(payload: LoginIn, response: Response):
-    email = payload.email.lower()
-    user = await db.users.find_one({"email": email})
-    if not user or not verify_pw(payload.password, user.get("password_hash", "")):
-        raise HTTPException(401, "Invalid email or password")
-    set_auth_cookies(response, user["id"])
-    user.pop("password_hash", None); user.pop("_id", None)
-    return user
-
-
-@api.post("/auth/logout")
-async def logout(response: Response):
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/")
-    return {"ok": True}
-
-
-@api.get("/auth/me")
-async def me(user: dict = Depends(get_current_user)):
-    return user
-
-
-# ---------- Profile ----------
-@api.put("/profile")
-async def update_profile(payload: ProfileIn, user: dict = Depends(get_current_user)):
-    await db.users.update_one({"id": user["id"]}, {"$set": {"profile": payload.model_dump()}})
-    updated = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password_hash": 0})
-    return updated
-
-
-@api.post("/profile/suggest-rate")
-async def suggest_rate(payload: RateSuggestIn, user: dict = Depends(get_current_user)):
-    result = await suggest_hourly_rate(payload.skills, payload.years_experience, payload.location or "Global")
-    return result
+# ---------- Auth Routes (extracted to routes/auth.py) ----------
+# The endpoints /auth/register, /auth/login, /auth/logout, /auth/me,
+# PUT /profile, POST /profile/suggest-rate now live in routes/auth.py and are
+# registered onto the shared `api` router when server.py imports that module.
+import routes.auth  # noqa: E402,F401  (registers endpoints via decorators)
 
 
 # ---------- Browse Talent (public listing but contact hidden) ----------
@@ -1023,11 +903,8 @@ async def post_message(payload: MessageIn, user: dict = Depends(get_current_user
 
 
 # ---------- SEO skill landing pages ----------
-SEO_SKILLS = [
-    "react-developers", "python-developers", "node-developers", "ui-designers",
-    "ux-designers", "data-scientists", "devops-engineers", "product-managers",
-    "figma-designers", "mobile-developers", "wordpress-developers", "salesforce-consultants",
-]
+# SEO_SKILLS, SEO_CITIES, EMPLOYER_INDUSTRIES are imported from `deps` at the
+# top of this file. Do not redefine here.
 
 
 @api.get("/seo/skills")
@@ -1105,24 +982,11 @@ async def employer_overview(user: dict = Depends(get_current_user)):
     }
 
 
-SEO_CITIES = ["london", "new-york", "san-francisco", "berlin", "singapore", "dubai", "sydney", "toronto", "remote"]
+SEO_CITIES = SEO_CITIES  # re-export for local references (imported from deps at top)
 
 
 # ---------- Employer industry categories (used at registration + trust bar) ----------
-EMPLOYER_INDUSTRIES = [
-    "Series-B fintechs",
-    "PE-backed platforms",
-    "Health-tech scale-ups",
-    "YC-backed marketplaces",
-    "Global consultancies",
-    "Public-sector innovation",
-    "Series-A SaaS teams",
-    "Family-office ventures",
-    "Cross-border e-commerce",
-    "DTC brand houses",
-    "Regulated data-cos",
-    "ClimateTech pilots",
-]
+# EMPLOYER_INDUSTRIES is imported from `deps` at the top of this file.
 
 
 # ---------- Curated vetted-talent pool for SEO landing pages ----------
@@ -1510,14 +1374,14 @@ def _build_sitemap_xml(origin: str) -> str:
 @api.get("/sitemap.xml")
 async def sitemap_xml(request: Request):
     """Dynamically generated sitemap covering all static + SEO landing routes."""
-    from fastapi.responses import Response
+    from fastapi.responses import Response as _XmlResponse
     # Prefer the explicit env var, then the forwarded host (ingress), then the raw host header
     origin = os.environ.get("PUBLIC_SITE_URL")
     if not origin:
         fwd_host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
         fwd_proto = request.headers.get("x-forwarded-proto", "https")
         origin = f"{fwd_proto}://{fwd_host}" if fwd_host else str(request.base_url).rstrip("/")
-    return Response(content=_build_sitemap_xml(origin), media_type="application/xml")
+    return _XmlResponse(content=_build_sitemap_xml(origin), media_type="application/xml")
 
 
 # ---------- Marketplace stats (live buyer counter) ----------
@@ -1567,7 +1431,7 @@ async def marketplace_stats():
 
 
 # ---------- Rate Nudge (drift monitor) ----------
-RATE_DRIFT_THRESHOLD_PCT = 15
+# RATE_DRIFT_THRESHOLD_PCT imported from deps at top of file.
 
 
 class RateNudgeScanIn(BaseModel):
@@ -1578,7 +1442,6 @@ async def _scan_and_record_rate_nudges(request: Optional[Request] = None) -> Dic
     """Iterate all talents, refresh their AI rate suggestion, and log a nudge
     doc whenever the current rate drifts more than ±15% from the AI mid.
     Also fires an outbound email via Resend when configured."""
-    from ai_service import suggest_hourly_rate
     from mailer import send_email, rate_nudge_html
     # Build the dashboard link for the CTA in the email
     if request is not None:
@@ -1759,6 +1622,154 @@ async def remove_from_shortlist(talent_id: str, user: dict = Depends(get_current
     await db.shortlists.delete_one({"employer_id": user["id"], "talent_id": talent_id})
     total = await db.shortlists.count_documents({"employer_id": user["id"]})
     return {"ok": True, "count": total}
+
+
+DEFAULT_BROADCAST_TEMPLATE = (
+    "Hi — I'm ready to bring you on for a paid engagement through Job Atlas. "
+    "I've reserved hours in my platform balance and would love to send you a signed contract "
+    "as soon as you confirm your availability. Reply here to talk scope, timelines and start date."
+)
+
+
+class ShortlistBroadcastIn(BaseModel):
+    message: Optional[str] = ""
+    subject: Optional[str] = ""
+
+
+@api.post("/shortlist/broadcast")
+async def broadcast_to_shortlist(payload: ShortlistBroadcastIn, request: Request,
+                                  user: dict = Depends(get_current_user)):
+    """Send a single 'I'm ready to hire' note to every talent on the employer's shortlist.
+    Records a `broadcasts` doc per (employer, talent) pair (upsert-latest) and — when
+    RESEND_API_KEY is set — also emails the talent. Safe no-op email in dev."""
+    if user.get("role") != "employer":
+        raise HTTPException(403, "Only employers can broadcast")
+    items = await db.shortlists.find({"employer_id": user["id"]}, {"_id": 0}).to_list(500)
+    if not items:
+        raise HTTPException(400, "Your shortlist is empty — add talents before broadcasting")
+
+    from mailer import send_email
+    message = (payload.message or DEFAULT_BROADCAST_TEMPLATE).strip()
+    subject = (payload.subject or f"{user.get('name') or 'A hiring employer'} is ready to hire you on Job Atlas").strip()
+
+    # Origin for email CTA
+    fwd_host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    fwd_proto = request.headers.get("x-forwarded-proto", "https")
+    origin = os.environ.get("PUBLIC_SITE_URL") or (f"{fwd_proto}://{fwd_host}" if fwd_host else "")
+    login_url = f"{origin.rstrip('/')}/login" if origin else "/login"
+
+    delivered = 0
+    emailed = 0
+    email_failures = 0
+    broadcast_id = new_id()
+
+    for it in items:
+        # Skip curated (synthetic) talents — no real inbox to deliver to
+        if it.get("is_curated"):
+            continue
+        talent = await db.users.find_one({"id": it["talent_id"]}, {"_id": 0, "password_hash": 0})
+        if not talent:
+            continue
+
+        doc = {
+            "id": new_id(),
+            "broadcast_id": broadcast_id,
+            "employer_id": user["id"],
+            "employer_name": user.get("name") or "An employer",
+            "talent_id": talent["id"],
+            "talent_email": talent.get("email"),
+            "subject": subject,
+            "message": message,
+            "read": False,
+            "email_status": "pending",
+            "created_at": now().isoformat(),
+        }
+
+        if talent.get("email"):
+            html = _broadcast_email_html(
+                employer_name=doc["employer_name"], talent_name=talent.get("name") or "there",
+                message=message, login_url=login_url,
+            )
+            mail_result = await send_email(to=talent["email"], subject=subject, html=html)
+            if mail_result.get("sent"):
+                emailed += 1
+                doc["email_status"] = "sent"
+                doc["email_id"] = mail_result.get("id")
+            else:
+                email_failures += 1
+                doc["email_status"] = mail_result.get("reason", "failed")
+
+        await db.broadcasts.update_one(
+            {"employer_id": user["id"], "talent_id": talent["id"]},
+            {"$set": doc}, upsert=True,
+        )
+        delivered += 1
+
+    return {
+        "ok": True,
+        "broadcast_id": broadcast_id,
+        "delivered": delivered,
+        "emailed": emailed,
+        "email_failures": email_failures,
+        "skipped_curated": sum(1 for it in items if it.get("is_curated")),
+        "total_shortlist": len(items),
+    }
+
+
+def _broadcast_email_html(*, employer_name: str, talent_name: str,
+                          message: str, login_url: str) -> str:
+    first = (talent_name or "there").split(" ")[0]
+    safe_msg = (message or "").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
+    return f"""<!doctype html>
+<html><head><meta charset="utf-8"/></head>
+<body style="margin:0;background:#FAF9F6;font-family:Georgia,serif;color:#0B1B2B;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FAF9F6;padding:32px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border:1px solid #E5E7EB;">
+        <tr><td style="padding:32px 32px 8px 32px;">
+          <p style="margin:0 0 4px 0;font-family:'Courier New',monospace;font-size:11px;letter-spacing:3px;color:#C79A3B;text-transform:uppercase;">New hire request</p>
+          <h1 style="margin:0;font-size:24px;line-height:1.2;">Hey {first} — {employer_name} is ready to hire you.</h1>
+        </td></tr>
+        <tr><td style="padding:16px 32px 0 32px;font-size:15px;line-height:1.55;color:#333;">
+          <blockquote style="margin:0 0 20px 0;padding:16px;background:#FDF6E3;border-left:3px solid #C79A3B;font-style:italic;">{safe_msg}</blockquote>
+          <p style="margin:0 0 24px 0;font-size:14px;color:#555;">
+            Sign in to Job Atlas to reply, review the scope, and countersign the engagement contract when you&apos;re ready.
+          </p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+            <tr><td style="background:#0B1B2B;border-radius:2px;">
+              <a href="{login_url}" style="display:inline-block;padding:14px 28px;color:#FFFFFF;text-decoration:none;font-weight:700;font-size:14px;font-family:Arial,sans-serif;">
+                Open Job Atlas →
+              </a>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 12px 0;font-size:12px;color:#999;font-family:'Courier New',monospace;letter-spacing:1px;text-transform:uppercase;">
+            Sent by Job Atlas · operated by Denkoit Softech Pvt. Ltd.
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>"""
+
+
+@api.get("/talent/me/broadcasts")
+async def list_my_broadcasts(user: dict = Depends(get_current_user)):
+    if user.get("role") != "talent":
+        return {"items": [], "count": 0, "unread": 0}
+    items = await db.broadcasts.find({"talent_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    unread = sum(1 for x in items if not x.get("read"))
+    return {"items": items, "count": len(items), "unread": unread}
+
+
+@api.post("/talent/me/broadcasts/{broadcast_doc_id}/read")
+async def mark_broadcast_read(broadcast_doc_id: str, user: dict = Depends(get_current_user)):
+    if user.get("role") != "talent":
+        raise HTTPException(403, "Talent only")
+    await db.broadcasts.update_one(
+        {"id": broadcast_doc_id, "talent_id": user["id"]},
+        {"$set": {"read": True, "read_at": now().isoformat()}},
+    )
+    return {"ok": True}
 
 
 # ---------- Newsletter / "Get listed" signup ----------

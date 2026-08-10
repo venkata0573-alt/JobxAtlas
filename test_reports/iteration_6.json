@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 6 verification of Shortlist Broadcast (new) + auth extraction regression (routes/auth.py + deps.py). Added /app/backend/tests/test_iteration6_broadcast.py with 20 pytest cases — all 20 PASSING. Backend coverage: auth register/login/logout/me/profile/suggest-rate (regression on routes/auth.py), industries/marketplace-stats/seo-skills (deps.py constants), sitemap.xml (>=70 urls), shortlist CRUD + role gating, broadcast happy-path/empty/default-message/talent-403/anonymous-401/employer-empty-inbox, rate-nudge scan schema, scheduler running + cron job. Frontend Playwright verified: employer /employer/shortlist shows broadcast-btn, broadcast-modal opens with textarea + send button, sending closes modal + shows success toast 'Broadcast sent to 1 talent · 1 curated skipped (no real inbox)'. Talent /talent renders broadcasts-inbox with per-broadcast card carrying data-testid='broadcast-<id>', employer_name 'Buyer Series-B fintechs' and the message text; rate-nudge-banner and run-rate-check-btn both render. Register page renders industry-picker with 12 chips when Employer role selected. NO regressions from the auth extraction.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "TalentDashboard broadcast card (unread state)", "issue": "The `border-[#C79A3B]` Tailwind arbitrary class on unread broadcast cards is being overridden by the global `.hard-border` rule — computed border-color for unread broadcast is rgb(11,27,43) (navy) instead of the intended gold #C79A3B. Visual differentiation still works via background color (bg-white vs bg-[#FAF9F6]) so it's cosmetic, but the spec 'Unread broadcast has border-[#C79A3B]' is not honored.", "selector": "[data-testid^='broadcast-']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "TalentDashboard rate-nudge banner", "issues": ["(Carry-over from iter5) Banner still shows '$220/hr is 69.1% above the market mid of $68/hr' — sign vs. verb wording is fine now, but if drift is stored signed the phrasing may still flip when talent's rate is below market. Non-blocking."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration6_broadcast.py",
+    "/app/test_reports/pytest/iteration6.xml"
+  ],
+  "action_items": [
+    "(Optional cosmetic) In TalentDashboard.jsx broadcast list, bump specificity so unread cards actually render with the gold #C79A3B border (currently the .hard-border class wins). Suggest replacing `hard-border` with an inline border style or using `!border-[#C79A3B]` for unread state."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 2378 lines — the placeholder routes/marketplace.py, routes/admin.py, routes/engagements.py are still empty shims; physical extraction is deferred and should be tracked to prevent server.py bloating further.",
+    "POST /shortlist/broadcast reuses `db.broadcasts.update_one({employer_id, talent_id}, upsert=True)` — this means re-broadcasting to the same talent OVERWRITES the previous message and READ flag (read is reset to False on every send). Intended per 'upsert-latest' semantics, but worth confirming — a talent who had read a prior broadcast will see it flip back to unread when the employer sends a new one; no historical record is kept.",
+    "Broadcast doc stores `email_status` as either 'sent', 'pending', or the raw reason string from mailer.send_email (e.g. 'RESEND_API_KEY not configured'). Consider normalising to a small enum for easier querying/observability.",
+    "GET /talent/me/broadcasts returns up to 50 items with no pagination — fine for now, add a limit/skip once volume grows.",
+    "Broadcast endpoint does NOT emit a websocket / push signal to the talent — the talent must reload /talent to see a new broadcast. Fine for MVP; noted for future real-time inbox."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration6_broadcast.py"
+  ],
+  "success_rate": {"backend": "100% (20/20)", "frontend": "100% of tested flows (broadcast send, inbox render, industry picker, rate-nudge widgets)"},
+  "test_credentials": "Admin admin@talenthub.io / Admin@2026, Talent talent@test.io / Talent@2026, Employer emp-series-b-fintechs@test.io / Employer@2026 — all verified working. RESEND_API_KEY intentionally empty in backend/.env (safe no-op — emailed=0 + email_failures>=1 is expected).",
+  "seed_data_creation": "Each pytest run creates unique TEST_emp_<uuid>@test.io + TEST_bad_<uuid>@test.io + TEST_freshemp_<uuid>@test.io employer accounts. Shortlist docs are upserted for (emp-series-b-fintechs → talent@test.io). Broadcast docs written to db.broadcasts with email_status='RESEND_API_KEY not configured' (safe no-op). Rate-nudge scan re-persists nudge doc for talent@test.io.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Auth extraction to routes/auth.py + deps.py is regression-clean. Broadcast endpoint POST /shortlist/broadcast upserts one doc per (employer,talent); re-broadcasting overwrites and resets read=false. GET /talent/me/broadcasts returns empty for non-talents. Frontend: /employer/shortlist has data-testid broadcast-btn/broadcast-modal/broadcast-message/send-broadcast-btn all working; toast text = 'Broadcast sent to N talent · M curated skipped (no real inbox)'. /talent renders data-testid broadcasts-inbox above Engagements section only when broadcasts.length>0. Placeholder shims routes/marketplace.py, routes/admin.py, routes/engagements.py contain no active endpoints — everything else still lives in server.py (~2378 lines).",
+  "rca of the issue": "N/A — no bug in this iteration; all functionality verified working. Only cosmetic finding: `.hard-border` global class overrides the Tailwind `border-[#C79A3B]` arbitrary-value class on unread broadcast cards, so unread border shows navy instead of gold (visual distinction still intact via bg color)."
+}

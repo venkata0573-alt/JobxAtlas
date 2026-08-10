@@ -2,13 +2,16 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
 import { toast } from "sonner";
-import { BookmarkSimple, Trash, ShoppingCart, MapPin, Star } from "@phosphor-icons/react";
+import { BookmarkSimple, Trash, ShoppingCart, MapPin, Star, PaperPlaneTilt, X } from "@phosphor-icons/react";
 
 export default function Shortlist() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [removing, setRemoving] = useState(null);
   const [hoursPerTalent, setHoursPerTalent] = useState(20);
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [broadcastMsg, setBroadcastMsg] = useState("");
+  const [broadcastSending, setBroadcastSending] = useState(false);
   const nav = useNavigate();
 
   useEffect(() => { load(); }, []);
@@ -50,6 +53,24 @@ export default function Shortlist() {
     });
     nav(`/employer/purchase?${params.toString()}`);
   };
+
+  const sendBroadcast = async () => {
+    setBroadcastSending(true);
+    try {
+      const r = await api.post("/shortlist/broadcast", { message: broadcastMsg });
+      const { delivered, emailed, skipped_curated } = r.data;
+      toast.success(
+        `Broadcast sent to ${delivered} talent${delivered === 1 ? "" : "s"}` +
+        (emailed ? ` · ${emailed} email${emailed === 1 ? "" : "s"} delivered` : "") +
+        (skipped_curated ? ` · ${skipped_curated} curated skipped (no real inbox)` : "")
+      );
+      setBroadcastOpen(false);
+      setBroadcastMsg("");
+    } catch (e) { toast.error(formatErr(e)); }
+    finally { setBroadcastSending(false); }
+  };
+
+  const realCount = items.filter((x) => !x.is_curated).length;
 
   if (loading) {
     return <main className="max-w-7xl mx-auto px-6 py-16"><p className="font-mono text-neutral-500">Loading shortlist…</p></main>;
@@ -124,6 +145,14 @@ export default function Shortlist() {
                   data-testid="purchase-for-shortlist-btn">
                   <ShoppingCart size={16} weight="fill"/> Purchase hours for this shortlist →
                 </button>
+                <button
+                  onClick={() => setBroadcastOpen(true)}
+                  disabled={realCount === 0}
+                  className="mt-2 w-full inline-flex items-center justify-center gap-2 bg-transparent hover:bg-white/10 text-white font-display font-extrabold text-sm tracking-tight px-4 py-3 hard-border border-white/40 disabled:opacity-40"
+                  data-testid="broadcast-btn"
+                  title={realCount === 0 ? "No real-user talents to broadcast to (curated demo profiles are skipped)" : ""}>
+                  <PaperPlaneTilt size={16} weight="fill"/> Broadcast &quot;I&apos;m ready to hire&quot;
+                </button>
               </div>
             </div>
           </section>
@@ -165,6 +194,65 @@ export default function Shortlist() {
             ))}
           </div>
         </>
+      )}
+
+      {/* Broadcast composer modal */}
+      {broadcastOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => !broadcastSending && setBroadcastOpen(false)}
+          data-testid="broadcast-modal">
+          <div className="hard-border bg-white max-w-lg w-full p-8 shadow-brutal-lg relative" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setBroadcastOpen(false)}
+              disabled={broadcastSending}
+              className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700"
+              data-testid="close-broadcast-modal">
+              <X size={20}/>
+            </button>
+            <p className="overline text-[#C79A3B] mb-2">BROADCAST TO SHORTLIST</p>
+            <h2 className="font-display font-extrabold text-2xl tracking-tight text-[#0B1B2B]">Send one note to {realCount} talent{realCount === 1 ? "" : "s"}.</h2>
+            <p className="text-sm text-neutral-600 mt-2 leading-relaxed">
+              Everyone on your shortlist will receive the same in-app note. When the Resend API key is
+              configured, they&apos;ll also get an email pointing them back to Job Atlas.
+            </p>
+
+            <label className="overline block mt-6 mb-2">Your message (optional — a default is used if left blank)</label>
+            <textarea
+              value={broadcastMsg}
+              onChange={(e) => setBroadcastMsg(e.target.value)}
+              placeholder="Hi — I'm ready to bring you on for a paid engagement through Job Atlas. Reply here to talk scope, timelines and start date."
+              rows={5}
+              maxLength={800}
+              data-testid="broadcast-message"
+              className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#0B1B2B] text-sm"
+            />
+            <p className="text-[10px] font-mono text-neutral-400 mt-1 text-right">{broadcastMsg.length}/800</p>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={sendBroadcast}
+                disabled={broadcastSending}
+                className="btn-primary text-sm flex-1 inline-flex items-center justify-center gap-2"
+                data-testid="send-broadcast-btn">
+                <PaperPlaneTilt size={14} weight="fill"/>
+                {broadcastSending ? "Sending…" : `Send to ${realCount} talent${realCount === 1 ? "" : "s"}`}
+              </button>
+              <button
+                onClick={() => setBroadcastOpen(false)}
+                disabled={broadcastSending}
+                className="btn-outline text-sm">
+                Cancel
+              </button>
+            </div>
+            {items.some((x) => x.is_curated) && (
+              <p className="text-[11px] font-mono text-neutral-500 mt-4 leading-relaxed">
+                Note: curated demo profiles on your shortlist ({items.length - realCount}) are skipped —
+                they don&apos;t have real inboxes yet.
+              </p>
+            )}
+          </div>
+        </div>
       )}
     </main>
   );
