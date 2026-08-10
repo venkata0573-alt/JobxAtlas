@@ -38,6 +38,38 @@ export default function TalentDashboard() {
     })();
   }, []);
 
+  // Real-time SSE stream — prepends new broadcasts the moment an employer sends one.
+  useEffect(() => {
+    if (!user || user.role !== "talent") return;
+    let es;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get("/auth/sse-token");
+        if (cancelled) return;
+        const base = process.env.REACT_APP_BACKEND_URL;
+        es = new EventSource(`${base}/api/talent/me/broadcasts/stream?token=${encodeURIComponent(data.token)}`);
+        es.onmessage = (e) => {
+          try {
+            const ev = JSON.parse(e.data);
+            if (ev.type === "broadcast") {
+              setBroadcasts((prev) => {
+                if (prev.some((x) => x.id === ev.id)) return prev;
+                return [{
+                  id: ev.id, employer_name: ev.employer_name, subject: ev.subject,
+                  message: ev.message, read: false, created_at: ev.created_at,
+                }, ...prev];
+              });
+              toast.success(`${ev.employer_name} is ready to hire you`, { duration: 8000 });
+            }
+          } catch (err) { /* ignore parse errors on comments */ }
+        };
+        es.onerror = () => { /* browser auto-reconnects */ };
+      } catch (err) { /* silent — non-critical */ }
+    })();
+    return () => { cancelled = true; if (es) es.close(); };
+  }, [user]);
+
   const markBroadcastRead = async (docId) => {
     try {
       await api.post(`/talent/me/broadcasts/${docId}/read`);

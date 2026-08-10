@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 7 verified end-to-end: SSE real-time broadcast stream, broadcast history endpoint, standardised 16-industry taxonomy + migration, physical extraction of routes/admin.py (14 endpoints). Added /app/backend/tests/test_iteration7_sse_history_industries.py with 24 pytest cases — ALL 24 PASS (serial). Backend logs confirm migration ran once at startup: 'Migrated 10 employer(s) to standardised industry labels'. Frontend verified via Playwright: /register Employer flow renders industry-picker with exactly 16 chips (data-testid='industry-financial-services-fintech' … 'industry-cybersecurity' etc.), Landing trust bar shows the new labels and NO legacy labels, TalentDashboard renders broadcasts-inbox with existing broadcast cards. Legacy employer emp-series-b-fintechs@test.io login returns profile.company_industry='Financial Services & Fintech' (migrated).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "TalentDashboard unread broadcast card", "issue": "Carry-over from iter6 — unread cards still show navy border because .hard-border overrides Tailwind border-[#C79A3B]. Spec asked for '!border-[#C79A3B] beating .hard-border'. Cosmetic only.", "selector": "[data-testid^='broadcast-']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration7_sse_history_industries.py",
+    "/app/test_reports/pytest/iteration7.xml"
+  ],
+  "action_items": [
+    "(Optional cosmetic, carry-over) Fix unread broadcast gold-border specificity in TalentDashboard.jsx.",
+    "Note: /app/backend/tests/test_iteration6_broadcast.py has 4 stale assertions (hardcoded 12 industries + legacy 'Series-B fintechs' registration). These are expected to fail post-iteration-7 and should be updated or deleted since iteration 7 supersedes them."
+  ],
+  "critical_code_review_comments": [
+    "server.py still ~2328 lines even after admin extraction; SSE endpoints + broadcast helpers are inline (search 'stream_my_broadcasts'). Consider next iteration: move broadcast + SSE into routes/broadcasts.py.",
+    "SSE subscribers dict `_broadcast_subscribers` is process-local — will not fanout across multiple uvicorn workers. Acceptable for MVP with a single worker; document for scale-out.",
+    "SSE stream authenticates via ?token= query param and calls jwt.decode inline instead of reusing get_current_user; both code paths exist. Fine, but the token is a normal 12h access token — SSE contract says 'short-lived' but /api/auth/sse-token issues a normal access token via create_token(uid, 'access'). Consider adding a distinct short-lived SSE token type.",
+    "GET /shortlist/broadcasts reads from db.broadcast_runs, but POST /shortlist/broadcast persists both per-talent 'broadcasts' docs and a run doc — verify the run doc is populated with all required fields (id, employer_id, subject, message, delivered, emailed, email_failures, skipped_curated, total_shortlist, created_at) as tests confirm.",
+    "LEGACY_INDUSTRY_MAP maps only 12 legacy labels; unknown values on old employer records would remain unchanged. Consider defaulting to first standard industry with a warning log."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration7_sse_history_industries.py"],
+  "success_rate": {"backend": "100% (24/24 iter7); iter6 tests have 4 expected stale failures superseded by iter7", "frontend": "100% of tested flows (register 16-chip picker, landing labels, talent inbox)"},
+  "test_credentials": "Admin admin@talenthub.io/Admin@2026, Talent talent@test.io/Talent@2026, Employer emp-series-b-fintechs@test.io/Employer@2026 (industry migrated to 'Financial Services & Fintech'). RESEND_API_KEY intentionally empty.",
+  "seed_data_creation": "Each pytest run creates TEST_newind_<uuid> and TEST_legind_<uuid> employer accounts, plus new broadcast/broadcast_runs docs for emp-series-b-fintechs → talent@test.io. Payout run doc created for period 2026-01-01→2026-01-31.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 7 adds: SSE endpoints (/api/auth/sse-token + /api/talent/me/broadcasts/stream), broadcast history (/api/shortlist/broadcasts), 16 standardised industries in deps.EMPLOYER_INDUSTRIES, LEGACY_INDUSTRY_MAP for migration, routes/admin.py with 14 endpoints. When running tests in pytest-xdist parallel mode, TestSSE + TestBroadcastHistory can contaminate each other (shared talent+employer accounts). Run with `-o addopts=''` to force serial. iter6 test file has 4 stale assertions (12 industries, legacy 'Series-B fintechs' registration) — safe to prune. SSE endpoint uses in-process asyncio.Queue subscribers; will not fan out across workers.",
+  "rca of the issue": "N/A — no bugs found. Only pre-existing cosmetic gold-border override on unread broadcast cards (reported iter6, still open). Two initial pytest failures were caused by parallel test contamination (broadcasts from one test class leaking into another's assertion counts); resolved by running serially."
+}

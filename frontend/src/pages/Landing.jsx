@@ -149,12 +149,14 @@ export default function Landing() {
 
             <div className="relative grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {(industries.length ? industries : [
-                { label: "Series-B fintechs", count: 0 }, { label: "PE-backed platforms", count: 0 },
-                { label: "Health-tech scale-ups", count: 0 }, { label: "YC-backed marketplaces", count: 0 },
-                { label: "Global consultancies", count: 0 }, { label: "Public-sector innovation", count: 0 },
-                { label: "Series-A SaaS teams", count: 0 }, { label: "Family-office ventures", count: 0 },
-                { label: "Cross-border e-commerce", count: 0 }, { label: "DTC brand houses", count: 0 },
-                { label: "Regulated data-cos", count: 0 }, { label: "ClimateTech pilots", count: 0 },
+                { label: "Financial Services & Fintech", count: 0 }, { label: "Healthcare & Life Sciences", count: 0 },
+                { label: "SaaS & Enterprise Software", count: 0 },   { label: "E-commerce & Retail", count: 0 },
+                { label: "Media & Entertainment", count: 0 },        { label: "Education & EdTech", count: 0 },
+                { label: "Marketing & Advertising", count: 0 },      { label: "Manufacturing & Industrial", count: 0 },
+                { label: "Real Estate & PropTech", count: 0 },       { label: "Travel & Hospitality", count: 0 },
+                { label: "Energy & CleanTech", count: 0 },           { label: "Legal & Professional Services", count: 0 },
+                { label: "Non-profit & Public Sector", count: 0 },   { label: "Logistics & Supply Chain", count: 0 },
+                { label: "Cybersecurity", count: 0 },                { label: "AI & Data Platforms", count: 0 },
               ]).map((row) => (
                 <div key={row.label}
                      className="hard-border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] transition-colors px-4 py-3 flex items-center justify-between gap-3">

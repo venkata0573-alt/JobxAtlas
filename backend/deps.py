@@ -108,19 +108,41 @@ SEO_CITIES = [
 ]
 
 EMPLOYER_INDUSTRIES = [
-    "Series-B fintechs",
-    "PE-backed platforms",
-    "Health-tech scale-ups",
-    "YC-backed marketplaces",
-    "Global consultancies",
-    "Public-sector innovation",
-    "Series-A SaaS teams",
-    "Family-office ventures",
-    "Cross-border e-commerce",
-    "DTC brand houses",
-    "Regulated data-cos",
-    "ClimateTech pilots",
+    "Financial Services & Fintech",
+    "Healthcare & Life Sciences",
+    "SaaS & Enterprise Software",
+    "E-commerce & Retail",
+    "Media & Entertainment",
+    "Education & EdTech",
+    "Marketing & Advertising",
+    "Manufacturing & Industrial",
+    "Real Estate & PropTech",
+    "Travel & Hospitality",
+    "Energy & CleanTech",
+    "Legal & Professional Services",
+    "Non-profit & Public Sector",
+    "Logistics & Supply Chain",
+    "Cybersecurity",
+    "AI & Data Platforms",
 ]
+
+# Backwards-compat map: rewrites the earlier "buyer archetype" labels to the
+# standardised industry taxonomy. Applied on startup so existing employer records
+# retain their trust-bar visibility.
+LEGACY_INDUSTRY_MAP = {
+    "Series-B fintechs":       "Financial Services & Fintech",
+    "PE-backed platforms":     "SaaS & Enterprise Software",
+    "Health-tech scale-ups":   "Healthcare & Life Sciences",
+    "YC-backed marketplaces":  "E-commerce & Retail",
+    "Global consultancies":    "Legal & Professional Services",
+    "Public-sector innovation":"Non-profit & Public Sector",
+    "Series-A SaaS teams":     "SaaS & Enterprise Software",
+    "Family-office ventures":  "Financial Services & Fintech",
+    "Cross-border e-commerce": "E-commerce & Retail",
+    "DTC brand houses":        "E-commerce & Retail",
+    "Regulated data-cos":      "AI & Data Platforms",
+    "ClimateTech pilots":      "Energy & CleanTech",
+}
 
 CITY_PRETTY = {
     "london": "London", "new-york": "New York", "san-francisco": "San Francisco",
