@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Global talent atlas">
+  <defs>
+    <radialGradient id="ha-glow" cx="60%" cy="45%" r="55%">
+      <stop offset="0%"   stop-color="#122740" stop-opacity="1"/>
+      <stop offset="55%"  stop-color="#0B1B2B" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#050C17" stop-opacity="1"/>
+    </radialGradient>
+    <radialGradient id="ha-orb" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#173659" stop-opacity="0.9"/>
+      <stop offset="70%"  stop-color="#0B1B2B" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#0B1B2B" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ha-arc" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#C79A3B" stop-opacity="0"/>
+      <stop offset="50%"  stop-color="#F0C260" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#C79A3B" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="ha-blur"><feGaussianBlur stdDeviation="1.2"/></filter>
+  </defs>
+
+  <!-- Deep navy field with radial glow -->
+  <rect width="1920" height="1080" fill="url(#ha-glow)"/>
+
+  <!-- Diffuse warm orb behind the globe for depth -->
+  <ellipse cx="1150" cy="490" rx="720" ry="720" fill="url(#ha-orb)"/>
+
+  <!-- Latitude / longitude grid — very faint gold lines to evoke a wireframe globe -->
+  <g stroke="#C79A3B" stroke-opacity="0.09" fill="none">
+    <!-- Parallels (latitude) -->
+    <ellipse cx="1150" cy="490" rx="620" ry="80"/>
+    <ellipse cx="1150" cy="490" rx="580" ry="180"/>
+    <ellipse cx="1150" cy="490" rx="500" ry="280"/>
+    <ellipse cx="1150" cy="490" rx="400" ry="360"/>
+    <ellipse cx="1150" cy="490" rx="620" ry="420"/>
+    <!-- Meridians (longitude) -->
+    <ellipse cx="1150" cy="490" rx="80" ry="420"/>
+    <ellipse cx="1150" cy="490" rx="180" ry="420"/>
+    <ellipse cx="1150" cy="490" rx="280" ry="420"/>
+    <ellipse cx="1150" cy="490" rx="380" ry="420"/>
+    <ellipse cx="1150" cy="490" rx="480" ry="420"/>
+    <ellipse cx="1150" cy="490" rx="580" ry="420"/>
+    <!-- Equator (slightly brighter) -->
+    <line x1="530" y1="490" x2="1770" y2="490" stroke-opacity="0.14"/>
+    <!-- Prime meridian -->
+    <line x1="1150" y1="70" x2="1150" y2="910" stroke-opacity="0.14"/>
+  </g>
+
+  <!-- Dot-matrix approximating continent shapes on the globe.
+       Each <circle> is a warm-gold pinpoint (a "vetted talent" city). -->
+  <g fill="#F0C260">
+    <!-- North America cluster -->
+    <g opacity="0.85">
+      <circle cx="820" cy="330" r="2.5"/><circle cx="810" cy="350" r="2"/><circle cx="835" cy="345" r="2.2"/>
+      <circle cx="860" cy="360" r="2.6"/><circle cx="850" cy="380" r="2"/><circle cx="880" cy="380" r="2"/>
+      <circle cx="875" cy="405" r="2.3"/><circle cx="905" cy="405" r="2"/><circle cx="900" cy="430" r="2"/>
+      <circle cx="930" cy="425" r="2"/><circle cx="945" cy="450" r="2.4"/><circle cx="925" cy="470" r="2"/>
+      <circle cx="960" cy="480" r="2"/><circle cx="975" cy="500" r="2"/><circle cx="820" cy="415" r="2"/>
+      <circle cx="845" cy="435" r="1.8"/><circle cx="800" cy="395" r="1.8"/>
+    </g>
+    <!-- South America cluster -->
+    <g opacity="0.78">
+      <circle cx="985" cy="560" r="2"/><circle cx="995" cy="590" r="2.4"/><circle cx="1005" cy="620" r="2"/>
+      <circle cx="1015" cy="650" r="2.2"/><circle cx="1025" cy="680" r="2"/><circle cx="1010" cy="710" r="1.8"/>
+      <circle cx="1020" cy="740" r="2"/><circle cx="1030" cy="770" r="1.7"/>
+    </g>
+    <!-- Europe cluster (tight) -->
+    <g opacity="0.9">
+      <circle cx="1155" cy="320" r="2.5"/><circle cx="1175" cy="335" r="2.2"/><circle cx="1195" cy="330" r="2.6"/>
+      <circle cx="1215" cy="345" r="2"/><circle cx="1160" cy="360" r="2.4"/><circle cx="1185" cy="365" r="2.2"/>
+      <circle cx="1205" cy="360" r="2.5"/><circle cx="1225" cy="380" r="2.2"/><circle cx="1175" cy="390" r="2"/>
+      <circle cx="1200" cy="395" r="2.4"/><circle cx="1230" cy="400" r="2"/><circle cx="1150" cy="345" r="2.1"/>
+    </g>
+    <!-- Africa cluster -->
+    <g opacity="0.8">
+      <circle cx="1195" cy="450" r="2"/><circle cx="1215" cy="475" r="2.2"/><circle cx="1230" cy="500" r="2"/>
+      <circle cx="1245" cy="530" r="2.3"/><circle cx="1235" cy="560" r="2"/><circle cx="1250" cy="590" r="2"/>
+      <circle cx="1240" cy="620" r="2.1"/><circle cx="1220" cy="650" r="1.8"/><circle cx="1210" cy="680" r="2"/>
+      <circle cx="1200" cy="435" r="1.9"/>
+    </g>
+    <!-- Middle East cluster -->
+    <g opacity="0.85">
+      <circle cx="1280" cy="420" r="2.4"/><circle cx="1300" cy="440" r="2.1"/><circle cx="1320" cy="435" r="2"/>
+    </g>
+    <!-- Asia cluster (broad) -->
+    <g opacity="0.9">
+      <circle cx="1350" cy="360" r="2"/><circle cx="1380" cy="345" r="2.4"/><circle cx="1410" cy="365" r="2"/>
+      <circle cx="1440" cy="355" r="2.5"/><circle cx="1470" cy="380" r="2.1"/><circle cx="1500" cy="365" r="2.4"/>
+      <circle cx="1530" cy="395" r="2"/><circle cx="1560" cy="385" r="2.6"/><circle cx="1590" cy="405" r="2"/>
+      <circle cx="1500" cy="435" r="2.2"/><circle cx="1470" cy="450" r="2"/><circle cx="1435" cy="435" r="2"/>
+      <circle cx="1520" cy="475" r="2.2"/><circle cx="1555" cy="465" r="2"/><circle cx="1585" cy="490" r="2.1"/>
+      <circle cx="1490" cy="510" r="2"/><circle cx="1560" cy="525" r="1.8"/>
+    </g>
+    <!-- SE Asia + Oceania cluster -->
+    <g opacity="0.78">
+      <circle cx="1580" cy="580" r="2"/><circle cx="1610" cy="600" r="2.3"/><circle cx="1640" cy="640" r="2"/>
+      <circle cx="1620" cy="680" r="2.4"/><circle cx="1660" cy="720" r="2"/><circle cx="1600" cy="700" r="1.8"/>
+    </g>
+  </g>
+
+  <!-- A few gently glowing "hub" cities -->
+  <g>
+    <circle cx="835" cy="345" r="6" fill="#F0C260" opacity="0.35"/>
+    <circle cx="835" cy="345" r="2.8" fill="#FFE79A"/>
+    <circle cx="1185" cy="365" r="6" fill="#F0C260" opacity="0.35"/>
+    <circle cx="1185" cy="365" r="2.8" fill="#FFE79A"/>
+    <circle cx="1440" cy="355" r="6" fill="#F0C260" opacity="0.35"/>
+    <circle cx="1440" cy="355" r="2.8" fill="#FFE79A"/>
+    <circle cx="1300" cy="440" r="6" fill="#F0C260" opacity="0.35"/>
+    <circle cx="1300" cy="440" r="2.8" fill="#FFE79A"/>
+    <circle cx="1610" cy="600" r="6" fill="#F0C260" opacity="0.35"/>
+    <circle cx="1610" cy="600" r="2.8" fill="#FFE79A"/>
+  </g>
+
+  <!-- Connection arcs between hub cities — the "engagements" traversing the globe -->
+  <g fill="none" stroke="url(#ha-arc)" stroke-width="1.2" filter="url(#ha-blur)">
+    <path d="M 835 345 Q 1010 220 1185 365"/>
+    <path d="M 1185 365 Q 1310 260 1440 355"/>
+    <path d="M 1185 365 Q 1240 400 1300 440"/>
+    <path d="M 1440 355 Q 1530 480 1610 600"/>
+    <path d="M 835 345 Q 1170 640 1610 600"/>
+    <path d="M 1300 440 Q 1450 500 1610 600"/>
+  </g>
+
+  <!-- Subtle scanline / vignette to add texture -->
+  <rect width="1920" height="1080" fill="url(#ha-glow)" opacity="0.3"/>
+</svg>

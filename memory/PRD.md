@@ -32,6 +32,11 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
+## Implemented (2026-02-09, iteration 17 — bespoke hero background)
+- **New hero background** at `/frontend/public/hero-atlas.svg` — replaces the generic Pexels photo with a custom, dependency-free SVG that literally illustrates "Job Atlas": a stylised wireframe globe (latitude / longitude ellipses), dot-matrix continent clusters representing every SEO city cluster we cover (North America, South America, Europe, Middle East, Africa, Asia, Oceania), five glowing "hub" cities, and gently-glowing gold arcs connecting them (the "engagements crossing the globe" metaphor).
+- Palette matches the Geminista dark navy + warm-gold system (`#0B1B2B`, `#122740`, `#C79A3B`, `#F0C260`). Hero overlay refined to a left-heavy gradient (`from-[#0A0A0A]/85 via-[#0A0A0A]/55 to-transparent`) plus a bottom vignette so the copy stays crisp while the illustration breathes on the right.
+- No external URL dependency, no copyright concerns, retina-crisp at any resolution.
+
 ## Implemented (2026-02-09, iteration 16 — real-time inbox, broadcast history, standard industries, admin extracted)
 - **Real-time broadcast inbox (SSE)**: new `GET /api/talent/me/broadcasts/stream` — SSE stream, one asyncio.Queue per subscriber, fanned-out by `_push_broadcast_to_talent` inside the broadcast endpoint. Auth via short-lived JWT from `GET /api/auth/sse-token` (EventSource can't set cookies cross-origin cleanly). Frontend TalentDashboard opens the stream on mount, prepends new broadcasts + shows a toast the instant an employer clicks send. Keepalive every 25s so ingress doesn't drop the connection.
 - **Broadcast History**: `POST /shortlist/broadcast` now uses `db.broadcasts.insert_one` (was upsert) so every send is retained as its own doc. Also writes a summary doc to `db.broadcast_runs`. New `GET /api/shortlist/broadcasts` returns the employer's full run history (subject, message, delivered, emailed, timestamps).

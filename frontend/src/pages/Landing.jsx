@@ -9,7 +9,7 @@ import {
   Clock, Globe, Certificate, ChartLineUp, Star, Quotes,
 } from "@phosphor-icons/react";
 
-const HERO = "https://images.pexels.com/photos/18502918/pexels-photo-18502918.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940";
+const HERO = "/hero-atlas.svg";
 
 const Feature = ({ Icon, title, desc }) => (
   <div className="hard-border bg-white p-8">
@@ -56,8 +56,9 @@ export default function Landing() {
     <main className="bg-white">
       {/* HERO */}
       <section className="relative border-b border-black bg-[#0A0A0A] text-white">
-        <div className="absolute inset-0 opacity-40" style={{ backgroundImage: `url(${HERO})`, backgroundSize: "cover", backgroundPosition: "center" }} />
-        <div className="absolute inset-0 bg-black/40" />
+        <div className="absolute inset-0 opacity-95" style={{ backgroundImage: `url(${HERO})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A0A]/85 via-[#0A0A0A]/55 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0A0A0A]/60" />
         <div className="relative max-w-7xl mx-auto px-6 md:px-12 py-24 md:py-40">
           <p className="overline text-[#FF0A0A] mb-6">The premium marketplace for hourly experts</p>
           <h1 className="font-display font-extrabold text-5xl sm:text-6xl lg:text-7xl tracking-tight leading-[0.95] max-w-4xl">
