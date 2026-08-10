@@ -231,7 +231,7 @@ export default function TalentDashboard() {
               <div
                 key={b.id}
                 onClick={() => !b.read && markBroadcastRead(b.id)}
-                className={`hard-border p-5 cursor-pointer transition-colors ${b.read ? "bg-[#FAF9F6]" : "bg-white hover:bg-[#FDF6E3] border-[#C79A3B]"}`}
+                className={`hard-border p-5 cursor-pointer transition-colors ${b.read ? "bg-[#FAF9F6]" : "bg-white hover:bg-[#FDF6E3] !border-[#C79A3B]"}`}
                 data-testid={`broadcast-${b.id}`}>
                 <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
                   <p className="font-display font-extrabold text-lg tracking-tight inline-flex items-center gap-2">
