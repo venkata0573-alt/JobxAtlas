@@ -1803,14 +1803,33 @@ async def list_project_templates(industry: Optional[str] = None):
 
 @api.get("/projects/templates/{template_id}")
 async def get_project_template(template_id: str):
+    from pricing import price_team, tiers_summary
     for t in PROJECT_TEMPLATES:
         if t["id"] == template_id:
-            avg_rate = sum(sum(s["rate_range"]) / 2 * s["count"] for s in t["team"]) / max(1, sum(s["count"] for s in t["team"]))
-            monthly_headcount = sum(s["count"] for s in t["team"])
-            est_monthly = int(monthly_headcount * avg_rate * 160)  # 160 hrs/month
-            return {**t, "phases": PROJECT_PHASES, "monthly_headcount": monthly_headcount,
-                    "estimated_monthly_cost": est_monthly,
-                    "estimated_total_cost": est_monthly * t["duration_months"]}
+            # Price the default team using rate_range mid for each seat
+            seats = []
+            for slot in t["team"]:
+                for i in range(slot["count"]):
+                    seats.append({"role": slot["role"], "seat_index": i + 1,
+                                  "rate_range": slot["rate_range"]})
+            quote = price_team(seats, months=t["duration_months"])
+            monthly_headcount = quote["seat_count"]
+            return {
+                **t, "phases": PROJECT_PHASES,
+                "monthly_headcount": monthly_headcount,
+                # ---- Talent-side cost (what we pay talent) ----
+                "monthly_talent_cost": quote["monthly_talent_cost"],
+                "total_talent_cost": quote["total_talent_cost"],
+                # ---- Client-facing price (what employer pays) ----
+                "estimated_monthly_cost": quote["monthly_client_price"],
+                "estimated_total_cost": quote["total_client_price"],
+                "monthly_client_price": quote["monthly_client_price"],
+                "total_client_price": quote["total_client_price"],
+                "total_margin": quote["total_margin"],
+                "blended_margin_pct": quote["blended_margin_pct"],
+                "volume_discount_pct": quote["volume_discount_pct"],
+                "pricing_tiers": tiers_summary(),
+            }
     raise HTTPException(404, "Template not found")
 
 
@@ -1865,6 +1884,7 @@ def _match_talent_for_role(role: str, industry: str, seen_ids: set) -> Optional[
 @api.get("/projects/templates/{template_id}/team-suggestions")
 async def suggest_team_for_template(template_id: str):
     """Auto-suggest a specific vetted talent for each seat in the template's team."""
+    from pricing import sell_rate, margin_pct
     template = next((t for t in PROJECT_TEMPLATES if t["id"] == template_id), None)
     if not template:
         raise HTTPException(404, "Template not found")
@@ -1873,6 +1893,14 @@ async def suggest_team_for_template(template_id: str):
     for slot in template["team"]:
         for i in range(slot["count"]):
             suggestion = _match_talent_for_role(slot["role"], template["industry"], seen)
+            # Enrich the suggestion with its client-facing sell rate + margin
+            if suggestion:
+                tr = float(suggestion.get("rate") or 0)
+                suggestion = {
+                    **suggestion,
+                    "sell_rate": sell_rate(tr),
+                    "margin_pct": margin_pct(tr),
+                }
             seats.append({
                 "role": slot["role"],
                 "seat_index": i + 1,
@@ -1899,17 +1927,31 @@ class ProjectLeadIn(BaseModel):
     duration_months: int
     notes: Optional[str] = ""
     assigned_team: Optional[List[ProjectSeatIn]] = None
-    estimated_monthly_cost: Optional[float] = None
-    estimated_total_cost: Optional[float] = None
+    # NOTE: estimated_monthly_cost/estimated_total_cost are computed server-side
+    # by pricing.price_team() — client-supplied values were removed to prevent
+    # tampering.
 
 
 @api.post("/projects/lead")
 async def submit_project_lead(payload: ProjectLeadIn):
     """Employer submits a scoping request against a template. Creates a lead
-    doc for the Job Atlas ops team to follow up on."""
+    doc for the Job Atlas ops team to follow up on. The client-facing price
+    (with Job Atlas margin) is computed server-side so the client can't
+    tamper with the quote by sending a lower estimated_total_cost."""
+    from pricing import price_team
     template = next((t for t in PROJECT_TEMPLATES if t["id"] == payload.template_id), None)
     if not template:
         raise HTTPException(400, "Unknown template_id")
+    # Build the seat list: prefer the buyer-assembled team; else the template default
+    if payload.assigned_team:
+        seats = [s.dict() for s in payload.assigned_team]
+    else:
+        seats = []
+        for slot in template["team"]:
+            for i in range(slot["count"]):
+                seats.append({"role": slot["role"], "seat_index": i + 1,
+                              "rate_range": slot["rate_range"]})
+    quote = price_team(seats, months=int(payload.duration_months))
     doc = {
         "id": new_id(),
         "template_id": payload.template_id,
@@ -1920,14 +1962,51 @@ async def submit_project_lead(payload: ProjectLeadIn):
         "contact_email": payload.contact_email.lower(),
         "duration_months": int(payload.duration_months),
         "notes": (payload.notes or "")[:1000],
-        "assigned_team": [s.dict() for s in (payload.assigned_team or [])],
-        "estimated_monthly_cost": float(payload.estimated_monthly_cost or 0),
-        "estimated_total_cost": float(payload.estimated_total_cost or 0),
+        "assigned_team": seats,
+        # Client-facing (what the employer pays) — used for milestones + billing
+        "estimated_monthly_cost": quote["monthly_client_price"],
+        "estimated_total_cost": quote["total_client_price"],
+        # Internal breakdown for admin margin reporting
+        "monthly_talent_cost": quote["monthly_talent_cost"],
+        "total_talent_cost": quote["total_talent_cost"],
+        "total_margin": quote["total_margin"],
+        "blended_margin_pct": quote["blended_margin_pct"],
+        "volume_discount_pct": quote["volume_discount_pct"],
         "status": "new",
         "created_at": now().isoformat(),
     }
     await db.project_leads.insert_one(doc)
-    return {"ok": True, "id": doc["id"], "message": "Thanks — our scoping team will reach out within 1 business day."}
+    return {"ok": True, "id": doc["id"],
+            "quote": {
+                "monthly_client_price": quote["monthly_client_price"],
+                "total_client_price": quote["total_client_price"],
+                "total_margin": quote["total_margin"],
+                "blended_margin_pct": quote["blended_margin_pct"],
+            },
+            "message": "Thanks — our scoping team will reach out within 1 business day."}
+
+
+# ---------- Public pricing surface ----------
+@api.get("/pricing/tiers")
+async def get_pricing_tiers():
+    from pricing import tiers_summary
+    return tiers_summary()
+
+
+class PricingQuoteIn(BaseModel):
+    seats: List[Dict[str, Any]]           # each seat may include role, rate, rate_range
+    months: int = 1
+    hours_per_month_per_seat: int = 160
+
+
+@api.post("/pricing/quote")
+async def price_quote(payload: PricingQuoteIn):
+    """Quote a hypothetical team without persisting anything. Used by the
+    Projects modal, the pricing calculator, and admin margin dashboards."""
+    from pricing import price_team
+    q = price_team(payload.seats, hours_per_month=int(payload.hours_per_month_per_seat),
+                    months=int(payload.months))
+    return q
 
 
 @api.get("/auth/sse-token")

@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { TID } from "@/constants/testIds";
 import DashboardMetrics from "@/components/DashboardMetrics";
-import { Coins, WarningOctagon } from "@phosphor-icons/react";
+import { Coins, WarningOctagon, Briefcase, ArrowRight, Warning } from "@phosphor-icons/react";
 
 export default function EmployerDashboard() {
   const { user } = useAuth();
@@ -13,6 +13,8 @@ export default function EmployerDashboard() {
   const [talent, setTalent] = useState([]);
   const [metrics, setMetrics] = useState(null);
   const [overview, setOverview] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [alerts, setAlerts] = useState([]);
   const [selected, setSelected] = useState(null);
   const [hours, setHours] = useState(5);
   const [scope, setScope] = useState("");
@@ -25,11 +27,15 @@ export default function EmployerDashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const [a, b, m, o] = await Promise.all([
+        const [a, b, m, o, pr, al] = await Promise.all([
           api.get("/engagements"), api.get("/talent"),
           api.get("/dashboard/metrics"), api.get("/employer/overview"),
+          api.get("/projects/mine").catch(() => ({ data: { items: [] } })),
+          api.get("/alerts/mine").catch(() => ({ data: { items: [] } })),
         ]);
         setEngs(a.data); setTalent(b.data); setMetrics(m.data); setOverview(o.data);
+        setProjects(pr.data?.items || []);
+        setAlerts(al.data?.items || []);
       } catch (e) { toast.error(formatErr(e)); }
     })();
   }, []);
@@ -75,6 +81,75 @@ export default function EmployerDashboard() {
       </div>
 
       <div className="mb-10"><DashboardMetrics metrics={metrics} role="employer"/></div>
+
+      {/* Variance alerts inbox — hot alerts across all projects */}
+      {alerts.filter((a) => !a.read).length > 0 && (
+        <section className="hard-border bg-[#FEF0F0] border-red-300 p-6 shadow-brutal mb-8" data-testid="employer-alerts">
+          <div className="flex items-center gap-2 mb-3">
+            <Warning size={20} weight="fill" color="#B03A2E"/>
+            <p className="font-display font-extrabold text-lg tracking-tight text-red-800">
+              {alerts.filter((a) => !a.read).length} project{alerts.filter((a) => !a.read).length === 1 ? "" : "s"} breached ±10% variance this week
+            </p>
+          </div>
+          <div className="space-y-2">
+            {alerts.filter((a) => !a.read).slice(0, 3).map((a) => (
+              <Link key={a.id} to={`/projects/${a.project_id}/workspace`}
+                    className="flex items-center justify-between hard-border bg-white px-4 py-2 hover:bg-[#FDF6E3] text-sm gap-3 flex-wrap"
+                    data-testid={`alert-${a.id}`}>
+                <span>
+                  <b>{a.project_company}</b> · {a.week_start} · Hours <span className={a.hours_variance_pct > 0 ? "text-red-700" : "text-emerald-700"}>{a.hours_variance_pct > 0 ? "+" : ""}{a.hours_variance_pct}%</span> · Cost <span className={a.cost_variance_pct > 0 ? "text-red-700" : "text-emerald-700"}>{a.cost_variance_pct > 0 ? "+" : ""}{a.cost_variance_pct}%</span>
+                </span>
+                <span className="text-xs font-mono text-neutral-500 inline-flex items-center gap-1">
+                  Open workspace <ArrowRight size={12}/>
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Your Projects (multi-month delivery workspaces) */}
+      {projects.length > 0 && (
+        <section className="hard-border bg-white p-8 shadow-brutal mb-10" data-testid="employer-projects">
+          <div className="flex items-baseline justify-between mb-6 gap-4 flex-wrap">
+            <div>
+              <p className="overline text-[#C79A3B] mb-1">MULTI-MONTH DELIVERY</p>
+              <h2 className="font-display font-extrabold text-2xl tracking-tight inline-flex items-center gap-2">
+                <Briefcase size={22} weight="duotone" color="#0B1B2B"/>
+                Your projects
+              </h2>
+              <p className="text-sm text-neutral-600 mt-1">Live workspaces with PMI phase gates, weekly variance, risks, RACI and fixed-price milestones.</p>
+            </div>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            {projects.map((pr) => {
+              const activePhase = (pr.phases || []).find((p) => p.status === "in_progress");
+              return (
+                <Link key={pr.id} to={`/projects/${pr.id}/workspace`}
+                      className="hard-border bg-[#FAF9F6] p-5 hover:bg-[#FDF6E3] transition-colors"
+                      data-testid={`project-card-${pr.id}`}>
+                  <div className="flex items-start justify-between mb-2 gap-2">
+                    <div className="min-w-0">
+                      <p className="font-display font-extrabold text-lg tracking-tight truncate">{pr.company_name}</p>
+                      <p className="text-xs font-mono text-neutral-500 truncate">{pr.template_title}</p>
+                    </div>
+                    <span className={`hard-border px-2 py-1 text-[10px] font-mono uppercase tracking-widest shrink-0 ${pr.status === "active" ? "bg-[#0B1B2B] text-[#C79A3B]" : ""}`}>
+                      {pr.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs font-mono text-neutral-500 mt-4">
+                    <span>{pr.duration_months} mo · ${(pr.total_budget / 1000).toFixed(0)}k</span>
+                    <span className="inline-flex items-center gap-1">
+                      {activePhase ? <>Phase: <b>{activePhase.name}</b></> : "—"}
+                      <ArrowRight size={12}/>
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Resources & Finances */}
       {overview && (

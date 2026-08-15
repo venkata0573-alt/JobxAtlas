@@ -58,16 +58,36 @@ export default function Projects() {
     setSeats(seats.map((s, i) => i === idx ? { ...s, locked: !s.locked } : s));
   };
 
-  // Compute cost from actual assigned seats (uses talent.rate when set, else the mid of the range)
+  // Compute cost from actual assigned seats (uses talent.rate when set, else the mid of the range).
+  // Employer-facing price uses sell_rate (backend-supplied) — Job Atlas margin already baked in.
+  // We also expose the raw talent cost so admins/employers see the transparent breakdown.
   const costs = useMemo(() => {
-    if (!detail || !seats.length) return { monthly: detail?.estimated_monthly_cost || 0, total: detail?.estimated_total_cost || 0 };
+    if (!detail || !seats.length) return {
+      monthly: detail?.monthly_client_price || detail?.estimated_monthly_cost || 0,
+      total: detail?.total_client_price || detail?.estimated_total_cost || 0,
+      talent_monthly: detail?.monthly_talent_cost || 0,
+      talent_total: detail?.total_talent_cost || 0,
+      margin_pct: detail?.blended_margin_pct || 0,
+    };
     const monthlyHrs = 160;
-    let monthly = 0;
+    let monthlyClient = 0;
+    let monthlyTalent = 0;
     for (const s of seats) {
-      const rate = s.current?.rate || ((s.rate_range?.[0] + s.rate_range?.[1]) / 2);
-      monthly += rate * monthlyHrs;
+      const talentRate = s.current?.rate || ((s.rate_range?.[0] + s.rate_range?.[1]) / 2);
+      const sellRate = s.current?.sell_rate || (talentRate * 1.15);  // fallback if backend didn't set
+      monthlyClient += sellRate * monthlyHrs;
+      monthlyTalent += talentRate * monthlyHrs;
     }
-    return { monthly: Math.round(monthly), total: Math.round(monthly * (detail?.duration_months || 1)) };
+    const months = detail?.duration_months || 1;
+    const margin = monthlyClient - monthlyTalent;
+    const marginPct = monthlyTalent > 0 ? (margin / monthlyTalent) * 100 : 0;
+    return {
+      monthly: Math.round(monthlyClient),
+      total: Math.round(monthlyClient * months),
+      talent_monthly: Math.round(monthlyTalent),
+      talent_total: Math.round(monthlyTalent * months),
+      margin_pct: Math.round(marginPct * 10) / 10,
+    };
   }, [seats, detail]);
 
   const submitLead = async (e) => {
@@ -85,8 +105,6 @@ export default function Projects() {
       const r = await api.post("/projects/lead", {
         template_id: selected, ...form,
         assigned_team,
-        estimated_monthly_cost: costs.monthly,
-        estimated_total_cost: costs.total,
       });
       toast.success(r.data.message);
       setSelected(null); setSeats([]);
@@ -209,8 +227,16 @@ export default function Projects() {
                   </div>
                   <div className="hard-border bg-[#0B1B2B] text-white p-3 text-center" data-testid="live-monthly-cost">
                     <p className="font-display font-black text-xl">${(costs.monthly / 1000).toFixed(1)}k</p>
-                    <p className="text-[10px] font-mono text-[#C79A3B] uppercase tracking-widest mt-1">Live / month</p>
+                    <p className="text-[10px] font-mono text-[#C79A3B] uppercase tracking-widest mt-1">You pay / mo</p>
                   </div>
+                </div>
+
+                <div className="hard-border bg-[#FDF6E3] px-3 py-2 mb-4 text-xs font-mono flex items-center justify-between gap-2 flex-wrap" data-testid="price-transparency">
+                  <span>Team cost <span className="font-bold">${(costs.talent_monthly / 1000).toFixed(1)}k/mo</span></span>
+                  <span>·</span>
+                  <span>Job Atlas margin <span className="font-bold">{costs.margin_pct}%</span></span>
+                  <span>·</span>
+                  <span>Total {detail.duration_months}mo: <span className="font-bold">${(costs.total / 1000).toFixed(0)}k</span></span>
                 </div>
 
                 <div className="flex items-center justify-between mb-3">
@@ -237,7 +263,7 @@ export default function Projects() {
                           <p className="font-display font-extrabold text-sm truncate">{s.role}</p>
                           {t ? (
                             <p className="text-xs text-neutral-600 truncate">
-                              <span className="font-mono">{t.name}</span> · {t.headline} · <span className="font-mono">${t.rate}/hr</span> · {t.years}y
+                              <span className="font-mono">{t.name}</span> · {t.headline} · <span className="font-mono">${t.sell_rate || t.rate}/hr</span> · {t.years}y
                             </p>
                           ) : (
                             <p className="text-xs text-neutral-400">No match in bench — Job Atlas team will source</p>

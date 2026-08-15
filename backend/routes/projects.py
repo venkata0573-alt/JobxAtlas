@@ -176,6 +176,10 @@ async def convert_lead_to_project(lead_id: str, payload: ConvertLeadIn,
         "duration_months": duration,
         "monthly_budget": monthly_budget,
         "total_budget": total_budget,
+        # Margin snapshot (transparent to admins; not shown to employer)
+        "total_talent_cost": float(lead.get("total_talent_cost") or 0),
+        "total_margin": float(lead.get("total_margin") or 0),
+        "blended_margin_pct": float(lead.get("blended_margin_pct") or 0),
         "currency": payload.currency,
         "assigned_team": assigned_team,
         "phases": phases,
@@ -309,6 +313,88 @@ async def update_phase(project_id: str, phase_id: str, payload: PhaseUpdateIn,
     return {"ok": True, "phases": phases}
 
 
+VARIANCE_ALERT_THRESHOLD_PCT = 10
+
+
+def _variance_email_html(*, company: str, week: str, hours_var: float,
+                          cost_var: float, notes: str, workspace_url: str) -> str:
+    tone = "#B03A2E" if abs(hours_var) >= 10 or abs(cost_var) >= 10 else "#C79A3B"
+    hours_line = f"Hours are <b style='color:{tone}'>{'+' if hours_var > 0 else ''}{hours_var}%</b> versus plan."
+    cost_line  = f"Cost is <b style='color:{tone}'>{'+' if cost_var > 0 else ''}{cost_var}%</b> versus plan."
+    return f"""<!doctype html>
+<html><body style="margin:0;padding:0;background:#FAF9F6;font-family:Georgia,serif;color:#0B1B2B;">
+<div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #ddd;padding:32px;">
+  <p style="letter-spacing:.2em;font-size:11px;color:{tone};margin:0 0 8px">VARIANCE ALERT · JOB ATLAS</p>
+  <h1 style="font-size:22px;margin:0 0 12px">{company} — week of {week}</h1>
+  <p style="font-size:14px;line-height:1.5;margin:0 0 12px">{hours_line}</p>
+  <p style="font-size:14px;line-height:1.5;margin:0 0 12px">{cost_line}</p>
+  {f'<p style="font-size:13px;color:#555;background:#FAF9F6;padding:10px;border-left:3px solid {tone}">{notes}</p>' if notes else ''}
+  <p style="margin:24px 0 0"><a href="{workspace_url}" style="background:#0B1B2B;color:#fff;padding:10px 16px;text-decoration:none;display:inline-block">Open workspace →</a></p>
+  <p style="font-size:11px;color:#999;margin-top:24px">You received this because a project variance week exceeded ±10%. Log in and open the workspace for the full picture.</p>
+</div></body></html>"""
+
+
+async def _maybe_fire_variance_alert(project: dict, variance: dict) -> Optional[dict]:
+    """If the just-logged variance week breached the threshold on hours OR cost,
+    write an alert doc + fire an email to the linked employer. Returns the
+    alert doc when fired, else None."""
+    import os
+    hours_var = float(variance.get("hours_variance_pct") or 0)
+    cost_var  = float(variance.get("cost_variance_pct") or 0)
+    if abs(hours_var) < VARIANCE_ALERT_THRESHOLD_PCT and abs(cost_var) < VARIANCE_ALERT_THRESHOLD_PCT:
+        return None
+    alert = {
+        "id": new_id(),
+        "kind": "variance_breach",
+        "project_id": project["id"],
+        "project_company": project.get("company_name"),
+        "employer_id": project.get("employer_id"),
+        "week_start": variance.get("week_start"),
+        "hours_variance_pct": hours_var,
+        "cost_variance_pct": cost_var,
+        "notes": (variance.get("notes") or "")[:500],
+        "severity": "high" if max(abs(hours_var), abs(cost_var)) >= 20 else "medium",
+        "read": False,
+        "email_sent": False,
+        "created_at": now().isoformat(),
+    }
+    await db.project_alerts.insert_one(alert)
+    # Fire email (best-effort — never blocks the API response)
+    try:
+        from mailer import send_email
+        base = os.environ.get("APP_BASE_URL") or ""
+        workspace_url = f"{base}/projects/{project['id']}/workspace"
+        # Prefer the linked employer's email; fall back to the lead's contact_email
+        to_email = None
+        if project.get("employer_id"):
+            emp = await db.users.find_one({"id": project["employer_id"]}, {"email": 1, "_id": 0})
+            if emp:
+                to_email = emp.get("email")
+        if not to_email:
+            to_email = project.get("contact_email")
+        if to_email:
+            html = _variance_email_html(
+                company=project.get("company_name") or "Your project",
+                week=variance.get("week_start") or "",
+                hours_var=hours_var, cost_var=cost_var,
+                notes=variance.get("notes") or "",
+                workspace_url=workspace_url,
+            )
+            subject = f"Variance alert — {project.get('company_name')} week of {variance.get('week_start')}"
+            r = await send_email(to=to_email, subject=subject, html=html)
+            if r.get("sent"):
+                await db.project_alerts.update_one(
+                    {"id": alert["id"]}, {"$set": {"email_sent": True, "email_to": to_email}}
+                )
+                alert["email_sent"] = True
+                alert["email_to"] = to_email
+    except Exception:
+        from deps import logger
+        logger.exception("variance email failed")
+    alert.pop("_id", None)
+    return alert
+
+
 # ---------- Variance snapshots ----------
 @api.post("/projects/workspace/{project_id}/variances")
 async def add_variance(project_id: str, payload: VarianceIn,
@@ -335,7 +421,47 @@ async def add_variance(project_id: str, payload: VarianceIn,
     }
     await db.project_variances.insert_one(doc)
     doc.pop("_id", None)
-    return doc
+    # Fire an alert if we breached the ±10% threshold
+    alert = await _maybe_fire_variance_alert(project, doc)
+    return {"variance": doc, "alert": alert}
+
+
+# ---------- Alerts ----------
+@api.get("/projects/workspace/{project_id}/alerts")
+async def list_project_alerts(project_id: str, user: dict = Depends(get_current_user)):
+    project = await _load_project_or_404(project_id, user)  # authz
+    items = await db.project_alerts.find(
+        {"project_id": project_id}, {"_id": 0}
+    ).sort("created_at", -1).to_list(200)
+    return {"items": items, "count": len(items)}
+
+
+@api.get("/alerts/mine")
+async def list_my_alerts(user: dict = Depends(get_current_user)):
+    """The linked employer (or admin) sees every variance-breach alert for
+    their projects — cross-project inbox."""
+    if user.get("role") == "admin":
+        q = {}
+    elif user.get("role") == "employer":
+        q = {"employer_id": user["id"]}
+    else:
+        return {"items": [], "count": 0, "unread": 0}
+    items = await db.project_alerts.find(q, {"_id": 0}).sort("created_at", -1).to_list(200)
+    unread = sum(1 for a in items if not a.get("read"))
+    return {"items": items, "count": len(items), "unread": unread}
+
+
+@api.post("/alerts/{alert_id}/read")
+async def mark_alert_read(alert_id: str, user: dict = Depends(get_current_user)):
+    a = await db.project_alerts.find_one({"id": alert_id}, {"_id": 0})
+    if not a:
+        raise HTTPException(404, "Alert not found")
+    # Only linked employer or an admin can read/dismiss
+    if user.get("role") != "admin" and a.get("employer_id") != user.get("id"):
+        raise HTTPException(403, "Not your alert")
+    await db.project_alerts.update_one({"id": alert_id}, {"$set": {"read": True,
+                                                                    "read_at": now().isoformat()}})
+    return {"ok": True}
 
 
 # ---------- Risk register ----------

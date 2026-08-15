@@ -23,8 +23,13 @@ export default function ProjectWorkspace() {
   const [tab, setTab] = useState("phases");
 
   const load = async () => {
-    try { const r = await api.get(`/projects/workspace/${id}`); setData(r.data); }
-    catch (e) { toast.error(formatErr(e)); }
+    try {
+      const [w, a] = await Promise.all([
+        api.get(`/projects/workspace/${id}`),
+        api.get(`/projects/workspace/${id}/alerts`).catch(() => ({ data: { items: [] } })),
+      ]);
+      setData({ ...w.data, alerts: a.data?.items || [] });
+    } catch (e) { toast.error(formatErr(e)); }
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
 
@@ -36,12 +41,42 @@ export default function ProjectWorkspace() {
 
   const p = data.project;
   const r = data.rollups;
+  const unreadAlerts = (data.alerts || []).filter((a) => !a.read);
+  const isAdmin = user?.role === "admin";
+
+  const dismissAlert = async (aid) => {
+    try {
+      await api.post(`/alerts/${aid}/read`);
+      setData((d) => ({ ...d, alerts: (d.alerts || []).map((a) => a.id === aid ? { ...a, read: true } : a) }));
+    } catch (e) { /* silent */ }
+  };
 
   return (
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-12" data-testid="project-workspace">
-      <Link to="/admin" className="inline-flex items-center gap-1 text-xs font-mono text-neutral-500 hover:text-black mb-4">
-        <ArrowLeft size={12}/> Back to admin
+      <Link to={isAdmin ? "/admin" : "/employer"} className="inline-flex items-center gap-1 text-xs font-mono text-neutral-500 hover:text-black mb-4">
+        <ArrowLeft size={12}/> Back
       </Link>
+
+      {unreadAlerts.length > 0 && (
+        <div className="hard-border bg-[#FEF0F0] border-red-300 p-4 shadow-brutal mb-6" data-testid="variance-alerts-banner">
+          <div className="flex items-baseline justify-between gap-3 flex-wrap">
+            <p className="font-display font-extrabold text-lg tracking-tight text-red-800">
+              ⚠︎ {unreadAlerts.length} variance breach{unreadAlerts.length === 1 ? "" : "es"} need your attention
+            </p>
+          </div>
+          <div className="space-y-2 mt-3">
+            {unreadAlerts.slice(0, 3).map((a) => (
+              <div key={a.id} className="flex items-center justify-between gap-3 flex-wrap text-sm">
+                <span className="font-mono">
+                  {a.week_start} · Hours <b>{a.hours_variance_pct > 0 ? "+" : ""}{a.hours_variance_pct}%</b> · Cost <b>{a.cost_variance_pct > 0 ? "+" : ""}{a.cost_variance_pct}%</b>
+                  {a.email_sent && <span className="ml-2 text-xs text-emerald-700">✓ sponsor emailed</span>}
+                </span>
+                <button onClick={() => dismissAlert(a.id)} className="hard-border px-2 py-1 text-xs bg-white" data-testid={`dismiss-alert-${a.id}`}>Dismiss</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex items-start justify-between gap-4 flex-wrap mb-8">
         <div>
@@ -59,6 +94,11 @@ export default function ProjectWorkspace() {
         <div className="hard-border bg-white p-4 shadow-brutal" data-testid="rollup-budget">
           <p className="overline text-neutral-500 mb-1">Budget</p>
           <p className="font-display font-black text-2xl">${(r.total_budget / 1000).toFixed(0)}k</p>
+          {isAdmin && p.total_talent_cost > 0 && (
+            <p className="text-[10px] text-neutral-500 font-mono mt-1" data-testid="admin-team-cost">
+              Team cost ${(p.total_talent_cost / 1000).toFixed(0)}k
+            </p>
+          )}
         </div>
         <div className="hard-border bg-white p-4 shadow-brutal" data-testid="rollup-billed">
           <p className="overline text-neutral-500 mb-1">Billed</p>
@@ -74,12 +114,20 @@ export default function ProjectWorkspace() {
             {r.hours_variance_pct > 0 ? "+" : ""}{r.hours_variance_pct}%
           </p>
         </div>
-        <div className={`hard-border p-4 shadow-brutal ${Math.abs(r.cost_variance_pct) > 10 ? "bg-[#FEF0F0] border-red-300" : "bg-white"}`} data-testid="rollup-cost-var">
-          <p className="overline text-neutral-500 mb-1">Cost variance</p>
-          <p className={`font-display font-black text-2xl ${r.cost_variance_pct > 0 ? "text-red-700" : "text-emerald-700"}`}>
-            {r.cost_variance_pct > 0 ? "+" : ""}{r.cost_variance_pct}%
-          </p>
-        </div>
+        {isAdmin && p.blended_margin_pct !== undefined ? (
+          <div className="hard-border bg-[#0B1B2B] text-white p-4 shadow-brutal" data-testid="rollup-margin">
+            <p className="overline text-[#C79A3B] mb-1">Job Atlas margin</p>
+            <p className="font-display font-black text-2xl text-[#F0C260]">{p.blended_margin_pct}%</p>
+            <p className="text-[10px] text-neutral-400 font-mono mt-1">${(p.total_margin / 1000).toFixed(0)}k gross</p>
+          </div>
+        ) : (
+          <div className={`hard-border p-4 shadow-brutal ${Math.abs(r.cost_variance_pct) > 10 ? "bg-[#FEF0F0] border-red-300" : "bg-white"}`} data-testid="rollup-cost-var">
+            <p className="overline text-neutral-500 mb-1">Cost variance</p>
+            <p className={`font-display font-black text-2xl ${r.cost_variance_pct > 0 ? "text-red-700" : "text-emerald-700"}`}>
+              {r.cost_variance_pct > 0 ? "+" : ""}{r.cost_variance_pct}%
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -166,14 +214,18 @@ function VarianceTab({ project, variances, onChange }) {
   const submit = async (e) => {
     e.preventDefault();
     try {
-      await api.post(`/projects/workspace/${project.id}/variances`, {
+      const r = await api.post(`/projects/workspace/${project.id}/variances`, {
         ...form,
         planned_hours: Number(form.planned_hours),
         actual_hours: Number(form.actual_hours),
         planned_cost: Number(form.planned_cost),
         actual_cost: Number(form.actual_cost),
       });
-      toast.success("Variance logged");
+      if (r.data?.alert) {
+        toast.error(`⚠︎ Variance alert fired — sponsor notified`, { duration: 6000 });
+      } else {
+        toast.success("Variance logged");
+      }
       onChange();
     } catch (err) { toast.error(formatErr(err)); }
   };
