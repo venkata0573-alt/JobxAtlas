@@ -102,7 +102,12 @@ export default function BrowseTalent() {
                     )}
                     <div className="min-w-0">
                       <p className="overline text-[#C79A3B]">{t.profile?.location || "Global"}</p>
-                      <h3 className="font-display font-black text-2xl tracking-tight mt-1 truncate">{t.name}</h3>
+                      <h3 className="font-display font-black text-2xl tracking-tight mt-1 truncate inline-flex items-center gap-1">
+                        {t.name}
+                        {t.is_verified && (
+                          <span title="BGV verified" data-testid={`verified-badge-${t.id}`} className="text-[#0EA5E9] text-xl leading-none">✓</span>
+                        )}
+                      </h3>
                       <p className="text-neutral-600 text-sm mt-1 line-clamp-2">{t.profile?.headline || "Independent professional"}</p>
                     </div>
                   </div>

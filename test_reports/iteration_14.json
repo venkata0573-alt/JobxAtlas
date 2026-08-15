@@ -1,0 +1,23 @@
+{
+  "summary": "Iteration 25 tested end-to-end. Backend: 23/23 pytest cases pass (Employer Invoice Inbox, overdue flag typing, /billing/setup + /billing/status role gating, /admin/invoices/scan-overdue superadmin OK & support/employer/talent 403, variance breach still returns {variance,alert} with Slack no-op, shortlist CRUD split into routes/marketplace.py + broadcast still in server.py + all 5 previously-extracted marketplace endpoints 200, server.py=2626 lines <2700). Frontend: /invoices renders with all totals cards, filter chips switch content correctly (4 rows in All -> 1 in Paid), invoice-row/pdf/open-workspace testids present on each row, attach-card-cta banner shows when no card, nav-invoices link on /employer navigates to /invoices, talent@test.io sees totals-count=0.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration25_invoices_billing_slack.py",
+    "/app/test_reports/pytest/iter25.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "billing/setup uses stripe (sync) inside async handler without to_thread — acceptable for MVP but blocks event loop under load; consider asyncio.to_thread for stripe.PaymentMethod.attach + Customer.modify.",
+    "Invoices.jsx: `downloadPdf` opens PDF via window.open with the raw URL — cookie auth works because same-origin, but a stray REACT_APP_BACKEND_URL trailing slash would cause a double-slash. Minor.",
+    "scan_overdue_invoices: no dedupe if the same overdue invoice is scanned by both the manual endpoint and the daily cron on the same day (extra reminder emails possible on same-day double-run). Reminder throttle is 3d so risk is bounded, but manual scan can bypass throttle if last_reminder record write fails.",
+    "routes/marketplace.py mixes SEO + shortlist domain concerns in one file — fine for now but split further as it grows."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration25_invoices_billing_slack.py"],
+  "success_rate": {"backend": "100% (23/23)", "frontend": "100%"},
+  "test_credentials": "used the 4 accounts from /app/memory/test_credentials.md — admin@talenthub.io, support1@jobatlas.io, emp-series-b-fintechs@test.io, talent@test.io",
+  "seed_data_creation": "One transient shortlist entry (talent_id=TEST_iter25_*) created and immediately deleted inside test_shortlist_crud_flow. One variance record inserted via /variances for slack-noop probe (no cleanup — harmless project analytics data).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 25 fully green. Slack webhook was not tested end-to-end (SLACK_WEBHOOK_URL unset by design — only verified fire-and-forget doesn't block/throw). Stripe billing attach path was exercised only with a bogus payment_method (400 Attach failed) — for a positive-path test, main agent would need to seed a real Stripe test PaymentMethod via SetupIntent client secret and confirm from the browser (or use stripe.PaymentMethod.create with card_number in a test-only backend fixture)."
+}

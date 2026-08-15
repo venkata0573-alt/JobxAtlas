@@ -388,6 +388,12 @@ async def _maybe_fire_variance_alert(project: dict, variance: dict) -> Optional[
                 )
                 alert["email_sent"] = True
                 alert["email_to"] = to_email
+        # Mirror to Slack/Teams if a webhook is configured
+        emoji = ":rotating_light:" if alert["severity"] == "high" else ":warning:"
+        await _slack_notify(
+            f"{emoji} *Variance breach* {project.get('company_name')} · week {variance.get('week_start')} · "
+            f"Hours {'+' if hours_var > 0 else ''}{hours_var}% · Cost {'+' if cost_var > 0 else ''}{cost_var}%"
+        )
     except Exception:
         from deps import logger
         logger.exception("variance email failed")
@@ -890,3 +896,359 @@ async def milestone_payment_status(session_id: str, user: dict = Depends(get_cur
     return {"session_id": session_id, "payment_status": rec.get("payment_status"),
             "milestone_id": rec.get("milestone_id"), "invoice_id": rec.get("invoice_id")}
 
+
+
+
+# ---------- Employer Invoice Inbox ----------
+@api.get("/invoices/mine")
+async def list_my_invoices(user: dict = Depends(get_current_user)):
+    """Return every invoice across the caller's linked projects. Admins see all."""
+    if user.get("role") == "admin":
+        projects = await db.projects.find({}, {"_id": 0, "id": 1, "company_name": 1,
+                                                "template_title": 1, "employer_id": 1,
+                                                "currency": 1}).to_list(500)
+    elif user.get("role") == "employer":
+        projects = await db.projects.find(
+            {"employer_id": user["id"]},
+            {"_id": 0, "id": 1, "company_name": 1, "template_title": 1,
+             "employer_id": 1, "currency": 1},
+        ).to_list(200)
+    else:
+        return {"items": [], "count": 0, "total_open": 0.0, "total_paid": 0.0}
+    ids = [p["id"] for p in projects]
+    invoices = await db.project_invoices.find({"project_id": {"$in": ids}},
+                                              {"_id": 0}).sort("issued_at", -1).to_list(1000)
+    milestones = await db.project_milestones.find({"project_id": {"$in": ids}},
+                                                   {"_id": 0}).to_list(2000)
+    m_by_id = {m["id"]: m for m in milestones}
+    p_by_id = {p["id"]: p for p in projects}
+    items = []
+    total_open = 0.0
+    total_paid = 0.0
+    from datetime import datetime as _dt, timezone as _tz
+    now_utc = _dt.now(_tz.utc)
+    for inv in invoices:
+        m = m_by_id.get(inv.get("milestone_id")) or {}
+        p = p_by_id.get(inv.get("project_id")) or {}
+        due_str = (m.get("due_date") or "")[:10]
+        is_overdue = False
+        if inv.get("status") != "paid" and due_str:
+            try:
+                due_dt = _dt.strptime(due_str, "%Y-%m-%d").replace(tzinfo=_tz.utc)
+                is_overdue = due_dt < now_utc
+            except Exception:
+                pass
+        item = {
+            **inv,
+            "milestone_name": m.get("name"),
+            "milestone_due": due_str,
+            "project_company": p.get("company_name"),
+            "project_template": p.get("template_title"),
+            "is_overdue": is_overdue,
+        }
+        items.append(item)
+        amt = float(inv.get("amount") or 0)
+        if inv.get("status") == "paid":
+            total_paid += amt
+        else:
+            total_open += amt
+    return {"items": items, "count": len(items),
+            "total_open": round(total_open, 2),
+            "total_paid": round(total_paid, 2)}
+
+
+# ---------- Auto-collect Late Milestones ----------
+# Employers can attach a Stripe payment_method_id via /billing/setup (below).
+# The daily scheduler job hits invoices past due, emails a reminder every 3
+# days, and attempts an off-session PaymentIntent if a payment method is on
+# file. Every attempt is logged to db.payment_reminders for audit.
+
+class BillingSetupIn(BaseModel):
+    payment_method_id: str
+
+
+@api.post("/billing/setup")
+async def attach_payment_method(payload: BillingSetupIn, user: dict = Depends(get_current_user)):
+    """Employer attaches (or replaces) their default Stripe PaymentMethod that
+    the auto-collect job will use for off-session milestone charges."""
+    import os, stripe
+    if user.get("role") != "employer":
+        raise HTTPException(403, "Employers only")
+    stripe_key = os.environ.get("STRIPE_SECRET_KEY")
+    if not stripe_key:
+        raise HTTPException(500, "Stripe is not configured")
+    stripe.api_key = stripe_key
+    # Ensure a Stripe customer exists for this user
+    cust_id = user.get("stripe_customer_id")
+    if not cust_id:
+        try:
+            cust = stripe.Customer.create(email=user.get("email"), name=user.get("name"),
+                                           metadata={"user_id": user["id"]})
+            cust_id = cust.id
+            await db.users.update_one({"id": user["id"]},
+                                       {"$set": {"stripe_customer_id": cust_id}})
+        except Exception as e:
+            raise HTTPException(400, f"Stripe customer create failed: {str(e)[:200]}")
+    try:
+        stripe.PaymentMethod.attach(payload.payment_method_id, customer=cust_id)
+        stripe.Customer.modify(
+            cust_id,
+            invoice_settings={"default_payment_method": payload.payment_method_id},
+        )
+    except Exception as e:
+        raise HTTPException(400, f"Attach failed: {str(e)[:200]}")
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"stripe_payment_method_id": payload.payment_method_id,
+                  "billing_attached_at": now().isoformat()}},
+    )
+    return {"ok": True, "customer_id": cust_id, "payment_method_id": payload.payment_method_id}
+
+
+@api.get("/billing/status")
+async def billing_status(user: dict = Depends(get_current_user)):
+    """Frontend uses this to decide whether to show the 'Enable auto-collect'
+    banner. Returns the attached PaymentMethod (last4 masked)."""
+    if user.get("role") != "employer":
+        raise HTTPException(403, "Employers only")
+    pm_id = user.get("stripe_payment_method_id")
+    if not pm_id:
+        return {"attached": False}
+    # Try to fetch card metadata (best-effort; UI can survive without)
+    last4 = None; brand = None
+    try:
+        import os, stripe
+        stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or ""
+        if stripe.api_key:
+            pm = stripe.PaymentMethod.retrieve(pm_id)
+            card = pm.get("card") or {}
+            last4 = card.get("last4"); brand = card.get("brand")
+    except Exception:
+        pass
+    return {"attached": True, "payment_method_id": pm_id, "last4": last4, "brand": brand,
+            "since": user.get("billing_attached_at")}
+
+
+REMINDER_INTERVAL_DAYS = 3
+
+
+async def _slack_notify(text: str) -> None:
+    """Fire-and-forget Slack/Teams incoming webhook. Uses SLACK_WEBHOOK_URL env var
+    (works with Microsoft Teams incoming webhooks too — they accept the same
+    {'text': ...} shape)."""
+    import os, json, urllib.request
+    url = os.environ.get("SLACK_WEBHOOK_URL")
+    if not url:
+        return
+    try:
+        req = urllib.request.Request(
+            url, data=json.dumps({"text": text}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        # urllib is blocking; run in a thread so we never stall the API loop.
+        import asyncio
+        await asyncio.to_thread(urllib.request.urlopen, req, None, 4)
+    except Exception:
+        from deps import logger
+        logger.exception("slack webhook failed")
+
+
+async def _attempt_off_session_charge(*, invoice: dict, milestone: dict,
+                                       project: dict, employer: dict) -> dict:
+    """Try to auto-collect an overdue invoice using the employer's stored
+    PaymentMethod. Returns a small report dict for logging."""
+    import os, stripe
+    stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or ""
+    if not stripe.api_key:
+        return {"charged": False, "reason": "stripe_not_configured"}
+    pm_id = employer.get("stripe_payment_method_id")
+    cust_id = employer.get("stripe_customer_id")
+    if not pm_id or not cust_id:
+        return {"charged": False, "reason": "no_payment_method"}
+    amount = float(invoice.get("amount") or 0)
+    if amount <= 0:
+        return {"charged": False, "reason": "zero_amount"}
+    currency = (invoice.get("currency") or project.get("currency") or "usd").lower()
+    try:
+        intent = stripe.PaymentIntent.create(
+            amount=int(round(amount * 100)),
+            currency=currency,
+            customer=cust_id,
+            payment_method=pm_id,
+            off_session=True,
+            confirm=True,
+            description=f"Auto-collect {invoice.get('ref')} · {milestone.get('name')} · {project.get('company_name')}",
+            metadata={
+                "kind": "milestone_auto_collect",
+                "project_id": project.get("id"),
+                "milestone_id": milestone.get("id"),
+                "invoice_id": invoice.get("id"),
+            },
+        )
+        if intent.status == "succeeded":
+            now_iso = now().isoformat()
+            await db.project_milestones.update_one(
+                {"id": milestone["id"]},
+                {"$set": {"status": "paid", "paid_at": now_iso}},
+            )
+            await db.project_invoices.update_one(
+                {"id": invoice["id"]},
+                {"$set": {"status": "paid", "paid_at": now_iso,
+                          "auto_collected": True, "payment_intent_id": intent.id}},
+            )
+            return {"charged": True, "payment_intent_id": intent.id}
+        return {"charged": False, "reason": f"intent_status:{intent.status}",
+                "payment_intent_id": intent.id}
+    except Exception as e:
+        # Stripe raises stripe.error.CardError with intent info on SCA required
+        return {"charged": False, "reason": f"stripe_error:{str(e)[:180]}"}
+
+
+def _reminder_email_html(*, employer_name: str, invoice_ref: str, amount: float,
+                          currency: str, due_date: str, milestone_name: str,
+                          workspace_url: str, days_overdue: int) -> str:
+    return f"""<!doctype html>
+<html><body style="margin:0;padding:0;background:#FAF9F6;font-family:Georgia,serif;color:#0B1B2B;">
+<div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #ddd;padding:32px;">
+  <p style="letter-spacing:.2em;font-size:11px;color:#B03A2E;margin:0 0 8px">INVOICE OVERDUE · JOB ATLAS</p>
+  <h1 style="font-size:22px;margin:0 0 12px">{invoice_ref} — {currency.upper()} {amount:,.2f}</h1>
+  <p style="font-size:14px;line-height:1.5;margin:0 0 12px">
+    Hi {employer_name or 'there'}, invoice <b>{invoice_ref}</b> for milestone
+    <b>{milestone_name}</b> was due on <b>{due_date}</b> — {days_overdue} day{'s' if days_overdue != 1 else ''} ago.
+  </p>
+  <p style="font-size:14px;line-height:1.5;margin:0 0 12px">
+    Pay in one click from your workspace, or reply to this email if there's anything to discuss.
+  </p>
+  <p style="margin:24px 0 0"><a href="{workspace_url}" style="background:#0B1B2B;color:#fff;padding:10px 16px;text-decoration:none;display:inline-block">Pay in workspace →</a></p>
+  <p style="font-size:11px;color:#999;margin-top:24px">If a card is saved on your Job Atlas billing settings, we'll attempt to auto-collect after 7 days overdue.</p>
+</div></body></html>"""
+
+
+async def scan_overdue_invoices() -> Dict[str, Any]:
+    """Run daily by APScheduler. For each unpaid invoice past the milestone
+    due_date: (1) email a reminder every REMINDER_INTERVAL_DAYS days; (2) if a
+    payment method is on file and the invoice is >=7 days overdue, attempt
+    an off-session Stripe charge. Also mirrors to Slack when configured."""
+    import os
+    from datetime import datetime as _dt, timezone as _tz
+    result = {"scanned": 0, "reminders_sent": 0, "auto_collected": 0, "failed": 0}
+    now_utc = _dt.now(_tz.utc)
+    invoices = await db.project_invoices.find(
+        {"status": {"$in": ["issued", "invoiced"]}}, {"_id": 0},
+    ).to_list(500)
+    for inv in invoices:
+        m = await db.project_milestones.find_one({"id": inv.get("milestone_id")}, {"_id": 0})
+        if not m:
+            continue
+        due_str = (m.get("due_date") or "")[:10]
+        if not due_str:
+            continue
+        try:
+            due_dt = _dt.strptime(due_str, "%Y-%m-%d").replace(tzinfo=_tz.utc)
+        except Exception:
+            continue
+        if due_dt >= now_utc:
+            continue
+        result["scanned"] += 1
+        days_overdue = (now_utc - due_dt).days
+        project = await db.projects.find_one({"id": inv.get("project_id")}, {"_id": 0})
+        if not project:
+            continue
+        employer = None
+        to_email = project.get("contact_email")
+        if project.get("employer_id"):
+            employer = await db.users.find_one({"id": project["employer_id"]}, {"_id": 0})
+            if employer and employer.get("email"):
+                to_email = employer.get("email")
+
+        # Reminder cadence — every REMINDER_INTERVAL_DAYS days
+        last_reminder = await db.payment_reminders.find_one(
+            {"invoice_id": inv["id"], "kind": "email"}, sort=[("created_at", -1)],
+        )
+        should_send_email = True
+        if last_reminder:
+            try:
+                last_dt = _dt.fromisoformat(str(last_reminder.get("created_at")).replace("Z", "+00:00"))
+                if (now_utc - last_dt).days < REMINDER_INTERVAL_DAYS:
+                    should_send_email = False
+            except Exception:
+                pass
+
+        base = os.environ.get("APP_BASE_URL") or ""
+        workspace_url = f"{base}/projects/{project['id']}/workspace"
+
+        if should_send_email and to_email:
+            try:
+                from mailer import send_email
+                html = _reminder_email_html(
+                    employer_name=(employer or {}).get("name") or project.get("contact_name") or "",
+                    invoice_ref=inv.get("ref") or inv["id"][:8],
+                    amount=float(inv.get("amount") or 0),
+                    currency=inv.get("currency") or "usd",
+                    due_date=due_str, milestone_name=m.get("name") or "Milestone",
+                    workspace_url=workspace_url, days_overdue=days_overdue,
+                )
+                subject = f"Overdue: {inv.get('ref')} · {project.get('company_name')}"
+                r = await send_email(to=to_email, subject=subject, html=html)
+                await db.payment_reminders.insert_one({
+                    "id": new_id(), "kind": "email",
+                    "invoice_id": inv["id"], "project_id": project["id"],
+                    "milestone_id": m["id"],
+                    "sent_to": to_email, "sent": r.get("sent", False),
+                    "reason": r.get("reason"), "days_overdue": days_overdue,
+                    "created_at": now().isoformat(),
+                })
+                if r.get("sent"):
+                    result["reminders_sent"] += 1
+                await _slack_notify(
+                    f":warning: *Overdue invoice* {inv.get('ref')} · {project.get('company_name')} · "
+                    f"{days_overdue}d late · {(inv.get('currency') or 'usd').upper()} "
+                    f"{float(inv.get('amount') or 0):,.0f}"
+                )
+            except Exception:
+                from deps import logger
+                logger.exception("reminder email failed")
+                result["failed"] += 1
+
+        # Attempt auto-collect on invoices ≥7 days overdue (once per invoice)
+        if days_overdue >= 7 and employer and employer.get("stripe_payment_method_id"):
+            already = await db.payment_reminders.find_one(
+                {"invoice_id": inv["id"], "kind": "auto_charge", "outcome": "charged"},
+            )
+            if not already:
+                report = await _attempt_off_session_charge(
+                    invoice=inv, milestone=m, project=project, employer=employer,
+                )
+                await db.payment_reminders.insert_one({
+                    "id": new_id(), "kind": "auto_charge",
+                    "invoice_id": inv["id"], "project_id": project["id"],
+                    "milestone_id": m["id"],
+                    "outcome": "charged" if report.get("charged") else "failed",
+                    "reason": report.get("reason"),
+                    "payment_intent_id": report.get("payment_intent_id"),
+                    "days_overdue": days_overdue,
+                    "created_at": now().isoformat(),
+                })
+                if report.get("charged"):
+                    result["auto_collected"] += 1
+                    await _slack_notify(
+                        f":white_check_mark: *Auto-collected* {inv.get('ref')} · "
+                        f"{project.get('company_name')} · "
+                        f"{(inv.get('currency') or 'usd').upper()} {float(inv.get('amount') or 0):,.0f}"
+                    )
+                else:
+                    result["failed"] += 1
+    return result
+
+
+@api.post("/admin/invoices/scan-overdue")
+async def admin_scan_overdue(user: dict = Depends(get_current_user)):
+    """Manual trigger for the daily overdue-invoice scan (finance / superadmin)."""
+    if not (has_admin_scope(user, "finance") or has_admin_scope(user, "superadmin")):
+        raise HTTPException(403, "Requires finance or superadmin scope")
+    result = await scan_overdue_invoices()
+    await db.job_runs.insert_one({
+        "id": new_id(), "job": "scan_overdue_invoices",
+        "at": now().isoformat(), "result": result, "manual": True,
+    })
+    return result

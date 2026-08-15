@@ -349,7 +349,12 @@ export default function TalentDashboard() {
               <div key={emp.id} className="hard-border bg-[#FAF9F6] p-5" data-testid={`employer-card-${emp.id}`}>
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="min-w-0">
-                    <p className="font-display font-extrabold text-lg tracking-tight truncate">{emp.company_name || emp.name}</p>
+                    <p className="font-display font-extrabold text-lg tracking-tight truncate inline-flex items-center gap-1">
+                      {emp.company_name || emp.name}
+                      {emp.is_verified && (
+                        <span title="Verified company" data-testid={`verified-badge-${emp.id}`} className="text-[#C79A3B]">✦</span>
+                      )}
+                    </p>
                     <p className="text-xs font-mono text-neutral-500 truncate">{emp.company_industry || "—"}</p>
                   </div>
                   {emp.hours_balance > 0 && (

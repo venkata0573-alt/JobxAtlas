@@ -1,0 +1,60 @@
+{
+  "summary": "Iteration 26 testing — email verification magic-link, company + BGV verification, admin approval, verified badges, and custom project template. 16/16 backend tests pass. Frontend flows mostly pass; one critical bug found in VerifyEmail.jsx where React StrictMode causes the /auth/verify-email endpoint to be called twice, consuming the token on the first call and returning 400 on the second — so the UI always displays the error state even after a successful verification. Also, the TalentDashboard 'companies-hiring' section shows only top-12 employers sorted by hours_balance, so the only currently-verified employer (TestCo, hours=0) is never rendered — golden-star badge is code-correct but not visible with current data.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "VerifyEmail.jsx (/verify-email)",
+        "issue": "useEffect fires twice under React.StrictMode (index.js), so the magic-link token is consumed on the first request and the second call returns 400 -> UI ends up in the 'fail' state and shows verify-email-error even though verification actually succeeded on the server. Add a useRef guard (e.g. `const called = useRef(false); if (called.current) return; called.current = true;`) or drop StrictMode double-invocation for this effect. Currently every real user completing the magic-link flow sees a 'Link expired' screen.",
+        "selector": "[data-testid=verify-email-error]",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "TalentDashboard companies-hiring",
+        "issue": "The section only renders top-12 employers sorted by (-hours_balance, -active_engagements). The only currently-verified employer in the test dataset has hours_balance=0 and sits at index 25 in /api/employers response — so verified-badge-{empId} is never rendered on the talent dashboard. Code is correct; either (a) surface verified employers first, or (b) seed the verified test employer with some hours_balance for observable QA.",
+        "selector": "[data-testid^=verified-badge-]",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "Projects.jsx custom-project modal <select>",
+        "issue": "React hydration warning: <span> cannot be a child of <option>. Some source-map instrumentation wraps the {n} interpolation in a <span> inside <option>. Non-blocking but pollutes console.",
+        "selector": "[data-testid=cp-duration] option",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration26_verification.py",
+    "/app/test_reports/pytest/iter26.xml"
+  ],
+  "action_items": [
+    "CRITICAL: Fix VerifyEmail.jsx to guard against double useEffect invocation under React.StrictMode (useRef flag) — currently every successful email verification is shown as 'Link expired' to the user.",
+    "MEDIUM: On TalentDashboard, either prioritize verified employers in the top-12 slice or seed the verified test employer with hours_balance>0 so the golden-star badge is actually visible.",
+    "LOW: Suppress hydration warning on cp-duration <option> mapping."
+  ],
+  "critical_code_review_comments": [
+    "auth.py register endpoint: swallows email-send exceptions silently — good for dev, but at minimum log the exception so real Resend errors don't disappear.",
+    "auth.py /verification/bgv: work_history validation says 'at least one' but the message-position order is: refs<2 checked before work<1, so a request with zero work + zero refs returns 'at least two references' — misleading; validate work_history first or use pydantic constraints.",
+    "server.py /employers: verified employers should be surfaced regardless of hours_balance — sorting by hours_balance hides freshly-verified employers.",
+    "VerifyEmail.jsx: not idempotent w/ React StrictMode — critical UX bug (see above).",
+    "auth.py /auth/register: does NOT block login for unverified users (intentional per spec) — banner-based ux, verified. But it also does NOT rate-limit /auth/resend-verification, so a user could rotate tokens indefinitely."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration26_verification.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "83%"
+  },
+  "test_credentials": "admin@talenthub.io/Admin@2026, emp-series-b-fintechs@test.io/Employer@2026, talent@test.io/Talent@2026 — after this run the employer + talent have verification_status=verified. Reset via db update if a clean 'pending' state is needed.",
+  "seed_data_creation": "Created disposable users during the run: newverify2_<ts>@test.io (verified) and rotate_<ts>@test.io (unverified) for token-rotation test. TestCo employer profile was populated + approved on emp-series-b-fintechs@test.io; talent@test.io was moved to verified via BGV+approve.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest file lives at /app/backend/tests/test_iteration26_verification.py (16 tests, all pass). It approves the employer + talent as part of the flow so any subsequent test that expects verification_status=pending on those accounts must reset them first (db.users.update_one). The VerifyEmail double-call StrictMode bug is deterministic in the preview build — reproducing it only requires visiting /verify-email?token=X once with a fresh token.",
+  "rca of the issue": "VerifyEmail.jsx useEffect issues a network call synchronously on mount. Because /app/frontend/src/index.js wraps <App/> in <React.StrictMode>, React intentionally mounts the component twice in development-mode simulations to surface unsafe effects. Each mount fires the effect, so the server sees two GET /api/auth/verify-email?token=<X> requests. The first call succeeds and unsets the token; the second call finds no matching document and returns 400 -> UI transitions to state='fail'. Mitigation: gate the fetch with a useRef flag, e.g. `const ran = useRef(false); useEffect(() => { if (ran.current) return; ran.current = true; api.get(...) }, [params]);` — or use React 18's AbortController pattern to cancel the second call."
+}

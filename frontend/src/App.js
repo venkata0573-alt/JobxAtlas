@@ -32,6 +32,9 @@ import SkillLanding from "@/pages/SkillLanding";
 import Shortlist from "@/pages/Shortlist";
 import Projects from "@/pages/Projects";
 import ProjectWorkspace from "@/pages/ProjectWorkspace";
+import Invoices from "@/pages/Invoices";
+import VerifyEmail from "@/pages/VerifyEmail";
+import Verification from "@/pages/Verification";
 
 function App() {
   return (
@@ -52,6 +55,9 @@ function App() {
             <Route path="/employer/shortlist" element={<ProtectedRoute role="employer"><Shortlist /></ProtectedRoute>} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/projects/:id/workspace" element={<ProtectedRoute><ProjectWorkspace /></ProtectedRoute>} />
+            <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/verify" element={<ProtectedRoute><Verification /></ProtectedRoute>} />
             <Route path="/payment/success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
             <Route path="/payment/cancel" element={<ProtectedRoute><PaymentCancel /></ProtectedRoute>} />
             <Route path="/engagement/:id" element={<ProtectedRoute><EngagementDetail /></ProtectedRoute>} />

@@ -64,6 +64,9 @@ export default function EmployerDashboard() {
           <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight">Welcome, {user?.name?.split(" ")[0]}.</h1>
         </div>
         <div className="flex gap-2">
+          <Link to="/invoices" className="btn-outline shadow-brutal-hover" data-testid="nav-invoices">
+            <span className="inline-flex items-center gap-2">📄 Invoices</span>
+          </Link>
           <Link to="/employer/shortlist" className="btn-outline shadow-brutal-hover" data-testid="nav-shortlist">
             <span className="inline-flex items-center gap-2">★ Shortlist</span>
           </Link>

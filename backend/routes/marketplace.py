@@ -130,3 +130,67 @@ async def marketplace_stats():
         "engagements_total": engagements,
         "engagements_signed": signed_engagements,
     }
+
+
+
+# ---------- Shortlist CRUD ----------
+# (Broadcast POST + SSE stream endpoints stay in server.py because they touch
+# module-level _broadcast_subscribers queues.)
+from typing import List, Optional
+from fastapi import Depends, HTTPException
+from pydantic import BaseModel
+
+from deps import new_id, get_current_user
+
+
+class ShortlistIn(BaseModel):
+    talent_id: str
+    talent_name: str
+    headline: Optional[str] = ""
+    location: Optional[str] = ""
+    hourly_rate: Optional[float] = 0.0
+    skills: List[str] = []
+    context: Optional[str] = ""
+    is_curated: bool = False
+
+
+@api.post("/shortlist")
+async def add_to_shortlist(payload: ShortlistIn, user: dict = Depends(get_current_user)):
+    if user.get("role") != "employer":
+        raise HTTPException(403, "Only employers can shortlist")
+    doc = {
+        "id": new_id(),
+        "employer_id": user["id"],
+        "talent_id": payload.talent_id,
+        "talent_name": payload.talent_name,
+        "headline": payload.headline or "",
+        "location": payload.location or "",
+        "hourly_rate": float(payload.hourly_rate or 0),
+        "skills": payload.skills or [],
+        "context": payload.context or "",
+        "is_curated": bool(payload.is_curated),
+        "created_at": now().isoformat(),
+    }
+    await db.shortlists.update_one(
+        {"employer_id": user["id"], "talent_id": payload.talent_id},
+        {"$set": doc}, upsert=True,
+    )
+    total = await db.shortlists.count_documents({"employer_id": user["id"]})
+    return {"ok": True, "count": total}
+
+
+@api.get("/shortlist")
+async def list_shortlist(user: dict = Depends(get_current_user)):
+    if user.get("role") != "employer":
+        raise HTTPException(403, "Only employers can view a shortlist")
+    items = await db.shortlists.find({"employer_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return {"items": items, "count": len(items)}
+
+
+@api.delete("/shortlist/{talent_id}")
+async def remove_from_shortlist(talent_id: str, user: dict = Depends(get_current_user)):
+    if user.get("role") != "employer":
+        raise HTTPException(403, "Only employers can modify a shortlist")
+    await db.shortlists.delete_one({"employer_id": user["id"], "talent_id": talent_id})
+    total = await db.shortlists.count_documents({"employer_id": user["id"]})
+    return {"ok": True, "count": total}

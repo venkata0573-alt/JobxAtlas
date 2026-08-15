@@ -259,7 +259,8 @@ async def list_talent(q: Optional[str] = None, skill: Optional[str] = None,
         ]
     if min_exp:
         query["profile.years_experience"] = {"$gte": int(min_exp)}
-    cursor = db.users.find(query, {"_id": 0, "password_hash": 0, "email": 0, "integrations": 0})
+    cursor = db.users.find(query, {"_id": 0, "password_hash": 0, "email": 0, "integrations": 0,
+                                    "email_verification_token": 0})
     items = await cursor.to_list(200)
     # Add employer-facing sell rate + tier margin to every card
     from pricing import sell_rate, margin_pct
@@ -269,6 +270,9 @@ async def list_talent(q: Optional[str] = None, skill: Optional[str] = None,
         if tr > 0:
             u["sell_rate"] = sell_rate(tr)
             u["margin_pct"] = margin_pct(tr)
+        # Verified badge exposure — bool the frontend can read directly
+        u["is_verified"] = u.get("verification_status") == "verified"
+        u["email_verified"] = bool(u.get("email_verified"))
     return items
 
 
@@ -318,9 +322,11 @@ async def list_employers(
             "hours_balance": int(u.get("hours_balance") or 0),
             "active_engagements": open_role_map.get(u["id"], 0),
             "created_at": u.get("created_at"),
+            "is_verified": u.get("verification_status") == "verified",
+            "email_verified": bool(u.get("email_verified")),
         })
-    # Sort: those with balance first (they're ready to hire), then most active.
-    out.sort(key=lambda x: (-x["hours_balance"], -x["active_engagements"]))
+    # Sort: verified first, then by pre-purchased hours (buying signal), then engagement volume.
+    out.sort(key=lambda x: (not x["is_verified"], -x["hours_balance"], -x["active_engagements"]))
     return {"items": out, "count": len(out)}
 
 
@@ -1406,61 +1412,6 @@ async def dismiss_rate_nudge(user: dict = Depends(get_current_user)):
     return {"ok": True}
 
 
-# ---------- Shortlist (employer saves talent profiles before purchasing hours) ----------
-class ShortlistIn(BaseModel):
-    talent_id: str
-    talent_name: str
-    headline: Optional[str] = ""
-    location: Optional[str] = ""
-    hourly_rate: Optional[float] = 0.0
-    skills: List[str] = []
-    context: Optional[str] = ""     # e.g. the city×skill slug they came from
-    is_curated: bool = False
-
-
-@api.post("/shortlist")
-async def add_to_shortlist(payload: ShortlistIn, user: dict = Depends(get_current_user)):
-    if user.get("role") != "employer":
-        raise HTTPException(403, "Only employers can shortlist")
-    doc = {
-        "id": new_id(),
-        "employer_id": user["id"],
-        "talent_id": payload.talent_id,
-        "talent_name": payload.talent_name,
-        "headline": payload.headline or "",
-        "location": payload.location or "",
-        "hourly_rate": float(payload.hourly_rate or 0),
-        "skills": payload.skills or [],
-        "context": payload.context or "",
-        "is_curated": bool(payload.is_curated),
-        "created_at": now().isoformat(),
-    }
-    # One record per (employer, talent) — upsert
-    await db.shortlists.update_one(
-        {"employer_id": user["id"], "talent_id": payload.talent_id},
-        {"$set": doc}, upsert=True,
-    )
-    total = await db.shortlists.count_documents({"employer_id": user["id"]})
-    return {"ok": True, "count": total}
-
-
-@api.get("/shortlist")
-async def list_shortlist(user: dict = Depends(get_current_user)):
-    if user.get("role") != "employer":
-        raise HTTPException(403, "Only employers can view a shortlist")
-    items = await db.shortlists.find({"employer_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
-    return {"items": items, "count": len(items)}
-
-
-@api.delete("/shortlist/{talent_id}")
-async def remove_from_shortlist(talent_id: str, user: dict = Depends(get_current_user)):
-    if user.get("role") != "employer":
-        raise HTTPException(403, "Only employers can modify a shortlist")
-    await db.shortlists.delete_one({"employer_id": user["id"], "talent_id": talent_id})
-    total = await db.shortlists.count_documents({"employer_id": user["id"]})
-    return {"ok": True, "count": total}
-
-
 DEFAULT_BROADCAST_TEMPLATE = (
     "Hi — I'm ready to bring you on for a paid engagement through Job Atlas. "
     "I've reserved hours in my platform balance and would love to send you a signed contract "
@@ -1844,6 +1795,10 @@ class ProjectLeadIn(BaseModel):
     # NOTE: estimated_monthly_cost/estimated_total_cost are computed server-side
     # by pricing.price_team() — client-supplied values were removed to prevent
     # tampering.
+    # Custom-project fields (only used when template_id == 'custom')
+    custom_title: Optional[str] = ""
+    custom_industry: Optional[str] = ""
+    custom_summary: Optional[str] = ""
 
 
 @api.post("/projects/lead")
@@ -1853,9 +1808,19 @@ async def submit_project_lead(payload: ProjectLeadIn):
     (with Job Atlas margin) is computed server-side so the client can't
     tamper with the quote by sending a lower estimated_total_cost."""
     from pricing import price_team
-    template = next((t for t in PROJECT_TEMPLATES if t["id"] == payload.template_id), None)
-    if not template:
-        raise HTTPException(400, "Unknown template_id")
+    if payload.template_id == "custom":
+        if not payload.assigned_team:
+            raise HTTPException(400, "Custom projects must include at least one seat")
+        template = {
+            "id": "custom",
+            "title": payload.custom_title or "Custom project",
+            "industry": payload.custom_industry or "Other",
+            "team": [],
+        }
+    else:
+        template = next((t for t in PROJECT_TEMPLATES if t["id"] == payload.template_id), None)
+        if not template:
+            raise HTTPException(400, "Unknown template_id")
     # Build the seat list: prefer the buyer-assembled team; else the template default
     if payload.assigned_team:
         seats = [s.dict() for s in payload.assigned_team]
@@ -2626,6 +2591,30 @@ async def startup():
             replace_existing=True,
             misfire_grace_time=3600,
         )
+
+        # Daily 08:00 UTC — scan overdue invoices, send reminder emails,
+        # attempt off-session Stripe charges when a card is on file.
+        async def _daily_overdue_job():
+            logger.info("[scheduler] overdue invoice scan starting")
+            try:
+                from routes.projects import scan_overdue_invoices
+                r = await scan_overdue_invoices()
+                logger.info(f"[scheduler] overdue invoice scan done: {r}")
+                await db.job_runs.insert_one({
+                    "id": new_id(), "job": "scan_overdue_invoices",
+                    "at": now().isoformat(), "result": r,
+                })
+            except Exception as e:
+                logger.exception(f"[scheduler] overdue scan failed: {e}")
+
+        _scheduler.add_job(
+            _daily_overdue_job,
+            CronTrigger(hour=8, minute=0),
+            id="daily_overdue_invoice_scan",
+            replace_existing=True,
+            misfire_grace_time=3600,
+        )
+
         _scheduler.start()
         logger.info("[scheduler] rate-nudge scheduler started (cron: day=1 09:00 UTC)")
     except Exception as e:

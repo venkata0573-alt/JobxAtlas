@@ -463,3 +463,60 @@ async def public_customization():
         "support_email": doc.get("support_email"),
         "support_hours": doc.get("support_hours"),
     }
+
+
+# ---------- Profile verification approvals (moderation scope) ----------
+class VerificationDecisionIn(BaseModel):
+    notes: Optional[str] = ""
+
+
+@api.get("/admin/verifications")
+async def admin_list_pending_verifications(status: Optional[str] = "pending",
+                                            user: dict = Depends(get_current_user)):
+    if not (has_admin_scope(user, "moderation") or has_admin_scope(user, "support")):
+        raise HTTPException(403, "Requires moderation or support scope")
+    q = {}
+    if status in ("pending", "verified", "rejected", "none"):
+        q["verification_status"] = status
+    items = await db.users.find(q, {"_id": 0, "password_hash": 0,
+                                     "email_verification_token": 0}).sort("verification_submitted_at", 1).to_list(200)
+    return {"items": items, "count": len(items)}
+
+
+@api.post("/admin/verifications/{uid}/approve")
+async def admin_approve_verification(uid: str, payload: VerificationDecisionIn,
+                                       user: dict = Depends(get_current_user)):
+    if not has_admin_scope(user, "moderation"):
+        raise HTTPException(403, "Requires moderation scope")
+    target = await db.users.find_one({"id": uid})
+    if not target:
+        raise HTTPException(404, "User not found")
+    await db.users.update_one(
+        {"id": uid},
+        {"$set": {"verification_status": "verified",
+                  "verified_at": now().isoformat(),
+                  "verified_by": user["id"],
+                  "verification_notes": (payload.notes or "")[:500]}},
+    )
+    return {"ok": True, "user_id": uid, "status": "verified"}
+
+
+@api.post("/admin/verifications/{uid}/reject")
+async def admin_reject_verification(uid: str, payload: VerificationDecisionIn,
+                                      user: dict = Depends(get_current_user)):
+    if not has_admin_scope(user, "moderation"):
+        raise HTTPException(403, "Requires moderation scope")
+    target = await db.users.find_one({"id": uid})
+    if not target:
+        raise HTTPException(404, "User not found")
+    if not payload.notes:
+        raise HTTPException(400, "Please include a rejection reason so the user can fix it")
+    await db.users.update_one(
+        {"id": uid},
+        {"$set": {"verification_status": "rejected",
+                  "verification_notes": payload.notes[:500],
+                  "verification_decided_at": now().isoformat(),
+                  "verified_by": user["id"]}},
+    )
+    return {"ok": True, "user_id": uid, "status": "rejected"}
+
