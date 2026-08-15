@@ -31,6 +31,7 @@ import Referral from "@/pages/Referral";
 import SkillLanding from "@/pages/SkillLanding";
 import Shortlist from "@/pages/Shortlist";
 import Projects from "@/pages/Projects";
+import ProjectWorkspace from "@/pages/ProjectWorkspace";
 
 function App() {
   return (
@@ -50,6 +51,7 @@ function App() {
             <Route path="/employer/purchase" element={<ProtectedRoute role="employer"><PurchaseHours /></ProtectedRoute>} />
             <Route path="/employer/shortlist" element={<ProtectedRoute role="employer"><Shortlist /></ProtectedRoute>} />
             <Route path="/projects" element={<Projects />} />
+            <Route path="/projects/:id/workspace" element={<ProtectedRoute><ProjectWorkspace /></ProtectedRoute>} />
             <Route path="/payment/success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
             <Route path="/payment/cancel" element={<ProtectedRoute><PaymentCancel /></ProtectedRoute>} />
             <Route path="/engagement/:id" element={<ProtectedRoute><EngagementDetail /></ProtectedRoute>} />

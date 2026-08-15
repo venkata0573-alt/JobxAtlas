@@ -222,6 +222,7 @@ COMPANY_BANK = {
 # registered onto the shared `api` router when server.py imports that module.
 import routes.auth  # noqa: E402,F401  (registers endpoints via decorators)
 import routes.admin  # noqa: E402,F401  (registers /admin/* endpoints)
+import routes.projects  # noqa: E402,F401  (project workspace + milestones)
 
 
 # ---------- Browse Talent (public listing but contact hidden) ----------

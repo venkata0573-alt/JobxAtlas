@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 22 Project Workspace + Milestone Billing tested end-to-end. Backend: 24/24 pytest cases pass (lead creation via public POST, superadmin-only convert with idempotency guard, support scope allowed on GET /admin/project-leads but blocked on convert, workspace bundle with rollups, phase progression + validation, variance math (+6.2% / +4.0%), risk L*L=1 / H*H=9 with PATCH + bad-likelihood 400, RACI silent stripping of non-RACI letters, 4 auto milestones @ 75000 each, invoice creates INV-XXXX ref + status invoiced, duplicate-invoice 400, mark-paid updates milestone AND invoice, custom milestone from percent uses total_budget, talent 403 on workspace, wrong-employer 403, rollups paid=75000/billed>=75000/cost_var=4.0). Frontend: Admin /admin Project Leads tab renders lead rows; convert triggers toast + swaps action to Open workspace; workspace page loads at /projects/{id}/workspace with all 5 rollup cards + 5 tabs; Phases tab Complete/Start cycle works; Variance form submits and row shows +6.2%; Risks form creates a H/H risk (score 9) and Mitigate button works; RACI cells cycle R→A→C→I and Save shows toast; Milestones invoice → paid transitions work and custom milestone appears.",
+  "backend_issues": {"critical": [], "minor": [
+    {"endpoint": "POST /api/projects/workspace/{id}/milestones", "issue": "MilestoneIn.sequence defaults to 1 (not None), so custom milestones added from UI (which does not send sequence) collide with the auto-Kickoff sequence=1 instead of auto-incrementing. Confirmed on screen — the custom row displays # 1 alongside Kickoff #1. Fix: change `sequence: Optional[int] = 1` to `Optional[int] = None`, or treat >=1 default explicitly."}
+  ]},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ProjectWorkspace variance table", "issue": "React key collision warning: 'Encountered two children with the same key, Δ%'. Header/cells use text 'Δ%' as the React key for two columns (hours + cost variance). Give explicit unique keys.", "selector": "[data-testid=variance-tab]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration22_project_workspace.py", "/app/test_reports/pytest/iteration22.xml"],
+  "action_items": [
+    "Fix MilestoneIn.sequence default so custom milestones auto-append instead of colliding with Kickoff sequence 1.",
+    "Replace 'Δ%' duplicate React keys in variance table columns with unique keys (e.g., 'hours-var-pct', 'cost-var-pct')."
+  ],
+  "critical_code_review_comments": [
+    "routes/projects.py is 505 lines — acceptable, no split needed yet, but consider extracting sub-routers (leads, workspace, milestones) if it grows further.",
+    "invoice_milestone uses `new_id()[:8].upper()` for INV ref — UUIDs contain hyphens so INV-XXXX may include '-' characters occasionally. Not blocking but consider `secrets.token_hex(4).upper()`.",
+    "_can_edit_project is identical to _can_view_project — role/permission granularity between view/edit is not currently enforced (employer can edit variances/risks equally to admin). If future scopes need read-only observers, this needs tightening.",
+    "RaciIn is `List[Dict[str, Any]]` — no depth validation of assignments size; consider capping to prevent oversized payloads."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration22_project_workspace.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@talenthub.io/Admin@2026 (superadmin), support1@jobatlas.io/Support@2026 (support), talent@test.io/Talent@2026, emp-series-b-fintechs@test.io/Employer@2026 used as wrong-employer control.",
+  "seed_data_creation": "Two fresh leads (300k budget) created via public POST /api/projects/lead: one for backend suite, one for UI test. Both converted successfully. RACI/variances/risks/milestones seeded on the resulting projects. Non-destructive (only additive).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend regression file lives at /app/backend/tests/test_iteration22_project_workspace.py — run with `pytest -p xdist -n 1` (loadscope) because tests share a project_id through pytest cache. All previous iteration test files coexist and still target same DB. Total budget is fixed at 300000; 4 auto milestones = 75000 each. If retesting UI, remember to seed a fresh lead first — converted leads only show 'Open workspace' link, not 'Convert'.",
+  "rca of the issue": "Custom-milestone sequence collision RCA: Pydantic model MilestoneIn declares `sequence: Optional[int] = 1`. Frontend milestone form does not include a sequence field so payload arrives without it → Pydantic supplies default 1 → backend branch `if not seq:` in add_milestone evaluates False (1 is truthy) → sequence saved as 1 → clashes with auto-generated Kickoff milestone which is also sequence=1. Reproduction: convert a lead, POST /projects/workspace/{id}/milestones with only {name, percent} → new milestone stored with sequence=1. Mitigation: change default to None so `if not seq:` fires the max()+1 lookup."
+}

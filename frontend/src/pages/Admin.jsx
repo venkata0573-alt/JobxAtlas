@@ -5,10 +5,13 @@ import { toast } from "sonner";
 import {
   CheckCircle, X, Star, Bank, ChatCircleText, CurrencyDollar, Play,
   UsersThree, ShieldCheck, PaintBrush, MagnifyingGlass, Plus, Trash,
+  Briefcase, ArrowRight,
 } from "@phosphor-icons/react";
+import { Link } from "react-router-dom";
 
 const TAB_CATALOG = [
   { id: "support",       label: "Support",         Icon: UsersThree,     scope: "support" },
+  { id: "leads",         label: "Project Leads",   Icon: Briefcase,      scopes: ["support", "superadmin"] },
   { id: "bank",          label: "Bank Transfers",  Icon: Bank,           scope: "finance" },
   { id: "payouts",       label: "Payouts",         Icon: CurrencyDollar, scope: "finance" },
   { id: "reviews",       label: "Reviews",         Icon: Star,           scope: "moderation" },
@@ -133,6 +136,7 @@ export default function Admin() {
           </div>
 
           {tab === "support"       && <SupportPanel/>}
+          {tab === "leads"         && <ProjectLeadsPanel scopes={me.effective_scopes}/>}
           {tab === "staff"         && <StaffPanel selfId={me.id} scopes={me.scopes_catalog}/>}
           {tab === "customization" && <CustomizationPanel/>}
 
@@ -624,3 +628,80 @@ function CustomizationPanel() {
     </div>
   );
 }
+
+// ---------- Project Leads panel ----------
+function ProjectLeadsPanel({ scopes }) {
+  const [leads, setLeads] = useState([]);
+  const canConvert = (scopes || []).includes("superadmin");
+
+  const load = async () => {
+    try { const r = await api.get("/admin/project-leads"); setLeads(r.data.items || []); }
+    catch (e) { toast.error(formatErr(e)); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const convert = async (id) => {
+    try {
+      const r = await api.post(`/admin/project-leads/${id}/convert`, { currency: "usd" });
+      toast.success("Lead converted — workspace ready");
+      // Update local list
+      setLeads((prev) => prev.map((l) => l.id === id ? { ...l, status: "converted", converted_project_id: r.data.project.id } : l));
+    } catch (e) { toast.error(formatErr(e)); }
+  };
+
+  return (
+    <div className="space-y-4" data-testid="project-leads-panel">
+      <div>
+        <p className="overline text-[#C79A3B]">PROJECT LEADS</p>
+        <h2 className="font-display font-extrabold text-2xl">{leads.length} scoping request{leads.length === 1 ? "" : "s"}</h2>
+        <p className="text-xs text-neutral-500 mt-1">Convert a lead into a full delivery workspace with PMI phases, variance tracking, risk register, RACI and 25% milestone billing.</p>
+      </div>
+      <div className="hard-border bg-white shadow-brutal overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-[#0A0A0A] text-white">
+            <tr>{["Company","Template","Duration","Est. Total","Status","Action"].map((h) => <th key={h} className="text-left px-4 py-3 overline">{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {leads.length === 0 ? (
+              <tr><td colSpan="6" className="p-8 text-center text-neutral-500">No project leads yet.</td></tr>
+            ) : leads.map((l) => (
+              <tr key={l.id} className="border-t border-black/10 align-top" data-testid={`lead-row-${l.id}`}>
+                <td className="px-4 py-3">
+                  <p className="font-display font-bold">{l.company_name}</p>
+                  <p className="text-xs text-neutral-500">{l.contact_name} · <span className="font-mono">{l.contact_email}</span></p>
+                </td>
+                <td className="px-4 py-3">
+                  <p className="text-xs font-mono">{l.template_title}</p>
+                  <p className="text-[10px] text-neutral-500 uppercase">{l.industry}</p>
+                </td>
+                <td className="px-4 py-3 font-mono text-xs">{l.duration_months} mo</td>
+                <td className="px-4 py-3 font-mono">${((l.estimated_total_cost || 0) / 1000).toFixed(0)}k</td>
+                <td className="px-4 py-3">
+                  <span className={`hard-border px-2 py-1 text-xs ${l.status === "converted" ? "bg-[#0B1B2B] text-[#C79A3B]" : ""}`}>{l.status}</span>
+                </td>
+                <td className="px-4 py-3">
+                  {l.converted_project_id ? (
+                    <Link to={`/projects/${l.converted_project_id}/workspace`}
+                          className="btn-outline text-xs inline-flex items-center gap-1"
+                          data-testid={`open-workspace-${l.id}`}>
+                      Open workspace <ArrowRight size={12}/>
+                    </Link>
+                  ) : canConvert ? (
+                    <button onClick={() => convert(l.id)}
+                            className="btn-primary text-xs inline-flex items-center gap-1"
+                            data-testid={`convert-lead-${l.id}`}>
+                      Convert → project
+                    </button>
+                  ) : (
+                    <span className="text-xs text-neutral-400">Superadmin only</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
