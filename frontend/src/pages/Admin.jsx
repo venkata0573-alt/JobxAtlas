@@ -1,45 +1,89 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import api, { formatErr } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { CheckCircle, X, Star, Bank, ChatCircleText, CurrencyDollar, Play } from "@phosphor-icons/react";
+import {
+  CheckCircle, X, Star, Bank, ChatCircleText, CurrencyDollar, Play,
+  UsersThree, ShieldCheck, PaintBrush, MagnifyingGlass, Plus, Trash,
+} from "@phosphor-icons/react";
 
-const TABS = [
-  { id: "bank",       label: "Bank Transfers", Icon: Bank },
-  { id: "reviews",    label: "Reviews",        Icon: Star },
-  { id: "grievances", label: "Grievances",     Icon: ChatCircleText },
-  { id: "payouts",    label: "Payouts",        Icon: CurrencyDollar },
+const TAB_CATALOG = [
+  { id: "support",       label: "Support",         Icon: UsersThree,     scope: "support" },
+  { id: "bank",          label: "Bank Transfers",  Icon: Bank,           scope: "finance" },
+  { id: "payouts",       label: "Payouts",         Icon: CurrencyDollar, scope: "finance" },
+  { id: "reviews",       label: "Reviews",         Icon: Star,           scope: "moderation" },
+  { id: "grievances",    label: "Grievances",      Icon: ChatCircleText, scopes: ["support", "moderation"] },
+  { id: "customization", label: "Customization",   Icon: PaintBrush,     scope: "customization" },
+  { id: "staff",         label: "Staff & Roles",   Icon: ShieldCheck,    scope: "superadmin" },
 ];
 
 export default function Admin() {
   const { user } = useAuth();
-  const [tab, setTab] = useState("bank");
+  const [me, setMe] = useState(null);   // { effective_scopes, scopes_catalog }
+  const [tab, setTab] = useState(null);
   const [data, setData] = useState({ bank: [], reviews: [], grievances: [], payouts: [] });
   const [range, setRange] = useState({
     start: new Date(Date.now() - 30*86400000).toISOString().slice(0,10),
     end:   new Date().toISOString().slice(0,10),
   });
 
-  const load = async () => {
-    try {
-      const [b, r, g, p] = await Promise.all([
-        api.get("/admin/bank-transfers").catch(() => ({ data: [] })),
-        api.get("/admin/reviews").catch(() => ({ data: [] })),
-        api.get("/admin/grievances").catch(() => ({ data: [] })),
-        api.get("/admin/payouts/runs").catch(() => ({ data: [] })),
-      ]);
-      setData({ bank: b.data, reviews: r.data, grievances: g.data, payouts: p.data });
-    } catch (e) { toast.error(formatErr(e)); }
+  // Load admin identity + permissions on mount
+  useEffect(() => {
+    if (user?.role !== "admin") return;
+    api.get("/admin/me").then((r) => {
+      setMe(r.data);
+      // Pick the first tab this admin can access
+      const scopes = new Set(r.data.effective_scopes || []);
+      const first = TAB_CATALOG.find((t) => canSee(t, scopes));
+      setTab(first ? first.id : null);
+    }).catch((e) => toast.error(formatErr(e)));
+  }, [user]);
+
+  const canSee = (t, scopeSet) => {
+    if (t.scope) return scopeSet.has(t.scope);
+    if (t.scopes) return t.scopes.some((s) => scopeSet.has(s));
+    return false;
   };
-  useEffect(() => { if (user?.role === "admin") load(); }, [user]);
+
+  const scopeSet = useMemo(() => new Set(me?.effective_scopes || []), [me]);
+  const visibleTabs = useMemo(() => TAB_CATALOG.filter((t) => canSee(t, scopeSet)), [scopeSet]);
+
+  // Load per-tab data when tab changes
+  useEffect(() => {
+    if (!tab || !me) return;
+    (async () => {
+      try {
+        if (tab === "bank") {
+          const r = await api.get("/admin/bank-transfers").catch(() => ({ data: [] }));
+          setData((d) => ({ ...d, bank: r.data || [] }));
+        } else if (tab === "reviews") {
+          const r = await api.get("/admin/reviews").catch(() => ({ data: [] }));
+          setData((d) => ({ ...d, reviews: r.data || [] }));
+        } else if (tab === "grievances") {
+          const r = await api.get("/admin/grievances").catch(() => ({ data: [] }));
+          setData((d) => ({ ...d, grievances: r.data || [] }));
+        } else if (tab === "payouts") {
+          const r = await api.get("/admin/payouts/runs").catch(() => ({ data: [] }));
+          setData((d) => ({ ...d, payouts: r.data || [] }));
+        }
+      } catch (e) { toast.error(formatErr(e)); }
+    })();
+  }, [tab, me]);
 
   if (user?.role !== "admin") {
     return <main className="max-w-3xl mx-auto p-16 text-center"><p className="font-mono">Admins only.</p></main>;
   }
+  if (!me) {
+    return <main className="max-w-3xl mx-auto p-16 text-center"><p className="font-mono text-neutral-500">Loading admin console…</p></main>;
+  }
 
   const act = async (url, msg) => {
-    try { await api.post(url); toast.success(msg); load(); }
-    catch (e) { toast.error(formatErr(e)); }
+    try { await api.post(url); toast.success(msg);
+      // refresh whatever tab is active
+      if (tab === "bank") setData((d) => ({ ...d, bank: d.bank.filter((x) => !url.includes(x.id)) }));
+      else if (tab === "reviews") setData((d) => ({ ...d, reviews: d.reviews.filter((x) => !url.includes(x.id)) }));
+      else if (tab === "grievances") setData((d) => ({ ...d, grievances: d.grievances.map((x) => url.includes(x.id) ? { ...x, status: "resolved" } : x) }));
+    } catch (e) { toast.error(formatErr(e)); }
   };
 
   const runPayouts = async () => {
@@ -48,139 +92,535 @@ export default function Admin() {
         period_start: `${range.start}T00:00:00`, period_end: `${range.end}T23:59:59`, currency: "usd",
       });
       toast.success(`Generated payouts for ${r.data.run.count} talent · Net $${r.data.run.total_net}`);
-      load();
+      const rr = await api.get("/admin/payouts/runs");
+      setData((d) => ({ ...d, payouts: rr.data || [] }));
+    } catch (e) { toast.error(formatErr(e)); }
+  };
+
+  const count = (id) => (data[id] || []).length;
+
+  return (
+    <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
+        <p className="overline text-[#002FA7]">ADMIN CONSOLE</p>
+        <div className="flex flex-wrap gap-1" data-testid="admin-scopes">
+          {(me.effective_scopes || []).map((s) => (
+            <span key={s} className="hard-border bg-[#0B1B2B] text-[#C79A3B] px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest">{s}</span>
+          ))}
+        </div>
+      </div>
+      <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-8">
+        {me.name} · <span className="text-neutral-500 text-3xl md:text-4xl">{visibleTabs.length} module{visibleTabs.length === 1 ? "" : "s"}</span>
+      </h1>
+
+      {visibleTabs.length === 0 ? (
+        <p className="hard-border bg-[#FDF6E3] p-6 font-mono text-sm">
+          Your admin account has no scopes granted yet. Ask a superadmin to grant you access.
+        </p>
+      ) : (
+        <>
+          <div className="hard-border inline-flex bg-white mb-8 overflow-x-auto max-w-full" data-testid="admin-tabs">
+            {visibleTabs.map(({ id, label, Icon }) => (
+              <button key={id} onClick={() => setTab(id)}
+                      className={`px-5 py-3 border-r border-black last:border-r-0 flex items-center gap-2 font-display font-extrabold text-sm tracking-tight whitespace-nowrap ${tab === id ? "bg-[#0A0A0A] text-white" : "bg-white text-black"}`}
+                      data-testid={`admin-tab-${id}`}>
+                <Icon size={16} weight="duotone"/> {label}
+                {["bank","reviews","grievances","payouts"].includes(id) && (
+                  <span className="text-xs opacity-70">({count(id)})</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {tab === "support"       && <SupportPanel/>}
+          {tab === "staff"         && <StaffPanel selfId={me.id} scopes={me.scopes_catalog}/>}
+          {tab === "customization" && <CustomizationPanel/>}
+
+          {tab === "bank" && (
+            <div className="hard-border bg-white shadow-brutal overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-[#0A0A0A] text-white"><tr>{["Reference","Employer","Amount","UTR","Status","Actions"].map((h) => <th key={h} className="text-left px-4 py-3 overline">{h}</th>)}</tr></thead>
+                <tbody>
+                  {data.bank.length === 0 ? (
+                    <tr><td colSpan="6" className="p-8 text-center text-neutral-500">No pending transfers.</td></tr>
+                  ) : data.bank.map((p) => (
+                    <tr key={p.id} className="border-t border-black/10">
+                      <td className="px-4 py-3 font-mono">{p.reference}</td>
+                      <td className="px-4 py-3">{p.user_id.slice(0,8)}…</td>
+                      <td className="px-4 py-3 font-mono">₹{(p.amount/100).toLocaleString()} · {p.hours}h</td>
+                      <td className="px-4 py-3 font-mono text-xs">{p.utr || "—"}</td>
+                      <td className="px-4 py-3"><span className="hard-border px-2 py-1 text-xs">{p.status}</span></td>
+                      <td className="px-4 py-3 flex gap-2">
+                        <button onClick={() => act(`/admin/bank-transfers/${p.id}/approve`, "Approved")} className="hard-border p-2 hover:bg-[#002FA7] hover:text-white"><CheckCircle size={16}/></button>
+                        <button onClick={() => act(`/admin/bank-transfers/${p.id}/reject`, "Rejected")} className="hard-border p-2 hover:bg-[#FF0A0A] hover:text-white"><X size={16}/></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {tab === "reviews" && (
+            <div className="grid md:grid-cols-2 gap-4">
+              {data.reviews.length === 0 ? <p className="text-neutral-500 col-span-2">No reviews pending moderation.</p> : data.reviews.map((r) => (
+                <div key={r.id} className="hard-border bg-white p-5 shadow-brutal">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="font-display font-extrabold">{r.reviewer_name} <span className="text-xs text-neutral-500 font-normal">({r.reviewer_role})</span></p>
+                    <div className="flex gap-0.5">{[1,2,3,4,5].map((n) => <Star key={n} size={14} weight={r.rating >= n ? "fill" : "regular"} color="#FF0A0A"/>)}</div>
+                  </div>
+                  <p className="text-sm text-neutral-600 mb-3">{r.text || <em className="text-neutral-400">No comment.</em>}</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => act(`/admin/reviews/${r.id}/approve`, "Approved")} className="btn-primary text-xs px-3 py-2">Approve</button>
+                    <button onClick={() => act(`/admin/reviews/${r.id}/reject`, "Rejected")} className="btn-outline text-xs px-3 py-2">Reject</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {tab === "grievances" && (
+            <div className="hard-border bg-white shadow-brutal overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-[#0A0A0A] text-white"><tr>{["Ref","Subject","From","Engagement","Status","Actions"].map((h) => <th key={h} className="text-left px-4 py-3 overline">{h}</th>)}</tr></thead>
+                <tbody>
+                  {data.grievances.length === 0 ? (
+                    <tr><td colSpan="6" className="p-8 text-center text-neutral-500">No grievances filed.</td></tr>
+                  ) : data.grievances.map((g) => (
+                    <tr key={g.id} className="border-t border-black/10 align-top">
+                      <td className="px-4 py-3 font-mono text-xs">{g.id.slice(0,8)}</td>
+                      <td className="px-4 py-3"><p className="font-medium">{g.subject}</p><p className="text-xs text-neutral-500 line-clamp-2">{g.description}</p></td>
+                      <td className="px-4 py-3 font-mono text-xs">{g.contact_email}</td>
+                      <td className="px-4 py-3 font-mono text-xs">{g.engagement_id?.slice(0,8) || "—"}</td>
+                      <td className="px-4 py-3"><span className="hard-border px-2 py-1 text-xs">{g.status}</span></td>
+                      <td className="px-4 py-3">
+                        {g.status !== "resolved" && (
+                          <button onClick={() => act(`/admin/grievances/${g.id}/resolve`, "Resolved")} className="hard-border p-2 hover:bg-[#002FA7] hover:text-white"><CheckCircle size={16}/></button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {tab === "payouts" && (
+            <>
+              <section className="hard-border bg-[#FDFCF0] p-6 shadow-brutal mb-6">
+                <div className="flex items-end justify-between flex-wrap gap-3">
+                  <div>
+                    <p className="overline text-[#002FA7]">Generate payout run</p>
+                    <p className="text-sm text-neutral-600 mt-1">Aggregates approved deliverables into per-talent payouts (rate × hours minus commission tier + multi-employer fee).</p>
+                  </div>
+                  <div className="flex items-end gap-3">
+                    <div>
+                      <label className="overline block mb-1">Start</label>
+                      <input type="date" value={range.start} onChange={(e) => setRange({...range, start: e.target.value})}
+                             className="hard-border px-3 py-2 font-mono bg-white"/>
+                    </div>
+                    <div>
+                      <label className="overline block mb-1">End</label>
+                      <input type="date" value={range.end} onChange={(e) => setRange({...range, end: e.target.value})}
+                             className="hard-border px-3 py-2 font-mono bg-white"/>
+                    </div>
+                    <button onClick={runPayouts} className="btn-primary inline-flex items-center gap-2">
+                      <Play size={14} weight="fill"/> Run
+                    </button>
+                  </div>
+                </div>
+              </section>
+              <div className="hard-border bg-white shadow-brutal overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-[#0A0A0A] text-white"><tr>{["Run","Period","Talents","Net","Status","Created"].map((h) => <th key={h} className="text-left px-4 py-3 overline">{h}</th>)}</tr></thead>
+                  <tbody>
+                    {data.payouts.length === 0 ? (
+                      <tr><td colSpan="6" className="p-8 text-center text-neutral-500">No payout runs yet.</td></tr>
+                    ) : data.payouts.map((r) => (
+                      <tr key={r.id} className="border-t border-black/10">
+                        <td className="px-4 py-3 font-mono text-xs">{r.id.slice(0,8)}</td>
+                        <td className="px-4 py-3 font-mono text-xs">{String(r.period_start).slice(0,10)} → {String(r.period_end).slice(0,10)}</td>
+                        <td className="px-4 py-3 font-mono">{r.count}</td>
+                        <td className="px-4 py-3 font-mono font-bold">${r.total_net?.toFixed?.(2) ?? r.total_net}</td>
+                        <td className="px-4 py-3"><span className="hard-border px-2 py-1 text-xs">{r.status}</span></td>
+                        <td className="px-4 py-3 font-mono text-xs">{new Date(r.created_at).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </main>
+  );
+}
+
+// ---------- Support panel ----------
+function SupportPanel() {
+  const [q, setQ] = useState("");
+  const [role, setRole] = useState("");
+  const [users, setUsers] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [note, setNote] = useState("");
+  const [hoursAdj, setHoursAdj] = useState(0);
+  const [reason, setReason] = useState("");
+
+  const load = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (q) params.set("q", q);
+      if (role) params.set("role", role);
+      const r = await api.get(`/admin/users?${params.toString()}`);
+      setUsers(r.data.items || []);
+    } catch (e) { toast.error(formatErr(e)); }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+
+  const openUser = async (u) => {
+    setSelected(u.id); setDetail(null);
+    try {
+      const r = await api.get(`/admin/users/${u.id}`);
+      setDetail(r.data);
+    } catch (e) { toast.error(formatErr(e)); }
+  };
+
+  const addNote = async () => {
+    if (!note.trim()) return;
+    try {
+      const r = await api.post(`/admin/users/${selected}/notes`, { text: note });
+      setDetail((d) => ({ ...d, notes: [r.data, ...(d.notes || [])] }));
+      setNote(""); toast.success("Note added");
+    } catch (e) { toast.error(formatErr(e)); }
+  };
+
+  const adjustHours = async () => {
+    if (!hoursAdj) return;
+    try {
+      await api.post(`/admin/users/${selected}/adjust`, { hours_delta: Number(hoursAdj), reason });
+      toast.success(`Adjusted by ${hoursAdj}h`);
+      setHoursAdj(0); setReason("");
+      const r = await api.get(`/admin/users/${selected}`);
+      setDetail(r.data);
     } catch (e) { toast.error(formatErr(e)); }
   };
 
   return (
-    <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
-      <p className="overline text-[#002FA7] mb-3">ADMIN CONSOLE</p>
-      <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-8">Moderation &amp; finance.</h1>
-
-      <div className="hard-border inline-flex bg-white mb-8 overflow-x-auto max-w-full">
-        {TABS.map(({ id, label, Icon }) => (
-          <button key={id} onClick={() => setTab(id)}
-                  className={`px-5 py-3 border-r border-black last:border-r-0 flex items-center gap-2 font-display font-extrabold text-sm tracking-tight whitespace-nowrap ${tab === id ? "bg-[#0A0A0A] text-white" : "bg-white text-black"}`}>
-            <Icon size={16} weight="duotone"/> {label} <span className="text-xs opacity-70">({data[id].length})</span>
-          </button>
-        ))}
-      </div>
-
-      {tab === "bank" && (
-        <div className="hard-border bg-white shadow-brutal overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-[#0A0A0A] text-white"><tr>{["Reference","Employer","Amount","UTR","Status","Actions"].map((h) => <th key={h} className="text-left px-4 py-3 overline">{h}</th>)}</tr></thead>
-            <tbody>
-              {data.bank.length === 0 ? (
-                <tr><td colSpan="6" className="p-8 text-center text-neutral-500">No pending transfers.</td></tr>
-              ) : data.bank.map((p) => (
-                <tr key={p.id} className="border-t border-black/10">
-                  <td className="px-4 py-3 font-mono">{p.reference}</td>
-                  <td className="px-4 py-3">{p.user_id.slice(0,8)}…</td>
-                  <td className="px-4 py-3 font-mono">₹{(p.amount/100).toLocaleString()} · {p.hours}h</td>
-                  <td className="px-4 py-3 font-mono text-xs">{p.utr || "—"}</td>
-                  <td className="px-4 py-3"><span className="hard-border px-2 py-1 text-xs">{p.status}</span></td>
-                  <td className="px-4 py-3 flex gap-2">
-                    <button onClick={() => act(`/admin/bank-transfers/${p.id}/approve`, "Approved")} className="hard-border p-2 hover:bg-[#002FA7] hover:text-white"><CheckCircle size={16}/></button>
-                    <button onClick={() => act(`/admin/bank-transfers/${p.id}/reject`, "Rejected")} className="hard-border p-2 hover:bg-[#FF0A0A] hover:text-white"><X size={16}/></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <div className="grid lg:grid-cols-[1fr_1.4fr] gap-6">
+      <div className="hard-border bg-white shadow-brutal p-5" data-testid="support-list">
+        <div className="flex gap-2 mb-3">
+          <div className="relative flex-1">
+            <MagnifyingGlass size={14} className="absolute top-3 left-2 text-neutral-400"/>
+            <input value={q} onChange={(e) => setQ(e.target.value)}
+                   onKeyDown={(e) => e.key === "Enter" && load()}
+                   placeholder="Search by name, email, company"
+                   className="hard-border pl-7 pr-3 py-2 text-sm w-full"
+                   data-testid="support-search"/>
+          </div>
+          <select value={role} onChange={(e) => setRole(e.target.value)}
+                  className="hard-border px-2 py-2 text-sm bg-white"
+                  data-testid="support-role">
+            <option value="">All roles</option>
+            <option value="talent">Talent</option>
+            <option value="employer">Employer</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button onClick={load} className="btn-primary text-xs px-3 py-2" data-testid="support-search-btn">Search</button>
         </div>
-      )}
-
-      {tab === "reviews" && (
-        <div className="grid md:grid-cols-2 gap-4">
-          {data.reviews.length === 0 ? <p className="text-neutral-500 col-span-2">No reviews pending moderation.</p> : data.reviews.map((r) => (
-            <div key={r.id} className="hard-border bg-white p-5 shadow-brutal">
-              <div className="flex items-center justify-between mb-2">
-                <p className="font-display font-extrabold">{r.reviewer_name} <span className="text-xs text-neutral-500 font-normal">({r.reviewer_role})</span></p>
-                <div className="flex gap-0.5">{[1,2,3,4,5].map((n) => <Star key={n} size={14} weight={r.rating >= n ? "fill" : "regular"} color="#FF0A0A"/>)}</div>
+        <div className="divide-y divide-black/10 max-h-[560px] overflow-y-auto">
+          {users.length === 0 ? <p className="text-neutral-500 text-sm py-6 text-center">No users found.</p>
+          : users.map((u) => (
+            <button key={u.id} onClick={() => openUser(u)}
+                    className={`w-full text-left py-3 px-2 hover:bg-[#FAF9F6] ${selected === u.id ? "bg-[#FDF6E3]" : ""}`}
+                    data-testid={`support-user-${u.id}`}>
+              <div className="flex justify-between gap-2">
+                <p className="font-display font-bold text-sm truncate">{u.name}</p>
+                <span className="text-[10px] font-mono uppercase text-[#C79A3B]">{u.role}</span>
               </div>
-              <p className="text-sm text-neutral-600 mb-3">{r.text || <em className="text-neutral-400">No comment.</em>}</p>
-              <div className="flex gap-2">
-                <button onClick={() => act(`/admin/reviews/${r.id}/approve`, "Approved")} className="btn-primary text-xs px-3 py-2">Approve</button>
-                <button onClick={() => act(`/admin/reviews/${r.id}/reject`, "Rejected")} className="btn-outline text-xs px-3 py-2">Reject</button>
-              </div>
-            </div>
+              <p className="text-xs text-neutral-500 truncate">{u.email}</p>
+            </button>
           ))}
         </div>
-      )}
+      </div>
 
-      {tab === "grievances" && (
-        <div className="hard-border bg-white shadow-brutal overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-[#0A0A0A] text-white"><tr>{["Ref","Subject","From","Engagement","Status","Actions"].map((h) => <th key={h} className="text-left px-4 py-3 overline">{h}</th>)}</tr></thead>
-            <tbody>
-              {data.grievances.length === 0 ? (
-                <tr><td colSpan="6" className="p-8 text-center text-neutral-500">No grievances filed.</td></tr>
-              ) : data.grievances.map((g) => (
-                <tr key={g.id} className="border-t border-black/10 align-top">
-                  <td className="px-4 py-3 font-mono text-xs">{g.id.slice(0,8)}</td>
-                  <td className="px-4 py-3"><p className="font-medium">{g.subject}</p><p className="text-xs text-neutral-500 line-clamp-2">{g.description}</p></td>
-                  <td className="px-4 py-3 font-mono text-xs">{g.contact_email}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{g.engagement_id?.slice(0,8) || "—"}</td>
-                  <td className="px-4 py-3"><span className="hard-border px-2 py-1 text-xs">{g.status}</span></td>
-                  <td className="px-4 py-3">
-                    {g.status !== "resolved" && (
-                      <button onClick={() => act(`/admin/grievances/${g.id}/resolve`, "Resolved")} className="hard-border p-2 hover:bg-[#002FA7] hover:text-white"><CheckCircle size={16}/></button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="hard-border bg-white shadow-brutal p-5">
+        {!detail ? (
+          <p className="text-neutral-500 text-sm">Select a user to see their history.</p>
+        ) : (
+          <div className="space-y-4" data-testid="support-detail">
+            <div>
+              <p className="overline text-[#C79A3B]">{detail.user.role.toUpperCase()}</p>
+              <p className="font-display font-extrabold text-2xl tracking-tight">{detail.user.name}</p>
+              <p className="text-xs text-neutral-500 font-mono">{detail.user.email}</p>
+              <p className="text-xs text-neutral-500 mt-2">
+                {detail.user.hours_balance || 0}h in wallet · {detail.engagements.length} engagements · {detail.eois.length} EOIs · {detail.payments.length} payments
+              </p>
+            </div>
 
-      {tab === "payouts" && (
-        <>
-          <section className="hard-border bg-[#FDFCF0] p-6 shadow-brutal mb-6">
-            <div className="flex items-end justify-between flex-wrap gap-3">
-              <div>
-                <p className="overline text-[#002FA7]">Generate payout run</p>
-                <p className="text-sm text-neutral-600 mt-1">Aggregates approved deliverables into per-talent payouts (rate × hours minus commission tier + multi-employer fee).</p>
-              </div>
-              <div className="flex items-end gap-3">
-                <div>
-                  <label className="overline block mb-1">Start</label>
-                  <input type="date" value={range.start} onChange={(e) => setRange({...range, start: e.target.value})}
-                         className="hard-border px-3 py-2 font-mono bg-white"/>
-                </div>
-                <div>
-                  <label className="overline block mb-1">End</label>
-                  <input type="date" value={range.end} onChange={(e) => setRange({...range, end: e.target.value})}
-                         className="hard-border px-3 py-2 font-mono bg-white"/>
-                </div>
-                <button onClick={runPayouts} className="btn-primary inline-flex items-center gap-2">
-                  <Play size={14} weight="fill"/> Run
-                </button>
+            <div className="hard-border bg-[#FAF9F6] p-3">
+              <p className="overline mb-2">Adjust hours (goodwill)</p>
+              <div className="flex gap-2">
+                <input type="number" value={hoursAdj} onChange={(e) => setHoursAdj(e.target.value)}
+                       placeholder="e.g. 5 or -2" className="hard-border px-2 py-1 text-sm w-24"
+                       data-testid="support-hours-adj"/>
+                <input value={reason} onChange={(e) => setReason(e.target.value)}
+                       placeholder="Reason" className="hard-border px-2 py-1 text-sm flex-1"
+                       data-testid="support-reason"/>
+                <button onClick={adjustHours} className="btn-outline text-xs px-3" data-testid="support-adjust-btn">Apply</button>
               </div>
             </div>
-          </section>
-          <div className="hard-border bg-white shadow-brutal overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-[#0A0A0A] text-white"><tr>{["Run","Period","Talents","Net","Status","Created"].map((h) => <th key={h} className="text-left px-4 py-3 overline">{h}</th>)}</tr></thead>
-              <tbody>
-                {data.payouts.length === 0 ? (
-                  <tr><td colSpan="6" className="p-8 text-center text-neutral-500">No payout runs yet.</td></tr>
-                ) : data.payouts.map((r) => (
-                  <tr key={r.id} className="border-t border-black/10">
-                    <td className="px-4 py-3 font-mono text-xs">{r.id.slice(0,8)}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{String(r.period_start).slice(0,10)} → {String(r.period_end).slice(0,10)}</td>
-                    <td className="px-4 py-3 font-mono">{r.count}</td>
-                    <td className="px-4 py-3 font-mono font-bold">${r.total_net?.toFixed?.(2) ?? r.total_net}</td>
-                    <td className="px-4 py-3"><span className="hard-border px-2 py-1 text-xs">{r.status}</span></td>
-                    <td className="px-4 py-3 font-mono text-xs">{new Date(r.created_at).toLocaleString()}</td>
-                  </tr>
+
+            <div>
+              <p className="overline mb-2">Support notes ({detail.notes.length})</p>
+              <div className="flex gap-2 mb-2">
+                <input value={note} onChange={(e) => setNote(e.target.value)}
+                       placeholder="Log a support interaction…" className="hard-border px-3 py-2 text-sm flex-1"
+                       data-testid="support-note-input"/>
+                <button onClick={addNote} className="btn-primary text-xs px-3" data-testid="support-add-note">Add</button>
+              </div>
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {detail.notes.map((n) => (
+                  <div key={n.id} className="text-xs text-neutral-700 hard-border bg-white p-2">
+                    <span className="font-mono text-neutral-400 text-[10px]">{new Date(n.created_at).toLocaleString()} · {n.author_name}</span>
+                    <p>{n.text}</p>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
+
+            <div>
+              <p className="overline mb-2">Recent engagements</p>
+              {detail.engagements.slice(0, 5).map((e) => (
+                <p key={e.id} className="text-xs font-mono py-1 border-b border-black/5">
+                  {e.employer_name} ↔ {e.talent_name} · {e.hours_allocated}h · {e.status}
+                </p>
+              ))}
+              {detail.engagements.length === 0 && <p className="text-xs text-neutral-400">None yet.</p>}
+            </div>
           </div>
-        </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Staff & Roles panel ----------
+function StaffPanel({ selfId, scopes }) {
+  const [staff, setStaff] = useState([]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ email: "", name: "", password: "", admin_permissions: ["support"] });
+
+  const load = async () => {
+    try { const r = await api.get("/admin/staff"); setStaff(r.data.staff || []); }
+    catch (e) { toast.error(formatErr(e)); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const toggleScope = (s) => {
+    const set = new Set(form.admin_permissions);
+    if (set.has(s)) set.delete(s); else set.add(s);
+    setForm({ ...form, admin_permissions: Array.from(set) });
+  };
+
+  const create = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post("/admin/staff", form);
+      toast.success("Staff added");
+      setShowAdd(false);
+      setForm({ email: "", name: "", password: "", admin_permissions: ["support"] });
+      load();
+    } catch (err) { toast.error(formatErr(err)); }
+  };
+
+  const updateScopes = async (id, current, scope) => {
+    const set = new Set(current);
+    if (set.has(scope)) set.delete(scope); else set.add(scope);
+    try {
+      await api.patch(`/admin/staff/${id}`, { admin_permissions: Array.from(set) });
+      toast.success("Updated");
+      load();
+    } catch (e) { toast.error(formatErr(e)); }
+  };
+
+  const del = async (id) => {
+    if (!window.confirm("Delete this admin?")) return;
+    try { await api.delete(`/admin/staff/${id}`); toast.success("Deleted"); load(); }
+    catch (e) { toast.error(formatErr(e)); }
+  };
+
+  return (
+    <div className="space-y-6" data-testid="staff-panel">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="overline text-[#C79A3B]">STAFF & PERMISSIONS</p>
+          <h2 className="font-display font-extrabold text-2xl">{staff.length} admin{staff.length === 1 ? "" : "s"}</h2>
+        </div>
+        <button onClick={() => setShowAdd((v) => !v)} className="btn-primary text-sm inline-flex items-center gap-1" data-testid="add-staff-toggle">
+          <Plus size={14} weight="bold"/> {showAdd ? "Cancel" : "Add staff"}
+        </button>
+      </div>
+
+      {showAdd && (
+        <form onSubmit={create} className="hard-border bg-[#FAF9F6] p-5 space-y-3" data-testid="add-staff-form">
+          <div className="grid md:grid-cols-3 gap-3">
+            <input required placeholder="Name" value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} className="hard-border px-3 py-2 text-sm bg-white" data-testid="staff-name"/>
+            <input required type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} className="hard-border px-3 py-2 text-sm bg-white" data-testid="staff-email"/>
+            <input required type="password" placeholder="Temp password" value={form.password} onChange={(e) => setForm({...form, password: e.target.value})} className="hard-border px-3 py-2 text-sm bg-white" data-testid="staff-password"/>
+          </div>
+          <div>
+            <p className="overline mb-2">Grant scopes</p>
+            <div className="flex flex-wrap gap-2">
+              {scopes.map((s) => {
+                const on = form.admin_permissions.includes(s.id);
+                return (
+                  <button type="button" key={s.id} onClick={() => toggleScope(s.id)}
+                          className={`hard-border px-3 py-2 text-xs ${on ? "bg-[#0B1B2B] text-white" : "bg-white"}`}
+                          data-testid={`new-scope-${s.id}`}>
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <button type="submit" className="btn-primary text-sm" data-testid="create-staff">Create admin</button>
+        </form>
       )}
-    </main>
+
+      <div className="hard-border bg-white shadow-brutal overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-[#0A0A0A] text-white">
+            <tr>
+              <th className="text-left px-4 py-3 overline">Name</th>
+              <th className="text-left px-4 py-3 overline">Email</th>
+              <th className="text-left px-4 py-3 overline">Scopes</th>
+              <th className="text-left px-4 py-3 overline">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {staff.map((s) => (
+              <tr key={s.id} className="border-t border-black/10 align-top" data-testid={`staff-row-${s.id}`}>
+                <td className="px-4 py-3 font-display font-bold">{s.name}{s.id === selfId && <span className="text-xs text-[#C79A3B] ml-2">(you)</span>}</td>
+                <td className="px-4 py-3 font-mono text-xs">{s.email}</td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-1">
+                    {scopes.map((sc) => {
+                      const on = (s.admin_permissions || []).includes(sc.id);
+                      return (
+                        <button key={sc.id} onClick={() => updateScopes(s.id, s.admin_permissions || [], sc.id)}
+                                className={`hard-border px-2 py-1 text-[10px] font-mono uppercase tracking-widest ${on ? "bg-[#C79A3B] text-white" : "bg-white text-neutral-500"}`}
+                                data-testid={`scope-${s.id}-${sc.id}`}>
+                          {sc.id}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  {s.id !== selfId && (
+                    <button onClick={() => del(s.id)} className="hard-border p-2 hover:bg-[#FF0A0A] hover:text-white" data-testid={`delete-staff-${s.id}`}>
+                      <Trash size={14}/>
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Customization panel ----------
+function CustomizationPanel() {
+  const [doc, setDoc] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.get("/admin/customization").then((r) => setDoc(r.data)).catch((e) => toast.error(formatErr(e)));
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await api.put("/admin/customization", {
+        hero_headline: doc.hero_headline, hero_subline: doc.hero_subline,
+        cta_primary_label: doc.cta_primary_label, cta_secondary_label: doc.cta_secondary_label,
+        features: doc.features, support_email: doc.support_email, support_hours: doc.support_hours,
+      });
+      setDoc(r.data);
+      toast.success("Customization saved");
+    } catch (e) { toast.error(formatErr(e)); }
+    finally { setSaving(false); }
+  };
+
+  if (!doc) return <p className="text-neutral-500">Loading…</p>;
+
+  const setField = (k, v) => setDoc({ ...doc, [k]: v });
+  const setFeature = (k, v) => setDoc({ ...doc, features: { ...(doc.features || {}), [k]: v } });
+
+  return (
+    <div className="space-y-6" data-testid="customization-panel">
+      <div>
+        <p className="overline text-[#C79A3B]">SITE CUSTOMIZATION</p>
+        <h2 className="font-display font-extrabold text-2xl">Landing content & feature flags</h2>
+        <p className="text-xs text-neutral-500 mt-1">These fields drive the public marketing surface. Changes go live on save.</p>
+      </div>
+
+      <div className="hard-border bg-white p-5 space-y-4">
+        <div>
+          <label className="overline block mb-1">Hero headline</label>
+          <input value={doc.hero_headline || ""} onChange={(e) => setField("hero_headline", e.target.value)}
+                 className="hard-border px-3 py-2 text-sm w-full" data-testid="cust-hero-headline"/>
+        </div>
+        <div>
+          <label className="overline block mb-1">Hero subline</label>
+          <textarea rows={2} value={doc.hero_subline || ""} onChange={(e) => setField("hero_subline", e.target.value)}
+                    className="hard-border px-3 py-2 text-sm w-full" data-testid="cust-hero-subline"/>
+        </div>
+        <div className="grid md:grid-cols-2 gap-3">
+          <div>
+            <label className="overline block mb-1">Primary CTA</label>
+            <input value={doc.cta_primary_label || ""} onChange={(e) => setField("cta_primary_label", e.target.value)}
+                   className="hard-border px-3 py-2 text-sm w-full" data-testid="cust-cta-primary"/>
+          </div>
+          <div>
+            <label className="overline block mb-1">Secondary CTA</label>
+            <input value={doc.cta_secondary_label || ""} onChange={(e) => setField("cta_secondary_label", e.target.value)}
+                   className="hard-border px-3 py-2 text-sm w-full" data-testid="cust-cta-secondary"/>
+          </div>
+        </div>
+        <div className="grid md:grid-cols-2 gap-3">
+          <div>
+            <label className="overline block mb-1">Support email</label>
+            <input value={doc.support_email || ""} onChange={(e) => setField("support_email", e.target.value)}
+                   className="hard-border px-3 py-2 text-sm w-full" data-testid="cust-support-email"/>
+          </div>
+          <div>
+            <label className="overline block mb-1">Support hours</label>
+            <input value={doc.support_hours || ""} onChange={(e) => setField("support_hours", e.target.value)}
+                   className="hard-border px-3 py-2 text-sm w-full" data-testid="cust-support-hours"/>
+          </div>
+        </div>
+        <div>
+          <p className="overline mb-2">Feature flags</p>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(doc.features || {}).map(([k, v]) => (
+              <button key={k} onClick={() => setFeature(k, !v)}
+                      className={`hard-border px-3 py-2 text-xs ${v ? "bg-[#C79A3B] text-white" : "bg-white text-neutral-500"}`}
+                      data-testid={`cust-flag-${k}`}>
+                {v ? "ON" : "OFF"} · {k}
+              </button>
+            ))}
+          </div>
+        </div>
+        <button onClick={save} disabled={saving} className="btn-primary text-sm" data-testid="cust-save">
+          {saving ? "Saving…" : "Save customization"}
+        </button>
+      </div>
+    </div>
   );
 }

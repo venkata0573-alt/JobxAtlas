@@ -1,14 +1,16 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
 import { toast } from "sonner";
-import { Briefcase, ArrowRight, X, Users, Clock, Certificate } from "@phosphor-icons/react";
+import { ArrowRight, X, Users, Clock, Certificate, ArrowsClockwise, LockSimple, LockSimpleOpen, Sparkle } from "@phosphor-icons/react";
 
 export default function Projects() {
   const [templates, setTemplates] = useState([]);
   const [phases, setPhases] = useState([]);
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [seats, setSeats] = useState([]);        // [{role, seat_index, rate_range, suggested_talent, locked, current}]
+  const [reshuffling, setReshuffling] = useState(false);
   const [industryFilter, setIndustryFilter] = useState("");
   const [form, setForm] = useState({ company_name: "", contact_name: "", contact_email: "", duration_months: 6, notes: "" });
   const [submitting, setSubmitting] = useState(false);
@@ -19,21 +21,75 @@ export default function Projects() {
   }, []);
 
   const openTemplate = async (id) => {
-    setSelected(id); setDetail(null);
+    setSelected(id); setDetail(null); setSeats([]);
     try {
-      const r = await api.get(`/projects/templates/${id}`);
-      setDetail(r.data);
-      setForm((f) => ({ ...f, duration_months: r.data.duration_months }));
+      const [dRes, tRes] = await Promise.all([
+        api.get(`/projects/templates/${id}`),
+        api.get(`/projects/templates/${id}/team-suggestions`),
+      ]);
+      setDetail(dRes.data);
+      setForm((f) => ({ ...f, duration_months: dRes.data.duration_months }));
+      setSeats((tRes.data.seats || []).map((s) => ({ ...s, current: s.suggested_talent, locked: false })));
     } catch (e) { toast.error(formatErr(e)); }
   };
+
+  const reshuffle = async () => {
+    if (!selected) return;
+    setReshuffling(true);
+    try {
+      const r = await api.get(`/projects/templates/${selected}/team-suggestions`);
+      const fresh = r.data.seats || [];
+      // Keep locked seats; replace unlocked ones with fresh suggestions (avoid re-picking locked names)
+      const lockedIds = new Set(seats.filter((s) => s.locked && s.current).map((s) => s.current.id));
+      setSeats(seats.map((s, i) => {
+        if (s.locked) return s;
+        // Take the fresh suggestion at same index if not already locked elsewhere
+        const alt = fresh[i]?.suggested_talent;
+        if (alt && !lockedIds.has(alt.id)) return { ...s, current: alt };
+        // Fallback: find any fresh talent not yet locked
+        const spare = fresh.find((f) => f.suggested_talent && !lockedIds.has(f.suggested_talent.id));
+        return { ...s, current: spare?.suggested_talent || s.current };
+      }));
+    } catch (e) { toast.error(formatErr(e)); }
+    finally { setReshuffling(false); }
+  };
+
+  const toggleLock = (idx) => {
+    setSeats(seats.map((s, i) => i === idx ? { ...s, locked: !s.locked } : s));
+  };
+
+  // Compute cost from actual assigned seats (uses talent.rate when set, else the mid of the range)
+  const costs = useMemo(() => {
+    if (!detail || !seats.length) return { monthly: detail?.estimated_monthly_cost || 0, total: detail?.estimated_total_cost || 0 };
+    const monthlyHrs = 160;
+    let monthly = 0;
+    for (const s of seats) {
+      const rate = s.current?.rate || ((s.rate_range?.[0] + s.rate_range?.[1]) / 2);
+      monthly += rate * monthlyHrs;
+    }
+    return { monthly: Math.round(monthly), total: Math.round(monthly * (detail?.duration_months || 1)) };
+  }, [seats, detail]);
 
   const submitLead = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const r = await api.post("/projects/lead", { template_id: selected, ...form });
+      const assigned_team = seats.map((s) => ({
+        role: s.role,
+        seat_index: s.seat_index,
+        talent_id: s.current?.id || null,
+        talent_name: s.current?.name || null,
+        rate: s.current?.rate || null,
+        locked: !!s.locked,
+      }));
+      const r = await api.post("/projects/lead", {
+        template_id: selected, ...form,
+        assigned_team,
+        estimated_monthly_cost: costs.monthly,
+        estimated_total_cost: costs.total,
+      });
       toast.success(r.data.message);
-      setSelected(null);
+      setSelected(null); setSeats([]);
       setForm({ company_name: "", contact_name: "", contact_email: "", duration_months: 6, notes: "" });
     } catch (err) { toast.error(formatErr(err)); }
     finally { setSubmitting(false); }
@@ -132,7 +188,7 @@ export default function Projects() {
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setSelected(null)}
              data-testid="template-detail-modal">
-          <div className="hard-border bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto p-8 shadow-brutal-lg" onClick={(e) => e.stopPropagation()}>
+          <div className="hard-border bg-white max-w-3xl w-full max-h-[92vh] overflow-y-auto p-8 shadow-brutal-lg relative" onClick={(e) => e.stopPropagation()}>
             <button onClick={() => setSelected(null)} className="absolute top-6 right-6 text-neutral-400 hover:text-neutral-700" data-testid="close-template-modal"><X size={20}/></button>
             {!detail ? (
               <p className="text-neutral-500 font-mono text-sm">Loading blueprint…</p>
@@ -148,27 +204,64 @@ export default function Projects() {
                     <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mt-1">Months</p>
                   </div>
                   <div className="hard-border bg-[#FAF9F6] p-3 text-center">
-                    <p className="font-display font-black text-xl">{detail.monthly_headcount}</p>
+                    <p className="font-display font-black text-xl">{seats.length || detail.monthly_headcount}</p>
                     <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mt-1">Seats</p>
                   </div>
-                  <div className="hard-border bg-[#FAF9F6] p-3 text-center">
-                    <p className="font-display font-black text-xl">${(detail.estimated_monthly_cost / 1000).toFixed(0)}k</p>
-                    <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mt-1">Est / month</p>
+                  <div className="hard-border bg-[#0B1B2B] text-white p-3 text-center" data-testid="live-monthly-cost">
+                    <p className="font-display font-black text-xl">${(costs.monthly / 1000).toFixed(1)}k</p>
+                    <p className="text-[10px] font-mono text-[#C79A3B] uppercase tracking-widest mt-1">Live / month</p>
                   </div>
                 </div>
 
-                <p className="overline text-neutral-500 mb-2">Team blueprint</p>
-                <div className="space-y-2 mb-6">
-                  {detail.team.map((s, i) => (
-                    <div key={i} className="hard-border bg-white p-3 flex items-center justify-between text-sm">
-                      <span className="font-display font-bold">{s.count}× {s.role}</span>
-                      <span className="font-mono text-xs text-neutral-500">${s.rate_range[0]}–${s.rate_range[1]}/hr</span>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between mb-3">
+                  <p className="overline text-neutral-500">Assemble the team · auto-matched from our vetted bench</p>
+                  <button onClick={reshuffle} disabled={reshuffling}
+                          className="hard-border text-xs px-3 py-2 bg-white hover:bg-[#FAF9F6] inline-flex items-center gap-1"
+                          data-testid="reshuffle-team-btn">
+                    <ArrowsClockwise size={12} weight="bold" className={reshuffling ? "animate-spin" : ""}/>
+                    Reshuffle unlocked
+                  </button>
+                </div>
+
+                <div className="space-y-2 mb-6" data-testid="assemble-team-list">
+                  {seats.map((s, idx) => {
+                    const t = s.current;
+                    return (
+                      <div key={idx}
+                           className={`hard-border p-3 flex items-center gap-3 ${s.locked ? "bg-[#FDF6E3] border-[#C79A3B]" : "bg-white"}`}
+                           data-testid={`seat-${idx}`}>
+                        <div className="hard-border bg-[#0B1B2B] text-[#C79A3B] w-9 h-9 flex items-center justify-center shrink-0 text-xs font-mono">
+                          #{idx + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-display font-extrabold text-sm truncate">{s.role}</p>
+                          {t ? (
+                            <p className="text-xs text-neutral-600 truncate">
+                              <span className="font-mono">{t.name}</span> · {t.headline} · <span className="font-mono">${t.rate}/hr</span> · {t.years}y
+                            </p>
+                          ) : (
+                            <p className="text-xs text-neutral-400">No match in bench — Job Atlas team will source</p>
+                          )}
+                        </div>
+                        <button onClick={() => toggleLock(idx)}
+                                className={`hard-border p-2 shrink-0 ${s.locked ? "bg-[#C79A3B] text-white" : "bg-white text-[#0B1B2B]"}`}
+                                title={s.locked ? "Locked · click to unlock" : "Lock this seat"}
+                                data-testid={`toggle-lock-${idx}`}>
+                          {s.locked ? <LockSimple size={14} weight="fill"/> : <LockSimpleOpen size={14}/>}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <form onSubmit={submitLead} className="hard-border bg-[#FAF9F6] p-5 space-y-3" data-testid="project-lead-form">
-                  <p className="font-display font-extrabold text-lg">Request scoping — no commitment</p>
+                  <p className="font-display font-extrabold text-lg inline-flex items-center gap-2">
+                    <Sparkle size={16} weight="fill" color="#C79A3B"/> Request scoping — no commitment
+                  </p>
+                  <p className="text-xs text-neutral-600 -mt-1">
+                    We&apos;ll send your assembled team ({seats.filter((s) => s.locked).length} locked, {seats.length - seats.filter((s) => s.locked).length} flexible)
+                    and estimate <span className="font-mono font-bold">${(costs.total / 1000).toFixed(0)}k</span> over {detail.duration_months} months.
+                  </p>
                   <div className="grid grid-cols-2 gap-3">
                     <input required placeholder="Company name" value={form.company_name} onChange={(e) => setForm({...form, company_name: e.target.value})} className="hard-border px-3 py-2 bg-white text-sm" data-testid="lead-company"/>
                     <input required placeholder="Your name" value={form.contact_name} onChange={(e) => setForm({...form, contact_name: e.target.value})} className="hard-border px-3 py-2 bg-white text-sm" data-testid="lead-name"/>
@@ -183,7 +276,7 @@ export default function Projects() {
                   <textarea rows={3} placeholder="Anything specific we should know? (optional)" value={form.notes} onChange={(e) => setForm({...form, notes: e.target.value})} className="hard-border px-3 py-2 bg-white text-sm w-full" data-testid="lead-notes"/>
                   <button type="submit" disabled={submitting} className="btn-primary w-full inline-flex items-center justify-center gap-2" data-testid="submit-project-lead">
                     <Certificate size={14} weight="fill"/>
-                    {submitting ? "Sending…" : "Request scoping →"}
+                    {submitting ? "Sending…" : `Request scoping — $${(costs.monthly / 1000).toFixed(1)}k/mo →`}
                   </button>
                 </form>
               </>

@@ -4,7 +4,7 @@ import api, { formatErr } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { TID } from "@/constants/testIds";
-import { Sparkle, ArrowsClockwise, WarningCircle, X, Envelope } from "@phosphor-icons/react";
+import { Sparkle, ArrowsClockwise, WarningCircle, X, Envelope, Buildings, PaperPlaneTilt } from "@phosphor-icons/react";
 import DashboardMetrics from "@/components/DashboardMetrics";
 
 export default function TalentDashboard() {
@@ -17,6 +17,11 @@ export default function TalentDashboard() {
   const [nudge, setNudge] = useState(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [broadcasts, setBroadcasts] = useState([]);
+  const [employers, setEmployers] = useState([]);
+  const [employerQuery, setEmployerQuery] = useState("");
+  const [eoiTarget, setEoiTarget] = useState(null);  // employer obj or null
+  const [eoiForm, setEoiForm] = useState({ message: "", proposed_hours_per_week: 10, start_date: "" });
+  const [eoiSending, setEoiSending] = useState(false);
 
   const profile = user?.profile || {};
   const currentRate = Number(profile.hourly_rate || 0);
@@ -26,14 +31,16 @@ export default function TalentDashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const [a, m, n, b] = await Promise.all([
+        const [a, m, n, b, e] = await Promise.all([
           api.get("/engagements"),
           api.get("/dashboard/metrics"),
           api.get("/talent/me/rate-nudge").catch(() => ({ data: { nudge: null } })),
           api.get("/talent/me/broadcasts").catch(() => ({ data: { items: [] } })),
+          api.get("/employers").catch(() => ({ data: { items: [] } })),
         ]);
         setEngs(a.data); setMetrics(m.data); setNudge(n.data?.nudge || null);
         setBroadcasts(b.data?.items || []);
+        setEmployers(e.data?.items || []);
       } catch (e) { toast.error(formatErr(e)); }
     })();
   }, []);
@@ -123,6 +130,36 @@ export default function TalentDashboard() {
 
   const drift = suggest ? Math.round(suggest.mid - currentRate) : 0;
   const driftPct = currentRate > 0 ? Math.round((drift / currentRate) * 100) : 0;
+
+  const openEoi = (emp) => {
+    setEoiTarget(emp);
+    setEoiForm({ message: `Hi ${emp.company_name || emp.name} — I'd love to explore working together.`, proposed_hours_per_week: 10, start_date: "" });
+  };
+
+  const sendEoi = async (e) => {
+    e.preventDefault();
+    if (!eoiTarget) return;
+    setEoiSending(true);
+    try {
+      await api.post("/eoi", {
+        employer_id: eoiTarget.id,
+        message: eoiForm.message,
+        proposed_hours_per_week: Number(eoiForm.proposed_hours_per_week),
+        start_date: eoiForm.start_date || "",
+      });
+      toast.success(`EOI sent to ${eoiTarget.company_name || eoiTarget.name}`);
+      setEoiTarget(null);
+    } catch (err) { toast.error(formatErr(err)); }
+    finally { setEoiSending(false); }
+  };
+
+  const filteredEmployers = (employers || []).filter((emp) => {
+    if (!employerQuery) return true;
+    const q = employerQuery.toLowerCase();
+    return (emp.company_name || "").toLowerCase().includes(q)
+        || (emp.company_industry || "").toLowerCase().includes(q)
+        || (emp.name || "").toLowerCase().includes(q);
+  });
 
   return (
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
@@ -280,6 +317,113 @@ export default function TalentDashboard() {
             ))}
           </div>
         </section>
+      )}
+
+      <section className="hard-border bg-white p-8 shadow-brutal mt-8" data-testid="companies-hiring">
+        <div className="flex items-baseline justify-between mb-6 gap-4 flex-wrap">
+          <div>
+            <p className="overline text-[#C79A3B] mb-1">COMPANIES ON JOB ATLAS</p>
+            <h2 className="font-display font-extrabold text-2xl tracking-tight inline-flex items-center gap-2">
+              <Buildings size={22} weight="duotone" color="#0B1B2B"/>
+              {employers.length} {employers.length === 1 ? "company is" : "companies are"} on the platform
+            </h2>
+            <p className="text-sm text-neutral-600 mt-1">Raise an Expression of Interest with any employer. They see it instantly on their dashboard and can accept to create an engagement.</p>
+          </div>
+          <input
+            type="search"
+            placeholder="Search companies by name or industry…"
+            value={employerQuery}
+            onChange={(e) => setEmployerQuery(e.target.value)}
+            className="hard-border px-3 py-2 bg-white text-sm w-full md:w-72"
+            data-testid="employer-search"/>
+        </div>
+        {filteredEmployers.length === 0 ? (
+          <p className="text-neutral-500 text-sm">
+            {employers.length === 0
+              ? "No companies onboarded yet — check back soon."
+              : `No companies match "${employerQuery}".`}
+          </p>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredEmployers.slice(0, 12).map((emp) => (
+              <div key={emp.id} className="hard-border bg-[#FAF9F6] p-5" data-testid={`employer-card-${emp.id}`}>
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="min-w-0">
+                    <p className="font-display font-extrabold text-lg tracking-tight truncate">{emp.company_name || emp.name}</p>
+                    <p className="text-xs font-mono text-neutral-500 truncate">{emp.company_industry || "—"}</p>
+                  </div>
+                  {emp.hours_balance > 0 && (
+                    <span className="hard-border bg-[#C79A3B] text-white text-[10px] font-mono px-2 py-1 tracking-widest shrink-0">
+                      {emp.hours_balance}h READY
+                    </span>
+                  )}
+                </div>
+                {emp.headline && <p className="text-xs text-neutral-600 line-clamp-2 mb-3">{emp.headline}</p>}
+                <div className="flex items-center justify-between text-[11px] font-mono text-neutral-500 mb-3">
+                  <span>{emp.location || "Remote"}</span>
+                  <span>{emp.active_engagements > 0 ? `${emp.active_engagements} active` : "New"}</span>
+                </div>
+                <button
+                  onClick={() => openEoi(emp)}
+                  className="btn-primary text-xs w-full inline-flex items-center justify-center gap-1"
+                  data-testid={`raise-eoi-${emp.id}`}>
+                  <PaperPlaneTilt size={12} weight="fill"/> Raise EOI
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* EOI modal */}
+      {eoiTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+             onClick={() => setEoiTarget(null)}
+             data-testid="eoi-modal">
+          <form onSubmit={sendEoi} onClick={(e) => e.stopPropagation()}
+                className="hard-border bg-white max-w-lg w-full p-6 shadow-brutal-lg space-y-3 relative">
+            <button type="button" onClick={() => setEoiTarget(null)}
+                    className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700"
+                    data-testid="close-eoi-modal">
+              <X size={18}/>
+            </button>
+            <p className="overline text-[#C79A3B]">EXPRESSION OF INTEREST</p>
+            <h3 className="font-display font-extrabold text-2xl tracking-tight">
+              Reach out to {eoiTarget.company_name || eoiTarget.name}
+            </h3>
+            <p className="text-xs text-neutral-500 -mt-1">{eoiTarget.company_industry || "—"} · {eoiTarget.location || "Remote"}</p>
+            <textarea
+              required
+              rows={4}
+              value={eoiForm.message}
+              onChange={(e) => setEoiForm({...eoiForm, message: e.target.value})}
+              className="hard-border px-3 py-2 bg-[#FAF9F6] text-sm w-full"
+              placeholder="Tell them what you can bring…"
+              data-testid="eoi-message"/>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">Hours / week</label>
+                <input type="number" min={1} max={40} required value={eoiForm.proposed_hours_per_week}
+                       onChange={(e) => setEoiForm({...eoiForm, proposed_hours_per_week: e.target.value})}
+                       className="hard-border px-3 py-2 bg-white text-sm w-full mt-1"
+                       data-testid="eoi-hours"/>
+              </div>
+              <div>
+                <label className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">Start date</label>
+                <input type="date" value={eoiForm.start_date}
+                       onChange={(e) => setEoiForm({...eoiForm, start_date: e.target.value})}
+                       className="hard-border px-3 py-2 bg-white text-sm w-full mt-1"
+                       data-testid="eoi-start"/>
+              </div>
+            </div>
+            <button type="submit" disabled={eoiSending}
+                    className="btn-primary w-full text-sm inline-flex items-center justify-center gap-2"
+                    data-testid="submit-eoi">
+              <PaperPlaneTilt size={14} weight="fill"/>
+              {eoiSending ? "Sending…" : "Send EOI →"}
+            </button>
+          </form>
+        </div>
       )}
 
       <section className="hard-border bg-white p-8 shadow-brutal mt-8">

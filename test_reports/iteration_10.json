@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 10 review — Assemble-team, /api/employers, admin permission scopes, staff CRUD, support console, and customization. Both backend (12/12 pytest) and frontend flows for Projects, TalentDashboard, and Admin (super + support) pass end-to-end.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "TalentDashboard /talent — Companies hiring section", "issues": ["All 12 employer cards seeded with placeholder name 'Test Employer' and blank industry ('—'). Talents can't visually differentiate companies. Suggest seeding meaningful company_name and company_industry, or hiding cards missing company_name."]},
+      {"screen": "Projects modal (KYC/AML Platform Build)", "issues": ["React hydration warning in console: <span> cannot be a child of <option>. Caused by Emergent's dev instrumentation injecting <span> inside <select><option>. Cosmetic only, but pollutes console — consider suppressing markers on option children."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration10_admin_scopes.py",
+    "/app/test_reports/pytest/iter10.xml"
+  ],
+  "action_items": [
+    "(Optional) Improve seed data for employers so talent-facing 'Companies on Job Atlas' cards show real company_name + company_industry instead of 'Test Employer / —'.",
+    "(Optional) Ensure ve-source instrumentation doesn't inject <span> children inside <option> elements to silence React hydration warnings on Projects.jsx."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 2664 lines and still growing — continue extracting resource modules (projects, employers, talent) into /app/backend/routes/ like admin.py to keep files <700 lines.",
+    "admin.py PUT /admin/customization uses Dict[str, Any] with a hardcoded allow-list. Consider a Pydantic model with Optional fields for schema validation + OpenAPI docs.",
+    "In admin.py _sanitize_scopes drops unknown scopes silently — could log/reject at API layer so misconfigured clients aren't silently ignored.",
+    "GET /api/employers doesn't paginate (to_list(300)). Add limit/offset before the platform gets >300 companies.",
+    "GET /api/employers exposes 'name' (may be personal name if company_name absent) — consider always returning company_name only or masking name.",
+    "ProjectLeadIn accepts assigned_team without any auth — anyone can submit unlimited leads. Add simple rate limiting / captcha for anti-abuse."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@talenthub.io / Admin@2026 (superadmin); support1@jobatlas.io / Support@2026 (support-only); talent@test.io / Talent@2026; emp-series-b-fintechs@test.io / Employer@2026",
+  "seed_data_creation": "Test only created transient docs (a TEST_ScopingCo project lead, a TEST_ support note on talent, +/-5 hour_balance adjust which was reverted, a temporary TEST_UI hero_headline restored, delete + re-create of support1@jobatlas.io staff). No permanent test pollution.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression at /app/backend/tests/test_iteration10_admin_scopes.py covers: /projects/templates/{id}/team-suggestions, /projects/lead (with assigned_team), /employers (talent-only 200 + employer 403), /admin/me (superadmin vs support scopes), /admin/staff last-superadmin guard + create/delete/recreate, /admin/users/{id}/notes + /adjust hours delta persistence, /admin/customization scope + public /customization/public without updated_by leak. All pass in 5-6s. Frontend UI verified via Playwright — screenshots at /app/test_reports/{projects_modal,talent_dash,admin_super,admin_support}.png.",
+  "rca of the issue": "No blocking issues found in this iteration."
+}

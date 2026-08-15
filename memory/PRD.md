@@ -32,6 +32,20 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
+## Implemented (2026-02-15, iteration 21 — Assemble the team + talent→employer discovery + admin permission scopes)
+- **Assemble the team (Projects modal)**: `Projects.jsx` template modal now calls `GET /api/projects/templates/{id}/team-suggestions` alongside the detail request, renders each seat with the auto-matched vetted talent (name, headline, rate, years), a lock/unlock toggle (`data-testid=toggle-lock-{n}`), and a "Reshuffle unlocked" button that only regenerates unlocked seats. Live monthly cost chip (`data-testid=live-monthly-cost`) recalculates from the actual selected talent rates. `POST /api/projects/lead` now persists `assigned_team[]`, `estimated_monthly_cost`, `estimated_total_cost` on the lead doc.
+- **Talent → Employer discovery**: new `GET /api/employers` (talent-only, 403 for employers) returns a safe employer projection with `company_name`, `company_industry`, `hours_balance`, `active_engagements`. TalentDashboard renders a `data-testid=companies-hiring` section listing 12 employer cards with a "Raise EOI" button that opens a modal (`data-testid=eoi-modal`) posting to the existing `/api/eoi` endpoint with `employer_id` prefilled. Employers with pre-purchased hours get a golden "Nh READY" badge.
+- **Admin permission scopes**: 5 scopes — support, finance, moderation, customization, superadmin — defined in `deps.py`. Every existing admin route now enforces scope via `_require_scope(user, scope)`. Existing admin `admin@talenthub.io` gets `superadmin` on boot (backfilled). New endpoints:
+  - `GET /api/admin/me` — current admin's effective scopes + full scopes catalog
+  - `GET/POST/PATCH/DELETE /api/admin/staff` — superadmin CRUD (with last-superadmin guard)
+  - `GET /api/admin/users?q&role` + `GET /api/admin/users/{id}` (support) — support search + full user history (engagements, EOIs, payments, notes)
+  - `POST /api/admin/users/{id}/notes` — log a support interaction
+  - `POST /api/admin/users/{id}/adjust` — goodwill hours delta with audit log
+  - `GET/PUT /api/admin/customization` (customization scope) + `GET /api/customization/public` — site-wide feature flags and marketing content
+- **Admin UI rewrite**: `Admin.jsx` now fetches `/admin/me` on mount, shows scope chips + tab strip filtered by effective scopes. New tabs: Support (user search + notes + hours adjust), Staff & Roles (superadmin staff CRUD with per-scope toggle buttons), Customization (hero copy, CTA labels, feature-flag ON/OFF, support email/hours).
+- **Header**: admin users now see an "Admin" nav link and `dashHref` routes admins to `/admin` instead of `/talent`.
+- Verified via `testing_agent` iteration_10.json: 100% backend (12/12 pytest) + 100% frontend on all three features. Pytest suite persisted at `/app/backend/tests/test_iteration10_admin_scopes.py`.
+
 ## Implemented (2026-02-09, iteration 20 — Project Delivery workflow + marketing scrub)
 - **New `/projects` page + backend workflow**: second product offering alongside "Hire by the hour". Hero presents both models side-by-side. PMI section shows 5 phase cards (Initiate → Plan → Execute → Monitor & Control → Close), each with a gate + deliverables list. Template gallery shows 8 pre-loaded blueprints across 5 industries (Fintech KYC/AML, Payments; Healthcare FHIR/EHR, Telehealth MVP; SaaS Onboarding, Analytics; E-comm Storefront Rebuild; AI Domain LLM Copilot). Industry filter chips narrow the gallery. Clicking a template opens a modal with team blueprint, cost estimate ($X/mo, $Y total), and a "Request scoping — no commitment" lead form.
 - **Backend**: `PROJECT_TEMPLATES` list (8 blueprints, each with industry/duration/team roles + rate ranges), `PROJECT_PHASES` list (5 PMI phases with gates + deliverables), `ProjectLeadIn` model. New endpoints:

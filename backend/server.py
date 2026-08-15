@@ -262,6 +262,80 @@ async def list_talent(q: Optional[str] = None, skill: Optional[str] = None,
     return items
 
 
+# ---------- Browse Employers (talent-facing) ----------
+@api.get("/employers")
+async def list_employers(
+    q: Optional[str] = None,
+    industry: Optional[str] = None,
+    user: dict = Depends(get_current_user),
+):
+    """Talent can discover companies actively on Job Atlas and raise an EOI
+    directly. Only exposes public-facing fields: name, company, industry, city,
+    hours_balance-derived buying signal. Never exposes email or contact info."""
+    if user["role"] not in ("talent", "admin"):
+        raise HTTPException(403, "Talent only")
+    query: Dict[str, Any] = {"role": "employer"}
+    if q:
+        query["$or"] = [
+            {"name": {"$regex": q, "$options": "i"}},
+            {"profile.company_name": {"$regex": q, "$options": "i"}},
+            {"profile.headline": {"$regex": q, "$options": "i"}},
+        ]
+    if industry:
+        query["profile.company_industry"] = industry
+    cursor = db.users.find(query, {"_id": 0, "password_hash": 0, "email": 0,
+                                    "integrations": 0, "connected_accounts": 0})
+    raw = await cursor.to_list(300)
+    # Return a lean, safe shape and a "buying signal" chip.
+    open_role_map: Dict[str, int] = {}
+    open_engs = await db.engagements.find(
+        {"status": {"$in": ["pending_signatures", "contract_signed", "active"]}},
+        {"employer_id": 1, "_id": 0},
+    ).to_list(2000)
+    for e in open_engs:
+        open_role_map[e.get("employer_id")] = open_role_map.get(e.get("employer_id"), 0) + 1
+    out = []
+    for u in raw:
+        p = u.get("profile") or {}
+        out.append({
+            "id": u["id"],
+            "name": u.get("name"),
+            "company_name": p.get("company_name") or u.get("name"),
+            "company_industry": p.get("company_industry") or "",
+            "company_size": p.get("company_size") or "",
+            "location": p.get("location") or "",
+            "headline": p.get("headline") or "",
+            "hours_balance": int(u.get("hours_balance") or 0),
+            "active_engagements": open_role_map.get(u["id"], 0),
+            "created_at": u.get("created_at"),
+        })
+    # Sort: those with balance first (they're ready to hire), then most active.
+    out.sort(key=lambda x: (-x["hours_balance"], -x["active_engagements"]))
+    return {"items": out, "count": len(out)}
+
+
+@api.get("/employers/{employer_id}")
+async def get_employer_public(employer_id: str, user: dict = Depends(get_current_user)):
+    if user["role"] not in ("talent", "admin"):
+        raise HTTPException(403, "Talent only")
+    u = await db.users.find_one({"id": employer_id, "role": "employer"},
+                                 {"_id": 0, "password_hash": 0, "email": 0,
+                                  "integrations": 0, "connected_accounts": 0})
+    if not u:
+        raise HTTPException(404, "Employer not found")
+    p = u.get("profile") or {}
+    return {
+        "id": u["id"], "name": u.get("name"),
+        "company_name": p.get("company_name") or u.get("name"),
+        "company_industry": p.get("company_industry") or "",
+        "company_size": p.get("company_size") or "",
+        "location": p.get("location") or "",
+        "headline": p.get("headline") or "",
+        "hours_balance": int(u.get("hours_balance") or 0),
+        "created_at": u.get("created_at"),
+    }
+
+
 @api.get("/earnings/mine")
 async def my_earnings(user: dict = Depends(get_current_user), start: str = "", end: str = ""):
     if user["role"] != "talent":
@@ -1739,6 +1813,83 @@ async def get_project_template(template_id: str):
     raise HTTPException(404, "Template not found")
 
 
+def _match_talent_for_role(role: str, industry: str, seen_ids: set) -> Optional[dict]:
+    """Pick the best-fit talent for a role slot. Prefers real DB users, falls
+    back to the curated pool. Uses skill keyword overlap + industry match."""
+    role_kw = role.lower().split()
+    # Skill-hint map for common role names
+    hints = {
+        "engineer": ["Node", "Python", "React", "TypeScript"],
+        "designer": ["Figma", "UI", "UX"],
+        "architect": ["AWS", "Python", "Node"],
+        "manager": ["Product", "Roadmapping"],
+        "data": ["Python", "SQL", "Pandas"],
+        "ml": ["Python", "PyTorch", "LLMs"],
+        "devops": ["AWS", "Terraform", "Kubernetes"],
+        "qa": ["Cypress", "Playwright", "Vitest"],
+        "mobile": ["Swift", "React Native", "Flutter"],
+    }
+    kw = []
+    for k, v in hints.items():
+        if k in role_kw or k in role.lower():
+            kw = v; break
+    # Assemble a scored candidate list from curated pool
+    scored = []
+    for e in _CURATED_TALENT:
+        if e["name"].replace(" ", "-").replace(".", "") in seen_ids:
+            continue
+        score = 0
+        if kw and any(k in e["skills"] for k in kw):
+            score += 3
+        if industry.lower().split()[0] in " ".join(e["skills"]).lower():
+            score += 1
+        # Role name hint
+        if any(w in e["headline"].lower() for w in role_kw if len(w) > 3):
+            score += 2
+        if score > 0:
+            scored.append((score, e))
+    scored.sort(key=lambda x: (-x[0], -x[1]["years"]))
+    if not scored:
+        return None
+    e = scored[0][1]
+    seen_ids.add(e["name"].replace(" ", "-").replace(".", ""))
+    return {
+        "id": f"curated-{e['skill_slug']}-{e['name'].replace(' ', '-').replace('.', '')}",
+        "name": e["name"], "headline": e["headline"], "rate": e["rate"],
+        "years": e["years"], "location": e["cities"][0], "skills": e["skills"],
+        "available_hours_per_week": e["avail"], "curated": True, "verified": True,
+    }
+
+
+@api.get("/projects/templates/{template_id}/team-suggestions")
+async def suggest_team_for_template(template_id: str):
+    """Auto-suggest a specific vetted talent for each seat in the template's team."""
+    template = next((t for t in PROJECT_TEMPLATES if t["id"] == template_id), None)
+    if not template:
+        raise HTTPException(404, "Template not found")
+    seen = set()
+    seats = []
+    for slot in template["team"]:
+        for i in range(slot["count"]):
+            suggestion = _match_talent_for_role(slot["role"], template["industry"], seen)
+            seats.append({
+                "role": slot["role"],
+                "seat_index": i + 1,
+                "rate_range": slot["rate_range"],
+                "suggested_talent": suggestion,  # may be None if pool exhausted
+            })
+    return {"template_id": template_id, "seats": seats, "count": len(seats)}
+
+
+class ProjectSeatIn(BaseModel):
+    role: str
+    seat_index: int
+    talent_id: Optional[str] = None
+    talent_name: Optional[str] = None
+    rate: Optional[float] = None
+    locked: bool = False
+
+
 class ProjectLeadIn(BaseModel):
     template_id: str
     company_name: str
@@ -1746,6 +1897,9 @@ class ProjectLeadIn(BaseModel):
     contact_email: EmailStr
     duration_months: int
     notes: Optional[str] = ""
+    assigned_team: Optional[List[ProjectSeatIn]] = None
+    estimated_monthly_cost: Optional[float] = None
+    estimated_total_cost: Optional[float] = None
 
 
 @api.post("/projects/lead")
@@ -1765,6 +1919,9 @@ async def submit_project_lead(payload: ProjectLeadIn):
         "contact_email": payload.contact_email.lower(),
         "duration_months": int(payload.duration_months),
         "notes": (payload.notes or "")[:1000],
+        "assigned_team": [s.dict() for s in (payload.assigned_team or [])],
+        "estimated_monthly_cost": float(payload.estimated_monthly_cost or 0),
+        "estimated_total_cost": float(payload.estimated_total_cost or 0),
         "status": "new",
         "created_at": now().isoformat(),
     }
@@ -2423,8 +2580,15 @@ async def startup():
             "role": "admin", "password_hash": hash_pw(admin_password),
             "created_at": now().isoformat(),
             "profile": {}, "hours_balance": 0, "integrations": [],
+            "admin_permissions": ["superadmin"],
         })
-        logger.info(f"Seeded admin: {admin_email}")
+        logger.info(f"Seeded admin: {admin_email} (superadmin)")
+    # Backfill: any admin missing admin_permissions gets superadmin (existing sole admin)
+    await db.users.update_many(
+        {"role": "admin", "$or": [{"admin_permissions": {"$exists": False}},
+                                   {"admin_permissions": {"$size": 0}}]},
+        {"$set": {"admin_permissions": ["superadmin"]}},
+    )
 
     # ----- Migrate legacy industry labels to standardised taxonomy -----
     try:

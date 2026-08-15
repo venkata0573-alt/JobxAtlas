@@ -10,7 +10,7 @@ export default function Header() {
   const loc = useLocation();
   const [open, setOpen] = useState(false);
 
-  const dashHref = user && user.role === "employer" ? "/employer" : "/talent";
+  const dashHref = user && user.role === "employer" ? "/employer" : (user && user.role === "admin" ? "/admin" : "/talent");
   const linkCls = "hover:text-[#C79A3B] transition-colors whitespace-nowrap";
 
   const guestLinks = (
@@ -30,6 +30,9 @@ export default function Header() {
       <Link to="/integrations" className={linkCls} onClick={() => setOpen(false)} data-testid={TID.navIntegrations}>Work tools</Link>
       <Link to="/accounts" className={linkCls} onClick={() => setOpen(false)}>Accounts</Link>
       <Link to="/pricing" className={linkCls} onClick={() => setOpen(false)} data-testid={TID.navPricing}>Pricing</Link>
+      {user.role === "admin" && (
+        <Link to="/admin" className={linkCls} onClick={() => setOpen(false)} data-testid="nav-admin">Admin</Link>
+      )}
     </>
   ) : null;
 

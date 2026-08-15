@@ -151,3 +151,22 @@ CITY_PRETTY = {
 }
 
 RATE_DRIFT_THRESHOLD_PCT = 15
+
+
+# ---------- Admin permission scopes ----------
+# Fine-grained scopes an admin staff member can hold. Superadmin implies all.
+ADMIN_SCOPES = [
+    {"id": "support",       "label": "Customer Support",  "desc": "View users, log support notes, help resolve grievances."},
+    {"id": "finance",       "label": "Finance & Payouts", "desc": "Approve bank transfers, run payouts, mark paid."},
+    {"id": "moderation",    "label": "Moderation",        "desc": "Review reviews & grievances, resolve disputes."},
+    {"id": "customization", "label": "Customization",     "desc": "Edit landing content, feature flags, pricing tiers."},
+    {"id": "superadmin",    "label": "Superadmin",        "desc": "Manage admin staff, permissions, all scopes."},
+]
+ADMIN_SCOPE_IDS = {s["id"] for s in ADMIN_SCOPES}
+
+
+def has_admin_scope(user: dict, scope: str) -> bool:
+    if not user or user.get("role") != "admin":
+        return False
+    perms = user.get("admin_permissions") or []
+    return "superadmin" in perms or scope in perms
