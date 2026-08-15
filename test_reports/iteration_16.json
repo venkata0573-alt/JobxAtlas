@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 27 testing — verified-only browse toggle, BGV reference-check auto-emails + public one-question form, Stripe card setup-checkout, and 15+ bulk project blueprints across 8 new industries. 12/12 backend tests pass. All 4 frontend flows verified end-to-end.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration27_verified_bgv_stripe_templates.py",
+    "/app/test_reports/pytest/iter27.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "auth.py admin/reference-checks: correctly hides `token` in list response (public-safe). Tests were adapted to fetch tokens from db.reference_checks directly for E2E validation.",
+    "ReferenceCheck.jsx: uses api.get in useEffect — GET is idempotent so no StrictMode double-consume issue like VerifyEmail.jsx (safe as-is).",
+    "projects.py /billing/setup-checkout: correctly enforces role=employer (403 for talent), reuses stripe customer_id across calls, and cross-user status lookups return 403. Solid.",
+    "server.py list_talent: verified_only=true correctly narrows response and all remaining items expose is_verified=true. Fresh talent 'New Verify' is the only currently-verified profile — matches iteration_15 note that TestCo employer approval flow completed.",
+    "projects.py PROJECT_TEMPLATES: 22 blueprints now live across 13 industries. Every template exposes monthly_client_price + blended_margin_pct and GET /api/projects/templates/{id} works for all sampled ids."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration27_verified_bgv_stripe_templates.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": "admin@talenthub.io/Admin@2026, support1@jobatlas.io/Support@2026, emp-series-b-fintechs@test.io/Employer@2026, talent@test.io/Talent@2026. Test run submitted a new BGV for talent@test.io — 2 fresh reference_checks docs now exist per test invocation (email addresses are ref{1,2}_<randomhex>@example.com); previous run's tokens were consumed. VYZIB8xAyPN4oWBwsOA6m0S-e211WZTE was answered 'yes' during this test.",
+  "seed_data_creation": "Each pytest run inserts 2 rows into db.reference_checks via POST /api/verification/bgv. Cleanup: db.reference_checks.delete_many({'ref_email': {'$regex':'^ref[12]_'}}) if needed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "iter27 pytest file /app/backend/tests/test_iteration27_verified_bgv_stripe_templates.py covers verified filter, BGV+reference flow (public + admin), stripe setup-checkout (create, status, cross-user, talent-403), and template gallery (list, industries, detail). It requires MongoDB access (localhost:27017/test_database) to fetch a fresh ref token because /api/admin/reference-checks/{tid} correctly hides tokens. Frontend visually verified: /browse verified-only-toggle turns blue and calls /api/talent?verified_only=true (1 result 'New Verify'); /reference-check?token=<valid> renders 3 radios + note + submit → Thank you (idempotent on reload); bad token → ref-check-error 'Reference link not found or expired'; /invoices save-card-btn opens real Stripe hosted setup checkout (checkout.stripe.com/pay/cs_test_...); /projects gallery renders 22 template tiles + 14 chips (All + 13 industries) including Retail, Media, Edu, Gov, AI & Deep Tech, Climate, Logistics, Legal.",
+  "rca of the issue": "N/A — no issues found."
+}

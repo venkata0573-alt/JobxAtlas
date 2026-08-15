@@ -229,8 +229,11 @@ import routes.projects  # noqa: E402,F401  (project workspace + milestones)
 # ---------- Browse Talent (public listing but contact hidden) ----------
 @api.get("/talent")
 async def list_talent(q: Optional[str] = None, skill: Optional[str] = None,
-                      industry: Optional[str] = None, min_exp: int = 0):
+                      industry: Optional[str] = None, min_exp: int = 0,
+                      verified_only: bool = False):
     query = {"role": "talent"}
+    if verified_only:
+        query["verification_status"] = "verified"
     if q:
         query["$or"] = [{"name": {"$regex": q, "$options": "i"}},
                         {"profile.headline": {"$regex": q, "$options": "i"}}]
@@ -1633,6 +1636,139 @@ PROJECT_TEMPLATES = [
         {"role": "Data Engineer", "count": 1, "rate_range": [110, 150]},
         {"role": "MLOps Engineer", "count": 1, "rate_range": [115, 155]},
      ]},
+    # ---------------- Retail & E-Commerce ----------------
+    {"id": "retail-omnichannel-poc", "industry": "Retail & E-Commerce",
+     "title": "Omnichannel Order-Management PoC", "duration_months": 4,
+     "summary": "Unify online + store inventory with a real-time order router in one quarter.",
+     "team": [
+        {"role": "Solutions Architect", "count": 1, "rate_range": [130, 170]},
+        {"role": "Integrations Engineer", "count": 2, "rate_range": [95, 135]},
+        {"role": "Data Engineer", "count": 1, "rate_range": [100, 140]},
+        {"role": "QA Automation", "count": 1, "rate_range": [70, 105]},
+     ]},
+    {"id": "retail-loyalty-app", "industry": "Retail & E-Commerce",
+     "title": "Mobile Loyalty & Wallet App", "duration_months": 6,
+     "summary": "Native iOS + Android loyalty program with points, offers, and Apple/Google Wallet passes.",
+     "team": [
+        {"role": "Product Manager", "count": 1, "rate_range": [110, 150]},
+        {"role": "iOS Engineer", "count": 1, "rate_range": [110, 150]},
+        {"role": "Android Engineer", "count": 1, "rate_range": [110, 150]},
+        {"role": "Backend Engineer", "count": 1, "rate_range": [95, 135]},
+        {"role": "UX Designer", "count": 1, "rate_range": [85, 125]},
+     ]},
+
+    # ---------------- Media & Entertainment ----------------
+    {"id": "media-streaming-cms", "industry": "Media & Entertainment",
+     "title": "Video CMS + Streaming Backend", "duration_months": 5,
+     "summary": "Ingest, transcode, DRM and CDN-backed HLS/DASH delivery for a subscription video platform.",
+     "team": [
+        {"role": "Streaming Architect", "count": 1, "rate_range": [140, 190]},
+        {"role": "Backend Engineer", "count": 2, "rate_range": [100, 145]},
+        {"role": "DevOps / SRE", "count": 1, "rate_range": [110, 150]},
+        {"role": "Frontend Engineer", "count": 1, "rate_range": [85, 125]},
+     ]},
+    {"id": "media-newsroom-cms", "industry": "Media & Entertainment",
+     "title": "Modern Newsroom CMS", "duration_months": 4,
+     "summary": "Editor + workflow + push notifications + SEO for a national newsroom migration.",
+     "team": [
+        {"role": "Product Manager", "count": 1, "rate_range": [110, 150]},
+        {"role": "Full-stack Engineer", "count": 2, "rate_range": [90, 130]},
+        {"role": "UX Writer", "count": 1, "rate_range": [70, 100]},
+     ]},
+
+    # ---------------- Education / EdTech ----------------
+    {"id": "edu-lms-launch", "industry": "Education & EdTech",
+     "title": "Bootcamp LMS Launch", "duration_months": 5,
+     "summary": "Cohort-based LMS with live class rooms, assignments, plagiarism check and Stripe billing.",
+     "team": [
+        {"role": "Program Manager", "count": 1, "rate_range": [110, 150]},
+        {"role": "Full-stack Engineer", "count": 2, "rate_range": [90, 135]},
+        {"role": "UX Designer", "count": 1, "rate_range": [80, 120]},
+     ]},
+    {"id": "edu-adaptive-learning", "industry": "Education & EdTech",
+     "title": "Adaptive Learning Engine", "duration_months": 6,
+     "summary": "Personalised practice paths driven by an item-response-theory scoring model.",
+     "team": [
+        {"role": "ML Engineer", "count": 1, "rate_range": [140, 190]},
+        {"role": "Backend Engineer", "count": 1, "rate_range": [100, 140]},
+        {"role": "Learning Scientist", "count": 1, "rate_range": [110, 160]},
+     ]},
+
+    # ---------------- Government / GovTech ----------------
+    {"id": "gov-e-services", "industry": "Government & Public Sector",
+     "title": "Citizen e-Services Portal", "duration_months": 9,
+     "summary": "Multi-department portal with digital identity, secure e-forms, and audit-grade logging.",
+     "team": [
+        {"role": "Solutions Architect", "count": 1, "rate_range": [140, 190]},
+        {"role": "Security Lead", "count": 1, "rate_range": [130, 175]},
+        {"role": "Senior Backend Engineer", "count": 2, "rate_range": [100, 145]},
+        {"role": "Accessibility Specialist", "count": 1, "rate_range": [90, 130]},
+     ]},
+    {"id": "gov-permitting-modernization", "industry": "Government & Public Sector",
+     "title": "Permits & Licensing Modernization", "duration_months": 6,
+     "summary": "Digitise inspection scheduling, permits and fee collection for a mid-size municipality.",
+     "team": [
+        {"role": "Program Manager", "count": 1, "rate_range": [130, 170]},
+        {"role": "Full-stack Engineer", "count": 2, "rate_range": [95, 135]},
+        {"role": "GIS Specialist", "count": 1, "rate_range": [105, 145]},
+     ]},
+
+    # ---------------- Deep Tech / AI Infrastructure ----------------
+    {"id": "deeptech-rag-platform", "industry": "AI & Deep Tech",
+     "title": "Enterprise RAG Platform", "duration_months": 5,
+     "summary": "Retrieval-augmented generation stack with private embeddings, evals and observability.",
+     "team": [
+        {"role": "ML Platform Lead", "count": 1, "rate_range": [160, 220]},
+        {"role": "ML Engineer", "count": 2, "rate_range": [130, 180]},
+        {"role": "Data Engineer", "count": 1, "rate_range": [100, 140]},
+        {"role": "SRE", "count": 1, "rate_range": [110, 150]},
+     ]},
+    {"id": "deeptech-mlops-hardening", "industry": "AI & Deep Tech",
+     "title": "MLOps Hardening", "duration_months": 4,
+     "summary": "Model registry, drift monitoring, and shadow deploys — SOC2-friendly ML lifecycle.",
+     "team": [
+        {"role": "MLOps Engineer", "count": 1, "rate_range": [140, 190]},
+        {"role": "Data Engineer", "count": 1, "rate_range": [100, 140]},
+        {"role": "Security Engineer", "count": 1, "rate_range": [120, 170]},
+     ]},
+
+    # ---------------- Climate & Sustainability ----------------
+    {"id": "climate-carbon-accounting", "industry": "Climate & Sustainability",
+     "title": "Corporate Carbon-Accounting SaaS", "duration_months": 6,
+     "summary": "Scope 1/2/3 accounting, supplier surveys, and audit-ready CSRD reports.",
+     "team": [
+        {"role": "Sustainability Domain Lead", "count": 1, "rate_range": [130, 180]},
+        {"role": "Full-stack Engineer", "count": 2, "rate_range": [95, 135]},
+        {"role": "Data Engineer", "count": 1, "rate_range": [105, 145]},
+     ]},
+    {"id": "climate-supply-chain-emissions", "industry": "Climate & Sustainability",
+     "title": "Supply-Chain Emissions Tracker", "duration_months": 4,
+     "summary": "Ingest ERP data + supplier CSVs + LCA factors to produce shipment-level emissions.",
+     "team": [
+        {"role": "Solutions Architect", "count": 1, "rate_range": [130, 175]},
+        {"role": "Data Engineer", "count": 2, "rate_range": [100, 140]},
+     ]},
+
+    # ---------------- Logistics & Supply Chain ----------------
+    {"id": "logistics-tms-launch", "industry": "Logistics & Supply Chain",
+     "title": "Transport Management System", "duration_months": 6,
+     "summary": "Multi-carrier TMS with rate shopping, EDI hooks, and a driver mobile app.",
+     "team": [
+        {"role": "Solutions Architect", "count": 1, "rate_range": [130, 175]},
+        {"role": "Senior Backend Engineer", "count": 2, "rate_range": [100, 140]},
+        {"role": "Mobile Engineer", "count": 1, "rate_range": [95, 135]},
+     ]},
+
+    # ---------------- Legal Tech ----------------
+    {"id": "legal-contract-copilot", "industry": "Legal Tech",
+     "title": "AI Contract-Review Copilot", "duration_months": 4,
+     "summary": "Clause extraction, red-lining suggestions, and playbook enforcement — SOC2-track.",
+     "team": [
+        {"role": "ML Engineer", "count": 1, "rate_range": [140, 190]},
+        {"role": "Legal Domain SME", "count": 1, "rate_range": [130, 180]},
+        {"role": "Full-stack Engineer", "count": 1, "rate_range": [95, 135]},
+     ]},
+
 ]
 
 # PMI-based lifecycle: 5 process groups, each with typical deliverables/gates

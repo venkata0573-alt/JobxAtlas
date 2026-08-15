@@ -11,6 +11,7 @@ export default function BrowseTalent() {
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
   const [skill, setSkill] = useState("");
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const industryFilter = searchParams.get("industry") || "";
@@ -20,12 +21,13 @@ export default function BrowseTalent() {
     try {
       const params = { q, skill };
       if (industryFilter) params.industry = industryFilter;
+      if (verifiedOnly) params.verified_only = true;
       const r = await api.get("/talent", { params });
       setItems(r.data);
     } catch (e) { toast.error(formatErr(e)); }
     finally { setLoading(false); }
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [industryFilter]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [industryFilter, verifiedOnly]);
 
   const clearIndustry = () => {
     const next = new URLSearchParams(searchParams);
@@ -77,6 +79,19 @@ export default function BrowseTalent() {
                value={skill} onChange={(e) => setSkill(e.target.value)}
                className="hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
         <button onClick={load} className="btn-primary">Filter</button>
+      </div>
+
+      <div className="mb-6 flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => setVerifiedOnly((v) => !v)}
+          className={`hard-border px-3 py-2 text-xs inline-flex items-center gap-2 ${verifiedOnly ? "bg-[#0EA5E9] text-white" : "bg-white"}`}
+          data-testid="verified-only-toggle">
+          <span className={`text-base leading-none ${verifiedOnly ? "text-white" : "text-[#0EA5E9]"}`}>✓</span>
+          Verified only {verifiedOnly ? "· ON" : ""}
+        </button>
+        {verifiedOnly && (
+          <p className="text-xs font-mono text-neutral-500">Showing only BGV-cleared talent.</p>
+        )}
       </div>
 
       {loading ? <p className="font-mono">Loading…</p> :

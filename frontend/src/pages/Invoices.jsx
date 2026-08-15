@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
 import { toast } from "sonner";
 import { FileText, Warning, ArrowRight, CreditCard } from "@phosphor-icons/react";
@@ -8,6 +8,7 @@ export default function Invoices() {
   const [data, setData] = useState({ items: [], total_open: 0, total_paid: 0 });
   const [billing, setBilling] = useState({ attached: false });
   const [filter, setFilter] = useState("all");  // all | open | overdue | paid
+  const [params, setParams] = useSearchParams();
 
   const load = async () => {
     try {
@@ -20,6 +21,21 @@ export default function Invoices() {
     } catch (e) { toast.error(formatErr(e)); }
   };
   useEffect(() => { load(); }, []);
+
+  // Stripe SetupCheckout return handler
+  useEffect(() => {
+    const sid = params.get("setup");
+    if (!sid) return;
+    (async () => {
+      try {
+        const r = await api.get(`/billing/setup-checkout/status/${sid}`);
+        if (r.data?.ok) { toast.success("Card saved — auto-collect is on."); load(); }
+        else { toast.error("Card setup did not complete. Please try again."); }
+      } catch (e) { toast.error(formatErr(e)); }
+      finally { params.delete("setup"); setParams(params, { replace: true }); }
+    })();
+    // eslint-disable-next-line
+  }, []);
 
   const downloadPdf = (projectId, invId) => {
     const base = process.env.REACT_APP_BACKEND_URL;
@@ -153,9 +169,17 @@ export default function Invoices() {
           <p className="text-sm text-neutral-700 mb-3">
             Save a card once and Job Atlas will auto-collect any invoice past its due date after 7 days. You&apos;ll still receive email reminders every 3 days before the auto-charge.
           </p>
-          <p className="text-xs font-mono text-neutral-500">
-            Contact support to set this up — a secure Stripe Elements form is coming soon.
-          </p>
+          <button
+            onClick={async () => {
+              try {
+                const r = await api.post("/billing/setup-checkout", { origin_url: window.location.origin });
+                window.location.href = r.data.checkout_url;
+              } catch (e) { toast.error(formatErr(e)); }
+            }}
+            className="btn-primary text-sm inline-flex items-center gap-2"
+            data-testid="save-card-btn">
+            <CreditCard size={14} weight="fill"/> Save a card via Stripe
+          </button>
         </div>
       )}
     </main>

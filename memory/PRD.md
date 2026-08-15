@@ -32,6 +32,15 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
+## Implemented (2026-02-15, iteration 27 — Verified-only filter · Reference auto-emails · Stripe card setup · Bulk blueprints)
+- **Verified-only filter on `/browse`**: `GET /api/talent?verified_only=true` narrows to `verification_status:'verified'`. Frontend adds a `data-testid=verified-only-toggle` chip that flips blue when active.
+- **Reference-contact auto-emails**: `POST /api/verification/bgv` now writes one `db.reference_checks` row per reference (with a `secrets.token_urlsafe(24)` token) and mails each ref a branded HTML template linking to `/reference-check?token=…`. Response includes `references_notified` count.
+- **Public 1-question reference form**: `GET /api/reference-check/{token}` (public, leaks nothing beyond ref name + relationship + talent name) and `POST /api/reference-check/{token}` (accepts response ∈ {yes, no, partial} + optional note, idempotent on second submit). Frontend page `/reference-check` renders a clean 3-choice card + optional note.
+- **Admin ref-check inbox**: `GET /api/admin/reference-checks/{talent_id}` (moderation OR support scope) returns all references + how many have answered so ops can decide on BGV approval.
+- **Stripe hosted card setup**: `POST /api/billing/setup-checkout` creates a `stripe.checkout.Session.create(mode='setup', …)` and returns the hosted URL. Return handler on `/invoices?setup=<sid>` calls `GET /api/billing/setup-checkout/status/{sid}` which reads the SetupIntent, saves the resulting PaymentMethod as default, and stamps `stripe_customer_id` + `stripe_payment_method_id` on the user. Frontend swapped the "contact support" placeholder for a real `data-testid=save-card-btn`.
+- **Bulk project blueprints**: 15 new templates across 8 additional industries — Retail & E-Commerce (2), Media & Entertainment (2), Education & EdTech (2), Government & Public Sector (2), AI & Deep Tech (2), Climate & Sustainability (2), Logistics & Supply Chain (1), Legal Tech (1). Total blueprint count grew from 8 → 23. Every template surfaces via `/api/projects/templates/{id}` with full pricing (client price + margin).
+- Verified via `testing_agent` iteration_16: 12/12 backend tests pass, 4/4 frontend flows pass, zero critical issues.
+
 ## Implemented (2026-02-15, iteration 26 — Email verification · Company/Talent verification · Verified badges · Custom project)
 - **Email verification on signup**: `POST /api/auth/register` now sets `email_verified:false` + `verification_status:'none'`, generates a `secrets.token_urlsafe(32)` token, persists it on the user, and (best-effort) mails a magic link via Resend. New endpoints: `GET /api/auth/verify-email?token=…` (public, one-shot consumption of the token) and `POST /api/auth/resend-verification` (rotates + resends).
 - **Public magic-link page**: new `/verify-email` route with a StrictMode-safe useRef guard so the token isn't double-consumed on the initial mount.

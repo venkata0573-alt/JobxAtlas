@@ -267,7 +267,115 @@ async def submit_bgv(payload: TalentBgvIn, user: dict = Depends(get_current_user
         "verification_submitted_at": now().isoformat(),
     }
     await db.users.update_one({"id": user["id"]}, {"$set": profile_updates})
-    return {"ok": True, "status": "pending"}
+
+    # Auto-email each reference a 1-question check form. Each row gets a unique
+    # token so we can accept anonymous responses without login.
+    base = os.environ.get("APP_BASE_URL") or ""
+    from mailer import send_email
+    for ref in payload.references:
+        token = secrets.token_urlsafe(24)
+        await db.reference_checks.insert_one({
+            "id": new_id(),
+            "token": token,
+            "talent_id": user["id"],
+            "talent_name": user.get("name"),
+            "ref_name": ref.name,
+            "ref_email": ref.email.lower(),
+            "ref_relationship": ref.relationship,
+            "ref_company": ref.company or "",
+            "status": "sent",
+            "response": None,
+            "note": None,
+            "sent_at": now().isoformat(),
+        })
+        try:
+            check_url = f"{base}/reference-check?token={token}"
+            html = _reference_check_html(
+                ref_name=ref.name, talent_name=user.get("name") or "the applicant",
+                relationship=ref.relationship, check_url=check_url,
+            )
+            await send_email(
+                to=ref.email,
+                subject=f"Quick reference check for {user.get('name')} — Job Atlas",
+                html=html,
+            )
+        except Exception:
+            pass
+    return {"ok": True, "status": "pending",
+            "references_notified": len(payload.references)}
+
+
+def _reference_check_html(*, ref_name: str, talent_name: str,
+                           relationship: str, check_url: str) -> str:
+    first = (ref_name or "there").split()[0]
+    return f"""<!doctype html>
+<html><body style="margin:0;padding:0;background:#FAF9F6;font-family:Georgia,serif;color:#0B1B2B;">
+<div style="max-width:540px;margin:0 auto;background:#fff;border:1px solid #ddd;padding:32px;">
+  <p style="letter-spacing:.2em;font-size:11px;color:#C79A3B;margin:0 0 8px">JOB ATLAS · REFERENCE CHECK</p>
+  <h1 style="font-size:20px;margin:0 0 12px">Hi {first},</h1>
+  <p style="font-size:14px;line-height:1.5;margin:0 0 12px">
+    <b>{talent_name}</b> listed you as a reference on Job Atlas as a <b>{relationship}</b>.
+    Would you take 30 seconds to confirm?
+  </p>
+  <p style="margin:24px 0 8px"><a href="{check_url}" style="background:#0B1B2B;color:#fff;padding:12px 20px;text-decoration:none;display:inline-block">Answer one question →</a></p>
+  <p style="font-size:11px;color:#999;margin-top:12px">This link is private to you and expires in 14 days. If you don&apos;t recognise {talent_name}, click the link and hit &quot;No&quot; — we&apos;ll follow up.</p>
+</div></body></html>"""
+
+
+@api.get("/reference-check/{token}")
+async def reference_check_get(token: str):
+    """Public endpoint used by the reference-check landing page."""
+    doc = await db.reference_checks.find_one({"token": token}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Reference link not found or expired")
+    # Never expose talent internal ID — only public-safe fields
+    return {
+        "id": doc["id"],
+        "talent_name": doc.get("talent_name"),
+        "ref_name": doc.get("ref_name"),
+        "ref_relationship": doc.get("ref_relationship"),
+        "ref_company": doc.get("ref_company"),
+        "status": doc.get("status"),
+        "already_answered": doc.get("response") is not None,
+    }
+
+
+class ReferenceCheckResponseIn(BaseModel):
+    response: str    # "yes" | "no" | "partial"
+    note: Optional[str] = ""
+
+
+@api.post("/reference-check/{token}")
+async def reference_check_post(token: str, payload: ReferenceCheckResponseIn):
+    if payload.response not in ("yes", "no", "partial"):
+        raise HTTPException(400, "response must be yes|no|partial")
+    doc = await db.reference_checks.find_one({"token": token})
+    if not doc:
+        raise HTTPException(404, "Reference link not found or expired")
+    if doc.get("response") is not None:
+        return {"ok": True, "already_answered": True}
+    await db.reference_checks.update_one(
+        {"token": token},
+        {"$set": {"response": payload.response,
+                  "note": (payload.note or "")[:500],
+                  "status": "answered",
+                  "answered_at": now().isoformat()}},
+    )
+    return {"ok": True, "response": payload.response}
+
+
+@api.get("/admin/reference-checks/{talent_id}")
+async def admin_list_reference_checks(talent_id: str, user: dict = Depends(get_current_user)):
+    """Ops uses this to see which references have replied before deciding to
+    approve BGV. Requires moderation or support scope."""
+    from deps import has_admin_scope
+    if not (has_admin_scope(user, "moderation") or has_admin_scope(user, "support")):
+        raise HTTPException(403, "Requires moderation or support scope")
+    items = await db.reference_checks.find(
+        {"talent_id": talent_id}, {"_id": 0, "token": 0},
+    ).sort("sent_at", -1).to_list(50)
+    return {"items": items, "count": len(items),
+            "answered": sum(1 for i in items if i.get("response") is not None)}
 
 
 @api.get("/verification/me")

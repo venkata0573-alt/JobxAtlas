@@ -967,6 +967,88 @@ class BillingSetupIn(BaseModel):
     payment_method_id: str
 
 
+class SetupCheckoutIn(BaseModel):
+    origin_url: str
+
+
+@api.post("/billing/setup-checkout")
+async def create_setup_checkout(payload: SetupCheckoutIn,
+                                 user: dict = Depends(get_current_user)):
+    """Create a Stripe hosted checkout session in `setup` mode so employers can
+    save a card themselves. On return, /billing/setup-checkout/status finalises
+    the attach + sets it as the default PaymentMethod."""
+    import os, stripe
+    if user.get("role") != "employer":
+        raise HTTPException(403, "Employers only")
+    stripe_key = os.environ.get("STRIPE_SECRET_KEY")
+    if not stripe_key:
+        raise HTTPException(500, "Stripe is not configured")
+    stripe.api_key = stripe_key
+    # Ensure a Stripe customer exists
+    cust_id = user.get("stripe_customer_id")
+    if not cust_id:
+        try:
+            cust = stripe.Customer.create(email=user.get("email"), name=user.get("name"),
+                                           metadata={"user_id": user["id"]})
+            cust_id = cust.id
+            await db.users.update_one({"id": user["id"]},
+                                       {"$set": {"stripe_customer_id": cust_id}})
+        except Exception as e:
+            raise HTTPException(400, f"Stripe customer create failed: {str(e)[:200]}")
+    origin = (payload.origin_url or "").rstrip("/")
+    try:
+        session = stripe.checkout.Session.create(
+            mode="setup",
+            customer=cust_id,
+            payment_method_types=["card"],
+            success_url=f"{origin}/invoices?setup={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{origin}/invoices?setup_cancel=1",
+            metadata={"kind": "card_setup", "user_id": user["id"]},
+        )
+    except Exception as e:
+        raise HTTPException(400, f"Stripe error: {str(e)[:200]}")
+    return {"checkout_url": session.url, "session_id": session.id}
+
+
+@api.get("/billing/setup-checkout/status/{session_id}")
+async def setup_checkout_status(session_id: str, user: dict = Depends(get_current_user)):
+    """Called by the frontend after the Stripe setup redirect. Reads the
+    SetupIntent, attaches the resulting PaymentMethod and makes it default."""
+    import os, stripe
+    if user.get("role") != "employer":
+        raise HTTPException(403, "Employers only")
+    stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or ""
+    if not stripe.api_key:
+        raise HTTPException(500, "Stripe is not configured")
+    try:
+        s = stripe.checkout.Session.retrieve(session_id)
+        if (s.metadata or {}).get("user_id") != user["id"]:
+            raise HTTPException(403, "Not your setup session")
+        setup_intent_id = s.setup_intent
+        if not setup_intent_id:
+            return {"ok": False, "reason": "no_setup_intent"}
+        si = stripe.SetupIntent.retrieve(setup_intent_id)
+        pm_id = si.payment_method
+        if not pm_id or si.status != "succeeded":
+            return {"ok": False, "reason": f"setup_status:{si.status}"}
+        cust_id = s.customer
+        stripe.Customer.modify(
+            cust_id,
+            invoice_settings={"default_payment_method": pm_id},
+        )
+        await db.users.update_one(
+            {"id": user["id"]},
+            {"$set": {"stripe_payment_method_id": pm_id,
+                      "stripe_customer_id": cust_id,
+                      "billing_attached_at": now().isoformat()}},
+        )
+        return {"ok": True, "payment_method_id": pm_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, f"Stripe error: {str(e)[:200]}")
+
+
 @api.post("/billing/setup")
 async def attach_payment_method(payload: BillingSetupIn, user: dict = Depends(get_current_user)):
     """Employer attaches (or replaces) their default Stripe PaymentMethod that

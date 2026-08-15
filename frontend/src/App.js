@@ -35,6 +35,7 @@ import ProjectWorkspace from "@/pages/ProjectWorkspace";
 import Invoices from "@/pages/Invoices";
 import VerifyEmail from "@/pages/VerifyEmail";
 import Verification from "@/pages/Verification";
+import ReferenceCheck from "@/pages/ReferenceCheck";
 
 function App() {
   return (
@@ -58,6 +59,7 @@ function App() {
             <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/verify" element={<ProtectedRoute><Verification /></ProtectedRoute>} />
+            <Route path="/reference-check" element={<ReferenceCheck />} />
             <Route path="/payment/success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
             <Route path="/payment/cancel" element={<ProtectedRoute><PaymentCancel /></ProtectedRoute>} />
             <Route path="/engagement/:id" element={<ProtectedRoute><EngagementDetail /></ProtectedRoute>} />
