@@ -2,7 +2,7 @@
 PUT /profile, POST /profile/suggest-rate."""
 import os, secrets
 from typing import Any, Dict, List, Optional
-from fastapi import Depends, HTTPException, Response
+from fastapi import Depends, HTTPException, Response, Request
 from pydantic import BaseModel, EmailStr
 
 from deps import (
@@ -652,6 +652,235 @@ async def public_trust_timeseries_details(series: str = "refs"):
             "window_start": start_iso, "as_of": now.isoformat()}
 
 
+# ---------- Drill-through PDF export (signed) ----------
+def _drill_signature(items: List[Dict[str, Any]], series: str, ts: str) -> str:
+    """Deterministic SHA-256 of the rendered rows. Any tamper of the visible
+    text changes the hash, which the /verify-drill endpoint detects."""
+    import hashlib, json as _json
+    canonical = _json.dumps(
+        {"series": series, "ts": ts, "items": items},
+        sort_keys=True, separators=(",", ":"),
+    ).encode()
+    salt = os.environ.get("DRILL_SIGN_SECRET", "jobatlas-drill-v1").encode()
+    return hashlib.sha256(salt + canonical).hexdigest()
+
+
+@api.get("/trust/timeseries/details/pdf")
+async def public_trust_timeseries_pdf(series: str = "refs", q: str = "", request: Request = None):
+    """Signed PDF of the (optionally filtered) drill-through list. Anyone can
+    verify authenticity by scanning the QR code or hitting
+    `POST /api/trust/verify-drill` with the hash + payload.
+    """
+    from datetime import datetime as _dt, timezone as _tz
+    from fastapi.responses import Response as _R
+
+    # Resolve the public base URL so the QR is scannable outside the network.
+    base_url = os.environ.get("PUBLIC_BASE_URL", "")
+    if not base_url and isinstance(request, Request):
+        proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+        if host:
+            base_url = f"{proto}://{host}"
+
+    # Reuse the JSON endpoint's logic to keep behavior in sync.
+    payload = await public_trust_timeseries_details(series=series)
+    items = payload.get("items", [])
+    # Apply the same search filter the client did — so the PDF matches what
+    # the user is looking at.
+    needle = (q or "").strip().lower()
+    if needle:
+        items = [it for it in items if
+                 needle in (it.get("primary") or "").lower() or
+                 needle in (it.get("secondary") or "").lower() or
+                 needle in (it.get("chip") or "").lower() or
+                 needle in (it.get("date") or "")]
+
+    ts = _dt.now(_tz.utc).isoformat()
+    sig = _drill_signature(items, series, ts)
+
+    # Persist a receipt so /verify-drill can look up authenticity even years later.
+    await db.drill_receipts.insert_one({
+        "id": new_id(), "signature": sig, "series": series,
+        "q": needle, "count": len(items), "ts": ts,
+        "created_at": ts,
+    })
+
+    pdf_bytes = _render_drill_pdf(series=series, q=needle, items=items,
+                                  ts=ts, signature=sig, base_url=base_url)
+    fname = f"jobatlas-trust-{series}-{ts[:10]}.pdf"
+    return _R(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"',
+                 "X-Drill-Signature": sig},
+    )
+
+
+class DrillVerifyIn(BaseModel):
+    signature: str
+    series: str
+    ts: str
+    items: List[Dict[str, Any]]
+
+
+@api.post("/trust/verify-drill")
+async def public_verify_drill(payload: DrillVerifyIn):
+    """Return authentic ✓ if the (signature, series, ts, items) triplet
+    matches what we would generate now. Also checks the receipt log."""
+    expected = _drill_signature(payload.items, payload.series, payload.ts)
+    match = (expected == payload.signature)
+    receipt = await db.drill_receipts.find_one(
+        {"signature": payload.signature}, {"_id": 0, "signature": 1, "series": 1, "ts": 1, "count": 1}
+    )
+    return {
+        "authentic": bool(match),
+        "expected_signature": expected,
+        "receipt_found": bool(receipt),
+        "receipt": receipt,
+    }
+
+
+@api.get("/trust/verify-drill/{signature}")
+async def public_verify_drill_lookup(signature: str):
+    """Simple lookup landing hit by the QR code — confirms the receipt exists.
+    A full tamper-check requires re-posting the items to /trust/verify-drill.
+    """
+    r = await db.drill_receipts.find_one(
+        {"signature": signature},
+        {"_id": 0, "signature": 1, "series": 1, "ts": 1, "count": 1, "q": 1},
+    )
+    return {"receipt_found": bool(r), "receipt": r}
+
+
+def _render_drill_pdf(*, series: str, q: str, items: List[Dict[str, Any]],
+                      ts: str, signature: str, base_url: str = "") -> bytes:
+    """Branded PDF: Job Atlas header, drill metadata, day-grouped anonymised
+    rows, QR code + SHA-256 signature footer for third-party verification."""
+    import io, base64
+    import qrcode
+    from reportlab.lib.pagesizes import LETTER
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.pdfgen import canvas as _canvas
+    from reportlab.lib.utils import ImageReader
+
+    VIOLET = colors.HexColor("#6B21A8")
+    INK = colors.HexColor("#0B1B2B")
+    VIOLET_50 = colors.HexColor("#F5F3FF")
+    MUTED = colors.HexColor("#6B6B6B")
+
+    buf = io.BytesIO()
+    c = _canvas.Canvas(buf, pagesize=LETTER)
+    W, H = LETTER
+    _base_url = base_url  # closure-visible alias so ruff resolves the reference
+
+    def _header(page_num: int):
+        # Ink band
+        c.setFillColor(INK)
+        c.rect(0, H - 0.9 * inch, W, 0.9 * inch, stroke=0, fill=1)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(0.6 * inch, H - 0.55 * inch, "Job Atlas · Trust")
+        c.setFillColor(VIOLET)
+        c.setFont("Helvetica", 9)
+        c.drawString(0.6 * inch, H - 0.75 * inch,
+                     f"DRILL-THROUGH · {series.upper().replace('_', ' ')}")
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica", 8)
+        c.drawRightString(W - 0.6 * inch, H - 0.55 * inch,
+                          f"Generated {ts[:19].replace('T', ' ')} UTC")
+        c.drawRightString(W - 0.6 * inch, H - 0.75 * inch, f"Page {page_num}")
+
+    def _footer(page_num: int):
+        # QR + signature strip
+        y = 0.55 * inch
+        c.setStrokeColor(colors.HexColor("#e5e7eb"))
+        c.line(0.6 * inch, y + 0.75 * inch, W - 0.6 * inch, y + 0.75 * inch)
+
+        # QR code linking to verify endpoint
+        verify_url = f"{_base_url}/api/trust/verify-drill/{signature}" if _base_url else f"/api/trust/verify-drill/{signature}"
+        qr = qrcode.QRCode(version=1, box_size=6, border=1)
+        qr.add_data(verify_url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="#0B1B2B", back_color="white")
+        img_buf = io.BytesIO()
+        img.save(img_buf, format="PNG")
+        img_buf.seek(0)
+        c.drawImage(ImageReader(img_buf), 0.6 * inch, y - 0.05 * inch, width=0.75 * inch, height=0.75 * inch)
+
+        c.setFillColor(MUTED)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(1.5 * inch, y + 0.6 * inch, "Signature · SHA-256")
+        c.setFillColor(INK)
+        c.setFont("Courier", 7)
+        # Chunk signature so it wraps neatly
+        sig1 = signature[:44]
+        sig2 = signature[44:]
+        c.drawString(1.5 * inch, y + 0.45 * inch, sig1)
+        c.drawString(1.5 * inch, y + 0.32 * inch, sig2)
+        c.setFillColor(MUTED)
+        c.setFont("Helvetica", 7)
+        c.drawString(1.5 * inch, y + 0.15 * inch,
+                     "Scan the QR or POST /api/trust/verify-drill to verify this document.")
+        c.drawString(1.5 * inch, y + 0.03 * inch,
+                     "Any edit to the text above invalidates the signature.")
+
+    page = 1
+    _header(page)
+    y = H - 1.15 * inch
+
+    # Metadata box
+    c.setFillColor(VIOLET_50); c.rect(0.6 * inch, y - 0.7 * inch, W - 1.2 * inch, 0.65 * inch, stroke=0, fill=1)
+    c.setFillColor(INK); c.setFont("Helvetica-Bold", 10)
+    c.drawString(0.75 * inch, y - 0.15 * inch, f"Series · {series.replace('_', ' ').title()}")
+    c.setFillColor(MUTED); c.setFont("Helvetica", 9)
+    c.drawString(0.75 * inch, y - 0.35 * inch, f"Rows · {len(items)}   Filter · {q or '(none)'}   Window · last 30 days")
+    c.drawString(0.75 * inch, y - 0.52 * inch, "All names are anonymised to initials. This PDF is safe to share externally.")
+
+    y -= 1.05 * inch
+
+    # Group by day
+    by_day: Dict[str, List[Dict[str, Any]]] = {}
+    for it in items:
+        by_day.setdefault(it.get("date") or "—", []).append(it)
+    days = sorted(by_day.keys(), reverse=True)
+
+    if not items:
+        c.setFillColor(MUTED); c.setFont("Helvetica-Oblique", 11)
+        c.drawString(0.75 * inch, y, "No matching rows in the last 30 days.")
+        _footer(page); c.showPage(); c.save()
+        return buf.getvalue()
+
+    for day in days:
+        # Day header
+        if y < 1.6 * inch:
+            _footer(page); c.showPage(); page += 1; _header(page); y = H - 1.15 * inch
+        c.setFillColor(VIOLET); c.setFont("Helvetica-Bold", 10)
+        c.drawString(0.6 * inch, y, day)
+        c.setFillColor(MUTED); c.setFont("Helvetica", 8)
+        c.drawRightString(W - 0.6 * inch, y, f"{len(by_day[day])} row(s)")
+        y -= 0.18 * inch
+
+        for it in by_day[day]:
+            if y < 1.5 * inch:
+                _footer(page); c.showPage(); page += 1; _header(page); y = H - 1.15 * inch
+            c.setStrokeColor(colors.HexColor("#e5e7eb"))
+            c.setFillColor(colors.white)
+            c.rect(0.6 * inch, y - 0.32 * inch, W - 1.2 * inch, 0.34 * inch, stroke=1, fill=0)
+            c.setFillColor(INK); c.setFont("Helvetica-Bold", 10)
+            c.drawString(0.75 * inch, y - 0.1 * inch, (it.get("primary") or "—")[:70])
+            c.setFillColor(MUTED); c.setFont("Helvetica", 8)
+            c.drawString(0.75 * inch, y - 0.24 * inch, (it.get("secondary") or "")[:100])
+            c.setFillColor(VIOLET); c.setFont("Helvetica-Bold", 8)
+            c.drawRightString(W - 0.75 * inch, y - 0.16 * inch, (it.get("chip") or "").upper())
+            y -= 0.4 * inch
+
+        y -= 0.1 * inch
+
+    _footer(page); c.showPage(); c.save()
+    return buf.getvalue()
+
+
 @api.get("/admin/reference-checks/{talent_id}")
 async def admin_list_reference_checks(talent_id: str, user: dict = Depends(get_current_user)):
     """Ops uses this to see which references have replied before deciding to
@@ -832,4 +1061,123 @@ async def push_lead_to_crm(payload: CrmPushLeadIn, user: dict = Depends(get_curr
         raise
     except Exception as e:
         raise HTTPException(400, f"Push failed: {str(e)[:200]}")
+
+
+# ---------- CRM nightly sync ----------
+async def _sync_shortlists_to_crm(*, user_id: Optional[str] = None,
+                                   provider_filter: Optional[str] = None,
+                                   trigger: str = "cron") -> Dict[str, Any]:
+    """For every employer with a connected CRM, push shortlist rows added
+    since their `last_sync_at` (per provider). Deduped via db.crm_sync_log.
+
+    Returns aggregate counts. `user_id` scopes to a single employer for the
+    manual `/sync-now` endpoint. Curated demo talents are skipped — they have
+    no real email or contact so a CRM push is meaningless.
+    """
+    q: Dict[str, Any] = {}
+    if user_id:
+        q["user_id"] = user_id
+    if provider_filter:
+        q["provider"] = provider_filter
+    integrations = await db.crm_integrations.find(q).to_list(500)
+
+    started = now().isoformat()
+    pushed_total = 0
+    skipped_total = 0
+    failed_total = 0
+    per_conn: List[Dict[str, Any]] = []
+
+    for intg in integrations:
+        uid = intg["user_id"]
+        prov = intg["provider"]
+        if prov not in ("hubspot", "salesforce"):
+            continue  # only push-capable providers
+        last_sync = intg.get("last_sync_at") or "1970-01-01T00:00:00+00:00"
+
+        # New shortlist rows since last_sync
+        rows = await db.shortlists.find(
+            {"employer_id": uid, "created_at": {"$gt": last_sync}, "is_curated": {"$ne": True}},
+        ).sort("created_at", 1).to_list(500)
+
+        pushed = 0
+        skipped = 0
+        failed = 0
+        for row in rows:
+            tid = row.get("talent_id")
+            # Idempotency: skip if already logged
+            existing = await db.crm_sync_log.find_one({
+                "user_id": uid, "provider": prov, "talent_id": tid, "status": "pushed"
+            })
+            if existing:
+                skipped += 1
+                continue
+            try:
+                push_payload = CrmPushLeadIn(
+                    provider=prov,
+                    talent_id=tid or "",
+                    talent_name=row.get("talent_name") or "",
+                    email=row.get("email") or "",
+                    note=f"Auto-sync from Job Atlas shortlist · rate ${row.get('hourly_rate', '?')}/hr",
+                )
+                # Reconstruct a minimal fake user dict so push_lead_to_crm's
+                # scope check passes.
+                fake_user = {"id": uid, "role": "employer"}
+                res = await push_lead_to_crm(push_payload, user=fake_user)
+                await db.crm_sync_log.insert_one({
+                    "id": new_id(), "user_id": uid, "provider": prov,
+                    "talent_id": tid, "external_id": res.get("external_id"),
+                    "status": "pushed", "at": now().isoformat(), "trigger": trigger,
+                })
+                pushed += 1
+            except HTTPException as he:
+                failed += 1
+                await db.crm_sync_log.insert_one({
+                    "id": new_id(), "user_id": uid, "provider": prov,
+                    "talent_id": tid, "status": "failed",
+                    "error": str(he.detail)[:300], "at": now().isoformat(), "trigger": trigger,
+                })
+            except Exception as e:  # noqa: BLE001
+                failed += 1
+                await db.crm_sync_log.insert_one({
+                    "id": new_id(), "user_id": uid, "provider": prov,
+                    "talent_id": tid, "status": "failed",
+                    "error": str(e)[:300], "at": now().isoformat(), "trigger": trigger,
+                })
+
+        # Advance the watermark even if some rows failed — retry surfaces via /sync-log
+        await db.crm_integrations.update_one(
+            {"user_id": uid, "provider": prov},
+            {"$set": {"last_sync_at": started, "last_sync_trigger": trigger,
+                      "last_sync_result": {"pushed": pushed, "skipped": skipped, "failed": failed}}},
+        )
+        pushed_total += pushed
+        skipped_total += skipped
+        failed_total += failed
+        per_conn.append({
+            "user_id": uid, "provider": prov,
+            "pushed": pushed, "skipped": skipped, "failed": failed,
+        })
+
+    return {"started_at": started, "connections": len(integrations),
+            "pushed": pushed_total, "skipped": skipped_total, "failed": failed_total,
+            "detail": per_conn, "trigger": trigger}
+
+
+@api.post("/integrations/crm/sync-now")
+async def sync_crm_now(user: dict = Depends(get_current_user)):
+    """Manual CRM sync for the current employer. Runs the same routine the
+    nightly cron uses, but scoped to the caller."""
+    if user.get("role") not in ("employer", "admin"):
+        raise HTTPException(403, "Employers only")
+    return await _sync_shortlists_to_crm(user_id=user["id"], trigger="manual")
+
+
+@api.get("/integrations/crm/sync-log")
+async def list_crm_sync_log(user: dict = Depends(get_current_user), limit: int = 50):
+    """Recent sync entries for the current employer — powers the UI 'last sync'
+    strip. Returns newest first."""
+    items = await db.crm_sync_log.find(
+        {"user_id": user["id"]}, {"_id": 0},
+    ).sort("at", -1).to_list(min(max(limit, 1), 200))
+    return {"items": items, "count": len(items)}
 

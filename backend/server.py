@@ -224,6 +224,7 @@ import routes.auth  # noqa: E402,F401  (registers endpoints via decorators)
 import routes.admin  # noqa: E402,F401  (registers /admin/* endpoints)
 import routes.marketplace  # noqa: E402,F401  (SEO + marketplace stats + sitemap)
 import routes.projects  # noqa: E402,F401  (project workspace + milestones)
+import routes.revisions  # noqa: E402,F401  (deliverable revision workflow)
 
 
 # ---------- Browse Talent (public listing but contact hidden) ----------
@@ -296,11 +297,21 @@ async def list_talent(q: Optional[str] = None, skill: Optional[str] = None,
         avg_rating = float(rating_info.get("avg") or 0)
         u["completed_engagements"] = completed
         u["avg_rating"] = round(avg_rating, 2)
-        u["is_trusted_partner"] = completed >= 5 and avg_rating >= 4.5
-    # Default sort: Trusted Partners first, then verified, then by years experience desc.
+        # Revision penalties (from routes/revisions.py). Excessive-revisions
+        # revokes Trusted-Partner and demotes the row in the sort.
+        u["under_review"] = bool(profile.get("under_review"))
+        u["excessive_revisions"] = bool(profile.get("excessive_revisions"))
+        u["visibility_score"] = int(profile.get("visibility_score") or 100)
+        u["is_trusted_partner"] = (
+            completed >= 5 and avg_rating >= 4.5 and not u["excessive_revisions"]
+        )
+    # Default sort: Trusted Partners first, then verified, then by visibility_score,
+    # then years experience desc. Excessive-revisions talents sink to the bottom.
     items.sort(key=lambda x: (
+        x.get("excessive_revisions") or False,
         not x.get("is_trusted_partner"),
         not x.get("is_verified"),
+        -int(x.get("visibility_score") or 100),
         -int((x.get("profile") or {}).get("years_experience") or 0),
     ))
     return items
@@ -2784,6 +2795,28 @@ async def startup():
             _daily_overdue_job,
             CronTrigger(hour=8, minute=0),
             id="daily_overdue_invoice_scan",
+            replace_existing=True,
+            misfire_grace_time=3600,
+        )
+
+        # Daily 02:00 UTC — push new shortlist rows to every connected CRM.
+        async def _daily_crm_sync_job():
+            logger.info("[scheduler] nightly CRM sync starting")
+            try:
+                from routes.auth import _sync_shortlists_to_crm
+                r = await _sync_shortlists_to_crm(trigger="cron")
+                logger.info(f"[scheduler] nightly CRM sync done: {r}")
+                await db.job_runs.insert_one({
+                    "id": new_id(), "job": "nightly_crm_sync",
+                    "at": now().isoformat(), "result": r,
+                })
+            except Exception as e:
+                logger.exception(f"[scheduler] nightly CRM sync failed: {e}")
+
+        _scheduler.add_job(
+            _daily_crm_sync_job,
+            CronTrigger(hour=2, minute=0),
+            id="nightly_crm_sync",
             replace_existing=True,
             misfire_grace_time=3600,
         )

@@ -112,6 +112,13 @@ export default function BrowseTalent() {
                     ★ TRUSTED PARTNER
                   </div>
                 )}
+                {t.excessive_revisions && (
+                  <div className="absolute -top-3 left-4 bg-red-100 text-red-800 px-3 py-1 hard-border border-red-300 text-[10px] font-mono tracking-widest z-10"
+                       data-testid={`excessive-revisions-${t.id}`}
+                       title="This talent has accumulated 5+ revisions on a single deliverable.">
+                    ⚠ REVISION HISTORY
+                  </div>
+                )}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-start gap-3 min-w-0">
                     {t.profile?.avatar_url ? (

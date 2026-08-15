@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import api from "@/lib/api";
-import { ShieldCheck, Buildings, UserCheck, ChatCircleText, Handshake, MagnifyingGlass, X } from "@phosphor-icons/react";
+import { ShieldCheck, Buildings, UserCheck, ChatCircleText, Handshake, MagnifyingGlass, X, DownloadSimple } from "@phosphor-icons/react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
 const VIOLET = "#6B21A8";
@@ -243,11 +243,20 @@ function DrillModal({ drill, onClose, series }) {
               </button>
             )}
           </div>
-          {items && (
-            <p className="text-[10px] font-mono text-neutral-500 mt-2 tracking-widest uppercase">
-              {(filtered?.length ?? 0)} match{(filtered?.length ?? 0) === 1 ? "" : "es"} · {items.length} total
-            </p>
-          )}
+          <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
+            {items && (
+              <p className="text-[10px] font-mono text-neutral-500 tracking-widest uppercase">
+                {(filtered?.length ?? 0)} match{(filtered?.length ?? 0) === 1 ? "" : "es"} · {items.length} total
+              </p>
+            )}
+            <a
+              href={`${process.env.REACT_APP_BACKEND_URL}/api/trust/timeseries/details/pdf?series=${encodeURIComponent(drill.key)}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+              target="_blank" rel="noreferrer noopener"
+              className="inline-flex items-center gap-2 text-[11px] font-mono tracking-widest uppercase text-[#6B21A8] hover:text-[#0B1B2B] border border-[#6B21A8] px-2 py-1"
+              data-testid="drill-download-pdf">
+              <DownloadSimple size={12} weight="bold"/> Download signed PDF
+            </a>
+          </div>
         </div>
 
         {/* Body */}

@@ -4,7 +4,7 @@ import api, { formatErr } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { TID } from "@/constants/testIds";
-import { WarningOctagon, CheckCircle, Star, ArrowUp } from "@phosphor-icons/react";
+import { WarningOctagon, CheckCircle, Star, ArrowUp, ArrowsCounterClockwise, Gavel, X } from "@phosphor-icons/react";
 import EngagementChat from "@/components/EngagementChat";
 
 const Rating = ({ v, onChange, disabled }) => (
@@ -328,17 +328,19 @@ export default function EngagementDetail() {
                       <p className="text-xs text-neutral-500 mt-2 font-mono">{d.hours_claimed}h · {new Date(d.submitted_at).toLocaleString()}</p>
                     </div>
                     <div className="text-right flex flex-col items-end gap-2">
-                      <span className="hard-border px-2 py-1 text-xs uppercase">{d.status}</span>
-                      {isEmployer && d.status === "submitted" && (
-                        <div className="flex gap-2">
+                      <span className="hard-border px-2 py-1 text-xs uppercase">{d.status.replace(/_/g, " ")}</span>
+                      {isEmployer && (d.status === "submitted" || d.status === "revision_resubmitted") && (
+                        <div className="flex gap-2 flex-wrap justify-end">
                           <button onClick={() => actDeliverable(d.id, "approve")} className="btn-primary text-xs px-3 py-2"
                                   data-testid={TID.deliverableApprove(d.id)}>Approve</button>
+                          <RevisionRequestButton deliverableId={d.id} onDone={load}/>
                           <button onClick={() => actDeliverable(d.id, "reject")} className="btn-outline text-xs px-3 py-2"
                                   data-testid={TID.deliverableReject(d.id)}>Reject</button>
                         </div>
                       )}
                     </div>
                   </div>
+                  <RevisionThread deliverable={d} user={user} onChange={load}/>
                 </div>
               ))}
             </div>
@@ -368,5 +370,262 @@ export default function EngagementDetail() {
 
       {canWork && <EngagementChat engagementId={eng.id}/>}
     </main>
+  );
+}
+
+
+// ---------- Revision workflow components ----------
+function RevisionRequestButton({ deliverableId, onDone }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [priority, setPriority] = useState("minor");
+  const [attachment, setAttachment] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (text.trim().length < 20) return toast.error("Please give at least a 20-character justification.");
+    setSaving(true);
+    try {
+      const r = await api.post(`/deliverables/${deliverableId}/request-revision`, {
+        justification: text.trim(), priority, attachment_url: attachment.trim(),
+      });
+      toast.success(`Revision #${r.data.revision_count} requested`);
+      setOpen(false); setText(""); setPriority("minor"); setAttachment("");
+      onDone && onDone();
+    } catch (err) { toast.error(formatErr(err)); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}
+              data-testid={`request-revision-${deliverableId}`}
+              className="hard-border bg-white text-[#6B21A8] hover:bg-[#F5F3FF] text-xs px-3 py-2 inline-flex items-center gap-1">
+        <ArrowsCounterClockwise size={12} weight="bold"/> Request revision
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+             onClick={() => !saving && setOpen(false)} data-testid="revision-modal">
+          <form onSubmit={submit} onClick={(e) => e.stopPropagation()}
+                className="hard-border bg-white max-w-lg w-full p-6 shadow-brutal-lg relative">
+            <button type="button" onClick={() => setOpen(false)} className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700">
+              <X size={18}/>
+            </button>
+            <p className="overline text-[#6B21A8]">REQUEST REVISION</p>
+            <h3 className="font-display font-black text-2xl tracking-tight mt-1">What needs to change?</h3>
+            <p className="text-xs text-neutral-500 mt-1">
+              Your justification is recorded and shared with the talent and Job Atlas admins.
+              Excessive revisions may be reviewed against you.
+            </p>
+
+            <label className="overline block mt-5 mb-1">Justification (min 20 chars)</label>
+            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4}
+                      minLength={20} maxLength={2000} required
+                      data-testid="revision-justification"
+                      placeholder="Be specific: which section needs work, and how does it fall short of the brief?"
+                      className="w-full hard-border px-3 py-2 text-sm focus:outline-none focus:border-[#6B21A8]"/>
+            <p className="text-[10px] font-mono text-neutral-500 mt-1 text-right">{text.length}/2000</p>
+
+            <label className="overline block mt-4 mb-2">Priority</label>
+            <div className="grid grid-cols-3 gap-2">
+              {["minor", "major", "blocking"].map((p) => (
+                <button key={p} type="button" onClick={() => setPriority(p)}
+                        data-testid={`revision-priority-${p}`}
+                        className={`hard-border px-3 py-2 text-xs capitalize ${priority === p ? "bg-[#0B1B2B] text-white" : "bg-white"}`}>
+                  {p}
+                </button>
+              ))}
+            </div>
+
+            <label className="overline block mt-4 mb-1">Reference URL (optional)</label>
+            <input value={attachment} onChange={(e) => setAttachment(e.target.value)} type="url"
+                   data-testid="revision-attachment" placeholder="https://…"
+                   className="w-full hard-border px-3 py-2 text-sm font-mono focus:outline-none focus:border-[#6B21A8]"/>
+
+            <div className="flex gap-3 mt-6">
+              <button type="submit" disabled={saving} className="btn-primary text-sm" data-testid="revision-submit">
+                {saving ? "Sending…" : "Send revision request"}
+              </button>
+              <button type="button" onClick={() => setOpen(false)} className="btn-outline text-sm">Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </>
+  );
+}
+
+function RevisionThread({ deliverable, user, onChange }) {
+  const [data, setData] = useState(null);
+  const [expanded, setExpanded] = useState(false);
+  const [resubmitOpen, setResubmitOpen] = useState(false);
+  const [rLink, setRLink] = useState("");
+  const [rHours, setRHours] = useState(1);
+  const [rNotes, setRNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [disputeOpen, setDisputeOpen] = useState(false);
+  const [dReason, setDReason] = useState("");
+
+  const load = async () => {
+    try {
+      const r = await api.get(`/deliverables/${deliverable.id}/revisions`);
+      setData(r.data);
+    } catch { /* silent — non-parties get 403 */ }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [deliverable.id, deliverable.status, deliverable.revision_count]);
+
+  if (!data || data.items.length === 0) return null;
+
+  const isTalent = user?.id === deliverable.talent_id;
+  const showResubmit = isTalent && deliverable.status === "revision_requested";
+  const showDispute = isTalent && data.dispute_available;
+
+  const submitResubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.post(`/deliverables/${deliverable.id}/resubmit`, {
+        link: rLink.trim(), hours_claimed: Number(rHours), notes: rNotes.trim(),
+      });
+      toast.success("Resubmitted for review");
+      setResubmitOpen(false); setRLink(""); setRHours(1); setRNotes("");
+      onChange && onChange();
+    } catch (err) { toast.error(formatErr(err)); }
+    finally { setSaving(false); }
+  };
+
+  const submitDispute = async (e) => {
+    e.preventDefault();
+    if (dReason.trim().length < 20) return toast.error("Give at least a 20-char reason.");
+    if (!window.confirm(
+      `Raise a formal dispute?\n\nA $${data.dispute_fee_usd} arbitration fee applies to the losing party once Job Atlas rules.`
+    )) return;
+    setSaving(true);
+    try {
+      const r = await api.post(`/deliverables/${deliverable.id}/dispute`, { reason: dReason.trim() });
+      toast.success(`Dispute filed · ref ${r.data.ref}`);
+      setDisputeOpen(false); setDReason("");
+      onChange && onChange();
+    } catch (err) { toast.error(formatErr(err)); }
+    finally { setSaving(false); }
+  };
+
+  const chip = data.revision_count >= data.penalty_threshold
+    ? { bg: "#FEE2E2", text: "#991B1B", label: `🔴 ${data.revision_count} revisions` }
+    : data.revision_count >= data.review_threshold
+      ? { bg: "#FEF9C3", text: "#854D0E", label: `🟡 ${data.revision_count} revisions` }
+      : { bg: "#EDE9FE", text: "#6B21A8", label: `${data.revision_count} revision${data.revision_count === 1 ? "" : "s"}` };
+
+  return (
+    <div className="mt-4 hard-border bg-[#F5F3FF] p-3" data-testid={`revision-thread-${deliverable.id}`}>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <button type="button" onClick={() => setExpanded(!expanded)}
+                data-testid={`revision-toggle-${deliverable.id}`}
+                className="text-xs font-mono uppercase tracking-widest text-[#6B21A8] inline-flex items-center gap-1">
+          {expanded ? "Hide" : "Show"} revision history
+          <span className="px-2 py-0.5 text-[10px]" style={{ background: chip.bg, color: chip.text }}>{chip.label}</span>
+        </button>
+        <div className="flex gap-2 flex-wrap">
+          {showResubmit && (
+            <button type="button" onClick={() => setResubmitOpen(true)}
+                    data-testid={`resubmit-${deliverable.id}`}
+                    className="btn-primary text-xs">Respond &amp; resubmit</button>
+          )}
+          {showDispute && (
+            <button type="button" onClick={() => setDisputeOpen(true)}
+                    data-testid={`dispute-${deliverable.id}`}
+                    className="hard-border bg-white text-[#991B1B] hover:bg-red-50 text-xs px-3 py-2 inline-flex items-center gap-1">
+              <Gavel size={12} weight="bold"/> Raise dispute
+            </button>
+          )}
+        </div>
+      </div>
+
+      {expanded && (
+        <ul className="mt-3 space-y-2" data-testid={`revision-list-${deliverable.id}`}>
+          {data.items.map((r) => (
+            <li key={r.id} className="hard-border bg-white p-3">
+              <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+                <p className="font-display font-extrabold text-sm">Revision #{r.revision_number}
+                  <span className="ml-2 text-[10px] font-mono uppercase tracking-widest text-neutral-500">{r.priority}</span>
+                </p>
+                <p className="text-[10px] font-mono text-neutral-500">
+                  {new Date(r.created_at).toLocaleString()}
+                  {r.resubmitted_at && ` · resubmitted ${new Date(r.resubmitted_at).toLocaleString()}`}
+                </p>
+              </div>
+              <p className="text-xs text-neutral-700 whitespace-pre-wrap">{r.justification}</p>
+              {r.attachment_url && (
+                <a href={r.attachment_url} target="_blank" rel="noreferrer"
+                   className="text-[11px] font-mono underline underline-offset-4 mt-1 inline-block">Reference URL ↗</a>
+              )}
+              {r.status === "resubmitted" && r.resubmit_notes && (
+                <div className="mt-2 pt-2 border-t border-black/10">
+                  <p className="text-[10px] font-mono uppercase tracking-widest text-[#6B21A8]">Talent response</p>
+                  <p className="text-xs text-neutral-700 whitespace-pre-wrap mt-1">{r.resubmit_notes}</p>
+                  {r.resubmit_link && (
+                    <a href={r.resubmit_link} target="_blank" rel="noreferrer"
+                       className="text-[11px] font-mono underline underline-offset-4 mt-1 inline-block">{r.resubmit_link}</a>
+                  )}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {resubmitOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+             onClick={() => !saving && setResubmitOpen(false)} data-testid="resubmit-modal">
+          <form onClick={(e) => e.stopPropagation()} onSubmit={submitResubmit}
+                className="hard-border bg-white max-w-lg w-full p-6 shadow-brutal-lg relative">
+            <button type="button" onClick={() => setResubmitOpen(false)}
+                    className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700"><X size={18}/></button>
+            <p className="overline text-[#6B21A8]">RESUBMIT</p>
+            <h3 className="font-display font-black text-2xl tracking-tight mt-1">Respond to revision</h3>
+            <label className="overline block mt-4 mb-1">Updated link</label>
+            <input value={rLink} onChange={(e) => setRLink(e.target.value)} type="url" required
+                   data-testid="resubmit-link" className="w-full hard-border px-3 py-2 text-sm font-mono focus:outline-none focus:border-[#6B21A8]"/>
+            <label className="overline block mt-3 mb-1">Extra hours claimed</label>
+            <input value={rHours} onChange={(e) => setRHours(e.target.value)} type="number" min="0" step="0.5" required
+                   data-testid="resubmit-hours" className="w-full hard-border px-3 py-2 text-sm font-mono focus:outline-none focus:border-[#6B21A8]"/>
+            <label className="overline block mt-3 mb-1">Notes for the employer</label>
+            <textarea value={rNotes} onChange={(e) => setRNotes(e.target.value)} rows={3}
+                      data-testid="resubmit-notes"
+                      className="w-full hard-border px-3 py-2 text-sm focus:outline-none focus:border-[#6B21A8]"/>
+            <button type="submit" disabled={saving} className="btn-primary text-sm mt-4" data-testid="resubmit-submit">
+              {saving ? "Sending…" : "Resubmit for review"}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {disputeOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+             onClick={() => !saving && setDisputeOpen(false)} data-testid="dispute-modal">
+          <form onClick={(e) => e.stopPropagation()} onSubmit={submitDispute}
+                className="hard-border bg-white max-w-lg w-full p-6 shadow-brutal-lg relative">
+            <button type="button" onClick={() => setDisputeOpen(false)}
+                    className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700"><X size={18}/></button>
+            <p className="overline text-[#991B1B]">RAISE DISPUTE</p>
+            <h3 className="font-display font-black text-2xl tracking-tight mt-1">Escalate to Job Atlas admins</h3>
+            <p className="text-xs text-neutral-500 mt-2">
+              Your revision thread will be attached automatically. A <b>${data.dispute_fee_usd}</b> arbitration fee
+              applies to the losing party once we rule.
+            </p>
+            <label className="overline block mt-4 mb-1">Why is this unfair? (min 20 chars)</label>
+            <textarea value={dReason} onChange={(e) => setDReason(e.target.value)} rows={4}
+                      required minLength={20} data-testid="dispute-reason"
+                      className="w-full hard-border px-3 py-2 text-sm focus:outline-none focus:border-[#991B1B]"/>
+            <button type="submit" disabled={saving}
+                    className="hard-border bg-[#991B1B] text-white px-4 py-2 text-sm mt-4"
+                    data-testid="dispute-submit">
+              {saving ? "Filing…" : "File dispute"}
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
   );
 }

@@ -13,6 +13,7 @@ const TAB_CATALOG = [
   { id: "support",       label: "Support",         Icon: UsersThree,     scope: "support" },
   { id: "leads",         label: "Project Leads",   Icon: Briefcase,      scopes: ["support", "superadmin"] },
   { id: "verifications", label: "Verifications",   Icon: SealCheck,      scopes: ["moderation", "support"] },
+  { id: "revisions",     label: "Revisions",       Icon: ChatCircleText, scope: "moderation" },
   { id: "bank",          label: "Bank Transfers",  Icon: Bank,           scope: "finance" },
   { id: "payouts",       label: "Payouts",         Icon: CurrencyDollar, scope: "finance" },
   { id: "reviews",       label: "Reviews",         Icon: Star,           scope: "moderation" },
@@ -139,6 +140,7 @@ export default function Admin() {
           {tab === "support"       && <SupportPanel/>}
           {tab === "leads"         && <ProjectLeadsPanel scopes={me.effective_scopes}/>}
           {tab === "verifications" && <VerificationsPanel scopes={me.effective_scopes}/>}
+          {tab === "revisions"     && <RevisionsPanel scopes={me.effective_scopes}/>}
           {tab === "staff"         && <StaffPanel selfId={me.id} scopes={me.scopes_catalog}/>}
           {tab === "customization" && <CustomizationPanel/>}
 
@@ -809,6 +811,156 @@ function VerificationsPanel({ scopes }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+
+
+// ---------- Revisions panel (moderation) ----------
+function RevisionsPanel({ scopes }) {
+  const [data, setData] = useState(null);
+  const [flagged, setFlagged] = useState([]);
+  const [ruling, setRuling] = useState({}); // {grievanceId: {choice, notes}}
+
+  const canRule = (scopes || []).includes("moderation") || (scopes || []).includes("superadmin");
+
+  const load = async () => {
+    try {
+      const r = await api.get("/admin/revisions");
+      setData(r.data);
+      const f = await api.get("/admin/employers-flagged");
+      setFlagged(f.data.items || []);
+    } catch (e) { toast.error(formatErr(e)); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const rule = async (gid) => {
+    const state = ruling[gid] || {};
+    if (!state.choice) return toast.error("Pick a ruling first");
+    if ((state.notes || "").trim().length < 10) return toast.error("Add at least a 10-char justification");
+    try {
+      await api.post(`/admin/revisions/${gid}/rule`, { ruling: state.choice, notes: state.notes });
+      toast.success(`Dispute ruled in favour of ${state.choice}`);
+      setRuling((prev) => { const c = { ...prev }; delete c[gid]; return c; });
+      await load();
+    } catch (e) { toast.error(formatErr(e)); }
+  };
+
+  if (!data) return <p className="font-mono text-sm text-neutral-500">Loading revisions…</p>;
+
+  return (
+    <div className="space-y-8" data-testid="admin-revisions-panel">
+      <div className="grid grid-cols-3 gap-3">
+        <StatTile label="Open revisions" value={data.counts.open_revisions}/>
+        <StatTile label="Open disputes"  value={data.disputes.filter((d) => d.status !== "resolved").length}/>
+        <StatTile label="Flagged employers" value={flagged.length}/>
+      </div>
+
+      {/* Disputes queue */}
+      <section>
+        <p className="overline text-[#6B21A8] mb-3">Disputes queue</p>
+        {data.disputes.length === 0 ? (
+          <p className="hard-border bg-white p-5 text-sm text-neutral-500">Nothing to rule on.</p>
+        ) : (
+          <ul className="space-y-3">
+            {data.disputes.map((g) => (
+              <li key={g.id} className="hard-border bg-white p-4 shadow-brutal" data-testid={`admin-dispute-${g.id}`}>
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <p className="font-display font-extrabold text-sm">Ref {g.ref} · {g.revision_thread?.length || 0} revisions</p>
+                    <p className="text-[10px] font-mono text-neutral-500">
+                      Talent {(g.talent_id || "").slice(0,8)} vs Employer {(g.employer_id || "").slice(0,8)} · Filed {new Date(g.created_at).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-neutral-700 mt-2 whitespace-pre-wrap">{g.reason}</p>
+                  </div>
+                  <span className={`hard-border px-2 py-1 text-[10px] font-mono uppercase ${g.status === "resolved" ? "bg-[#EDE9FE] text-[#6B21A8]" : "bg-yellow-100 text-yellow-900"}`}>
+                    {g.status}
+                  </span>
+                </div>
+                {g.status === "resolved" ? (
+                  <p className="text-xs mt-3 text-neutral-600">
+                    Ruled for <b>{g.ruling}</b> · Fee status: {g.dispute_fee?.status} · {g.ruling_notes}
+                  </p>
+                ) : canRule && (
+                  <div className="mt-3 grid md:grid-cols-[auto_1fr_auto] gap-2 items-center">
+                    <div className="flex gap-2">
+                      {["talent", "employer"].map((c) => (
+                        <button key={c} type="button"
+                                data-testid={`rule-${c}-${g.id}`}
+                                onClick={() => setRuling({ ...ruling, [g.id]: { ...(ruling[g.id] || {}), choice: c } })}
+                                className={`hard-border px-3 py-1 text-xs capitalize ${ruling[g.id]?.choice === c ? "bg-[#0B1B2B] text-white" : "bg-white"}`}>
+                          Rule for {c}
+                        </button>
+                      ))}
+                    </div>
+                    <input placeholder="Ruling notes (min 10 chars)"
+                           value={ruling[g.id]?.notes || ""}
+                           onChange={(e) => setRuling({ ...ruling, [g.id]: { ...(ruling[g.id] || {}), notes: e.target.value } })}
+                           data-testid={`rule-notes-${g.id}`}
+                           className="hard-border px-2 py-1 text-xs w-full"/>
+                    <button type="button" onClick={() => rule(g.id)} className="btn-primary text-xs" data-testid={`rule-submit-${g.id}`}>
+                      Apply ruling
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Open revision cycles */}
+      <section>
+        <p className="overline text-[#6B21A8] mb-3">Open revision cycles</p>
+        {data.revisions.length === 0 ? (
+          <p className="hard-border bg-white p-5 text-sm text-neutral-500">No open revision cycles.</p>
+        ) : (
+          <ul className="space-y-2" data-testid="admin-revisions-list">
+            {data.revisions.slice(0, 25).map((r) => (
+              <li key={r.id} className="hard-border bg-white p-3 flex items-center justify-between gap-2 flex-wrap">
+                <div className="min-w-0">
+                  <p className="font-display font-extrabold text-sm">
+                    Rev #{r.revision_number} · <span className="text-[10px] font-mono uppercase text-neutral-500">{r.priority}</span>
+                  </p>
+                  <p className="text-[11px] font-mono text-neutral-500">Deliverable {r.deliverable_id?.slice(0, 8)} · {new Date(r.created_at).toLocaleString()}</p>
+                  <p className="text-xs text-neutral-700 mt-1 line-clamp-2">{r.justification}</p>
+                </div>
+                <span className={`hard-border px-2 py-1 text-[10px] font-mono uppercase ${r.status === "resubmitted" ? "bg-[#EDE9FE] text-[#6B21A8]" : "bg-yellow-100 text-yellow-900"}`}>
+                  {r.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Flagged employers */}
+      {flagged.length > 0 && (
+        <section>
+          <p className="overline text-[#991B1B] mb-3">Flagged employers · abuse pattern</p>
+          <ul className="grid md:grid-cols-2 gap-3">
+            {flagged.map((e) => (
+              <li key={e.id} className="hard-border bg-white p-3">
+                <p className="font-display font-extrabold text-sm">{e.name || e.email}</p>
+                <p className="text-[10px] font-mono text-neutral-500">
+                  Flagged {new Date(e.profile?.abusive_pattern_flagged_at || Date.now()).toLocaleString()} ·
+                  {" "}{(e.profile?.abusive_pattern_talents || []).length} talents affected
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function StatTile({ label, value }) {
+  return (
+    <div className="hard-border bg-white p-4 shadow-brutal">
+      <p className="overline text-neutral-500">{label}</p>
+      <p className="font-display font-black text-2xl text-[#0B1B2B] mt-1">{value ?? "—"}</p>
     </div>
   );
 }

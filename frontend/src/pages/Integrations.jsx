@@ -3,7 +3,7 @@ import api, { formatErr } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { TID } from "@/constants/testIds";
-import { PuzzlePiece, ArrowsClockwise, Trash, FileArrowUp, Handshake, CheckCircle } from "@phosphor-icons/react";
+import { PuzzlePiece, ArrowsClockwise, Trash, FileArrowUp, Handshake, CheckCircle, CloudArrowUp, ClockClockwise } from "@phosphor-icons/react";
 
 const CRM_PROVIDERS = [
   { id: "hubspot",    name: "HubSpot",      token_label: "Private-app access token",  needs_instance: false, help: "Settings → Integrations → Private Apps → Access token" },
@@ -27,6 +27,8 @@ export default function Integrations() {
   const [crmToken, setCrmToken] = useState("");
   const [crmInstance, setCrmInstance] = useState("");
   const [crmConnecting, setCrmConnecting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncLog, setSyncLog] = useState([]);
 
   const loadWork = async () => {
     try { const r = await api.get("/work/items"); setItems(r.data); } catch (e) { toast.error(formatErr(e)); }
@@ -35,13 +37,29 @@ export default function Integrations() {
     try { const r = await api.get("/integrations/crm"); setCrmConns(r.data.items || []); }
     catch { /* endpoint gated by role; ignore for talents */ }
   };
+  const loadSyncLog = async () => {
+    try { const r = await api.get("/integrations/crm/sync-log?limit=20"); setSyncLog(r.data.items || []); }
+    catch { /* ignore for talent role */ }
+  };
 
   useEffect(() => {
     api.get("/integrations/providers").then((r) => setProviders(r.data));
     loadWork();
-    if (user?.role === "employer") loadCrm();
+    if (user?.role === "employer") { loadCrm(); loadSyncLog(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.role]);
+
+  const syncNow = async () => {
+    setSyncing(true);
+    try {
+      const r = await api.post("/integrations/crm/sync-now");
+      const { pushed, skipped, failed } = r.data;
+      toast.success(`Sync complete · ${pushed} pushed · ${skipped} deduped · ${failed} failed`);
+      await loadCrm();
+      await loadSyncLog();
+    } catch (e) { toast.error(formatErr(e)); }
+    finally { setSyncing(false); }
+  };
 
   const connectCrm = async (e) => {
     e.preventDefault();
@@ -132,27 +150,70 @@ export default function Integrations() {
 
           {/* Active CRM connections */}
           {crmConns.length > 0 && (
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6" data-testid="crm-connections">
-              {crmConns.map((c) => (
-                <div key={c.provider} className="hard-border bg-white p-4 shadow-brutal flex items-center justify-between" data-testid={`crm-conn-${c.provider}`}>
-                  <div className="min-w-0">
-                    <p className="font-display font-extrabold text-sm tracking-tight capitalize inline-flex items-center gap-1">
-                      <CheckCircle size={14} weight="fill" color="#6B21A8"/> {c.provider}
-                    </p>
-                    <p className="text-[10px] font-mono text-neutral-500 mt-1 truncate">Token {c.token_masked || "•••"}</p>
-                    {c.instance_url && (
-                      <p className="text-[10px] font-mono text-neutral-500 truncate" title={c.instance_url}>{c.instance_url}</p>
-                    )}
-                  </div>
-                  <button onClick={() => disconnectCrm(c.provider)}
-                          data-testid={`crm-disconnect-${c.provider}`}
-                          className="hard-border p-2 bg-white text-neutral-500 hover:bg-red-50 hover:text-red-700"
-                          title="Disconnect">
-                    <Trash size={14}/>
+            <>
+              <div className="flex items-center justify-between mb-2 flex-wrap gap-3">
+                <p className="overline text-neutral-500">Active connections</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button onClick={syncNow} disabled={syncing}
+                          data-testid="crm-sync-now"
+                          className="hard-border bg-white text-[#6B21A8] hover:bg-[#F5F3FF] text-xs font-mono uppercase tracking-widest px-3 py-2 inline-flex items-center gap-2 disabled:opacity-50">
+                    <CloudArrowUp size={14} weight={syncing ? "regular" : "bold"} className={syncing ? "animate-pulse" : ""}/>
+                    {syncing ? "Syncing…" : "Sync now"}
                   </button>
+                  <p className="text-[10px] font-mono text-neutral-500 tracking-widest uppercase">
+                    Auto-sync · daily 02:00 UTC
+                  </p>
                 </div>
-              ))}
-            </div>
+              </div>
+              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6" data-testid="crm-connections">
+                {crmConns.map((c) => (
+                  <div key={c.provider} className="hard-border bg-white p-4 shadow-brutal flex items-center justify-between" data-testid={`crm-conn-${c.provider}`}>
+                    <div className="min-w-0">
+                      <p className="font-display font-extrabold text-sm tracking-tight capitalize inline-flex items-center gap-1">
+                        <CheckCircle size={14} weight="fill" color="#6B21A8"/> {c.provider}
+                      </p>
+                      <p className="text-[10px] font-mono text-neutral-500 mt-1 truncate">Token {c.token_masked || "•••"}</p>
+                      {c.last_sync_at && (
+                        <p className="text-[10px] font-mono text-neutral-400 truncate" title={c.last_sync_at}>
+                          Last sync {new Date(c.last_sync_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      )}
+                      {c.instance_url && (
+                        <p className="text-[10px] font-mono text-neutral-500 truncate" title={c.instance_url}>{c.instance_url}</p>
+                      )}
+                    </div>
+                    <button onClick={() => disconnectCrm(c.provider)}
+                            data-testid={`crm-disconnect-${c.provider}`}
+                            className="hard-border p-2 bg-white text-neutral-500 hover:bg-red-50 hover:text-red-700"
+                            title="Disconnect">
+                      <Trash size={14}/>
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Sync log ribbon */}
+              {syncLog.length > 0 && (
+                <div className="hard-border bg-[#F5F3FF] p-4 mb-6" data-testid="crm-sync-log">
+                  <p className="overline text-[#6B21A8] mb-2 inline-flex items-center gap-1">
+                    <ClockClockwise size={12} weight="bold"/> Recent syncs
+                  </p>
+                  <ul className="grid md:grid-cols-2 gap-1 text-[11px] font-mono">
+                    {syncLog.slice(0, 6).map((s, i) => (
+                      <li key={s.id || i} className="flex items-center justify-between gap-2 bg-white px-2 py-1 hard-border">
+                        <span className="truncate">
+                          <span className={s.status === "pushed" ? "text-[#166534]" : "text-red-700"}>{s.status}</span>
+                          {" · "}{s.provider}{" · "}{(s.talent_id || "").slice(0, 8)}
+                        </span>
+                        <span className="text-neutral-500 shrink-0">
+                          {new Date(s.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
           )}
 
           {/* Connect a CRM */}
