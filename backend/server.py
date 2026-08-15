@@ -305,6 +305,13 @@ async def list_talent(q: Optional[str] = None, skill: Optional[str] = None,
         u["is_trusted_partner"] = (
             completed >= 5 and avg_rating >= 4.5 and not u["excessive_revisions"]
         )
+        # Reputation Boost Ribbon — earned after clearing a recovery cycle,
+        # fades after PROVEN_RELIABLE_DAYS.
+        try:
+            from routes.revisions import is_proven_reliable  # noqa: WPS433
+            u["is_proven_reliable"] = is_proven_reliable(profile)
+        except Exception:
+            u["is_proven_reliable"] = False
     # Default sort: Trusted Partners first, then verified, then by visibility_score,
     # then years experience desc. Excessive-revisions talents sink to the bottom.
     items.sort(key=lambda x: (
@@ -412,6 +419,12 @@ async def get_talent(talent_id: str, user: dict = Depends(get_current_user)):
                                                      "status": {"$in": ["contract_signed", "active"]}})
     if user["role"] != "employer" or not has_engagement:
         t.pop("email", None)
+    # Reputation Boost Ribbon
+    try:
+        from routes.revisions import is_proven_reliable  # noqa: WPS433
+        t["is_proven_reliable"] = is_proven_reliable(t.get("profile") or {})
+    except Exception:
+        t["is_proven_reliable"] = False
     return t
 
 

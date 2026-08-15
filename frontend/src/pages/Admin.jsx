@@ -879,15 +879,29 @@ function RevisionsPanel({ scopes }) {
                   </span>
                 </div>
                 {g.status === "resolved" ? (
-                  <p className="text-xs mt-3 text-neutral-600">
-                    Ruled for <b>{g.ruling}</b> · Fee {g.dispute_fee?.status} ·
-                    {" "}<span className={g.dispute_fee?.payment_status === "paid" ? "text-emerald-700" : "text-red-700"}>
-                      {g.dispute_fee?.payment_status === "paid"
-                        ? `Paid ${new Date(g.dispute_fee?.paid_at || Date.now()).toLocaleDateString()}`
-                        : (g.dispute_fee?.payment_status || "unpaid")}
-                    </span>
-                    {" · "}{g.ruling_notes}
-                  </p>
+                  <>
+                    <p className="text-xs mt-3 text-neutral-600">
+                      Ruled for <b>{g.ruling}</b> · Fee {g.dispute_fee?.status} ·
+                      {" "}<span className={g.dispute_fee?.payment_status === "paid" ? "text-emerald-700"
+                        : g.dispute_fee?.payment_status === "refunded" ? "text-[#6B21A8]"
+                        : "text-red-700"}>
+                        {g.dispute_fee?.payment_status === "paid"
+                          ? `Paid ${new Date(g.dispute_fee?.paid_at || Date.now()).toLocaleDateString()}`
+                          : g.dispute_fee?.payment_status === "refunded"
+                            ? `Refunded ${new Date(g.dispute_fee?.refunded_at || Date.now()).toLocaleDateString()}`
+                            : (g.dispute_fee?.payment_status || "unpaid")}
+                      </span>
+                      {" · "}{g.ruling_notes}
+                    </p>
+                    {g.dispute_fee?.payment_status === "paid" && canRule && (
+                      <RefundInline grievanceId={g.id} onDone={load}/>
+                    )}
+                    {g.dispute_fee?.payment_status === "refunded" && g.dispute_fee?.refund_reason && (
+                      <p className="text-[10px] font-mono text-neutral-500 mt-1">
+                        Refund reason: {g.dispute_fee.refund_reason}
+                      </p>
+                    )}
+                  </>
                 ) : canRule && (
                   <div className="mt-3 grid md:grid-cols-[auto_1fr_auto] gap-2 items-center">
                     <div className="flex gap-2">
@@ -967,6 +981,50 @@ function StatTile({ label, value }) {
     <div className="hard-border bg-white p-4 shadow-brutal">
       <p className="overline text-neutral-500">{label}</p>
       <p className="font-display font-black text-2xl text-[#0B1B2B] mt-1">{value ?? "—"}</p>
+    </div>
+  );
+}
+
+
+
+function RefundInline({ grievanceId, onDone }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    if ((reason || "").trim().length < 10) return toast.error("Add at least a 10-char refund reason");
+    if (!window.confirm("Issue a full Stripe refund to the payer's card?")) return;
+    setSaving(true);
+    try {
+      const r = await api.post(`/admin/grievances/${grievanceId}/refund-fee`, { reason: reason.trim() });
+      toast.success(`Refunded $${r.data.amount_usd}`);
+      setOpen(false); setReason("");
+      onDone && onDone();
+    } catch (e) { toast.error(formatErr(e)); }
+    finally { setSaving(false); }
+  };
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)}
+              data-testid={`refund-open-${grievanceId}`}
+              className="mt-2 text-[11px] font-mono uppercase tracking-widest text-[#6B21A8] hover:text-[#0B1B2B] border border-[#6B21A8] px-2 py-1 inline-flex items-center gap-1">
+        ↺ Refund fee
+      </button>
+    );
+  }
+  return (
+    <div className="mt-2 hard-border bg-[#F5F3FF] p-2" data-testid={`refund-form-${grievanceId}`}>
+      <p className="overline text-[#6B21A8] mb-1">Refund justification (visible in audit log)</p>
+      <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2}
+                minLength={10} data-testid={`refund-reason-${grievanceId}`}
+                className="w-full hard-border px-2 py-1 text-xs focus:outline-none focus:border-[#6B21A8]"
+                placeholder="New evidence surfaced — please describe briefly"/>
+      <div className="flex gap-2 mt-2">
+        <button type="button" onClick={submit} disabled={saving} className="btn-primary text-xs" data-testid={`refund-submit-${grievanceId}`}>
+          {saving ? "Refunding…" : "Refund via Stripe"}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className="btn-outline text-xs">Cancel</button>
+      </div>
     </div>
   );
 }

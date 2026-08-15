@@ -136,6 +136,13 @@ export default function BrowseTalent() {
                         {t.is_verified && (
                           <span title="BGV verified" data-testid={`verified-badge-${t.id}`} className="text-[#0EA5E9] text-xl leading-none">✓</span>
                         )}
+                        {t.is_proven_reliable && (
+                          <span title="Recovered from a rough patch — 3+ clean approvals in a row"
+                                data-testid={`proven-reliable-${t.id}`}
+                                className="ml-1 text-[9px] font-mono uppercase tracking-widest bg-emerald-100 text-emerald-800 px-1.5 py-0.5 border border-emerald-400">
+                            ★ Proven Reliable
+                          </span>
+                        )}
                       </h3>
                       <p className="text-neutral-600 text-sm mt-1 line-clamp-2">{t.profile?.headline || "Independent professional"}</p>
                     </div>

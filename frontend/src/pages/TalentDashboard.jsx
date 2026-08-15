@@ -169,7 +169,21 @@ export default function TalentDashboard() {
       <div className="flex items-baseline justify-between mb-10 flex-wrap gap-4">
         <div>
           <p className="overline text-[#6B21A8] mb-3">TALENT DASHBOARD</p>
-          <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight">Hey {user?.name?.split(" ")[0]}.</h1>
+          <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight inline-flex items-baseline gap-3 flex-wrap">
+            Hey {user?.name?.split(" ")[0]}.
+            {profile.recovery_cleared_at && !profile.under_review && !profile.excessive_revisions && (() => {
+              const cleared = new Date(profile.recovery_cleared_at);
+              const daysSince = Math.floor((Date.now() - cleared.getTime()) / (86400 * 1000));
+              if (daysSince > 90) return null;
+              return (
+                <span title="Recovered from a rough patch — 3+ clean approvals in a row"
+                      data-testid="proven-reliable-self"
+                      className="text-[10px] font-mono uppercase tracking-widest bg-emerald-100 text-emerald-800 px-2 py-1 border border-emerald-400 self-center">
+                  ★ Proven Reliable
+                </span>
+              );
+            })()}
+          </h1>
           <p className="text-neutral-600 mt-2">Everything you&apos;re working on — in one grid.</p>
         </div>
         <div className="flex gap-2">

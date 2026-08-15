@@ -37,6 +37,8 @@ EMPLOYER_FLAG_WINDOW_D  = int(os.environ.get("EMPLOYER_FLAG_WINDOW_DAYS", "60"))
 # lift each penalty tier. Reject resets the streak to 0.
 RECOVERY_UNDER_REVIEW   = int(os.environ.get("REVISION_RECOVERY_UNDER_REVIEW", "3"))
 RECOVERY_EXCESSIVE      = int(os.environ.get("REVISION_RECOVERY_EXCESSIVE", "5"))
+# How long a recovered talent keeps the "Proven Reliable" chip.
+PROVEN_RELIABLE_DAYS    = int(os.environ.get("PROVEN_RELIABLE_DAYS", "90"))
 
 
 # ---- Payloads ---------------------------------------------------------------
@@ -635,13 +637,148 @@ async def mark_dispute_fee_paid(session_id: str) -> None:
     if not tx or tx.get("payment_status") == "paid":
         return
     now_iso = now().isoformat()
+    # Fetch the underlying payment_intent so admins can later refund with a single click.
+    payment_intent_id = None
+    try:
+        import stripe as _stripe
+        _stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+        if _stripe.api_key:
+            s = _stripe.checkout.Session.retrieve(session_id)
+            payment_intent_id = s.get("payment_intent") if isinstance(s, dict) else getattr(s, "payment_intent", None)
+    except Exception:
+        pass
     await db.dispute_fee_transactions.update_one(
         {"session_id": session_id, "payment_status": {"$ne": "paid"}},
-        {"$set": {"status": "completed", "payment_status": "paid", "paid_at": now_iso}},
+        {"$set": {"status": "completed", "payment_status": "paid",
+                  "paid_at": now_iso, "payment_intent_id": payment_intent_id}},
     )
     await db.grievances.update_one(
         {"id": tx["grievance_id"]},
         {"$set": {"dispute_fee.payment_status": "paid",
                   "dispute_fee.paid_at": now_iso,
-                  "dispute_fee.paid_by_id": tx["payer_id"]}},
+                  "dispute_fee.paid_by_id": tx["payer_id"],
+                  "dispute_fee.payment_intent_id": payment_intent_id}},
     )
+
+
+class RefundIn(BaseModel):
+    reason: str = Field(min_length=10, max_length=500)
+
+
+@api.post("/admin/grievances/{grievance_id}/refund-fee")
+async def admin_refund_fee(grievance_id: str, payload: RefundIn,
+                            user: dict = Depends(get_current_user)):
+    """One-click refund of a paid arbitration fee. Admin-moderation only. If
+    new evidence surfaces after the ruling, we credit the payer's card via
+    `stripe.Refund.create(payment_intent=...)` and stamp the audit trail."""
+    if not has_admin_scope(user, "moderation"):
+        raise HTTPException(403, "Requires moderation scope")
+
+    g = await db.grievances.find_one({"id": grievance_id, "kind": "revision_dispute"})
+    if not g:
+        raise HTTPException(404, "Dispute not found")
+    fee = g.get("dispute_fee") or {}
+    if fee.get("payment_status") == "refunded":
+        raise HTTPException(400, "Fee already refunded")
+    if fee.get("payment_status") != "paid":
+        raise HTTPException(400, "Fee has not been paid yet")
+
+    pi_id = fee.get("payment_intent_id")
+    # If the webhook lookup missed the payment_intent, try to fetch it now.
+    if not pi_id and fee.get("stripe_session_id"):
+        try:
+            import stripe as _stripe
+            _stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+            s = _stripe.checkout.Session.retrieve(fee["stripe_session_id"])
+            pi_id = s.get("payment_intent") if isinstance(s, dict) else getattr(s, "payment_intent", None)
+        except Exception:
+            pass
+    if not pi_id:
+        raise HTTPException(400, "No payment_intent on file — cannot refund automatically")
+
+    try:
+        import stripe as _stripe
+        _stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+        if not _stripe.api_key:
+            raise HTTPException(500, "Stripe not configured")
+        refund = _stripe.Refund.create(
+            payment_intent=pi_id,
+            reason="requested_by_customer",
+            metadata={"grievance_id": grievance_id, "admin_id": user["id"],
+                      "grievance_ref": g.get("ref", "")},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, f"Stripe refund failed: {str(e)[:250]}")
+
+    refund_id = refund.get("id") if isinstance(refund, dict) else getattr(refund, "id", None)
+    now_iso = now().isoformat()
+    await db.grievances.update_one(
+        {"id": grievance_id},
+        {"$set": {"dispute_fee.payment_status": "refunded",
+                  "dispute_fee.refund_id": refund_id,
+                  "dispute_fee.refunded_at": now_iso,
+                  "dispute_fee.refunded_by_id": user["id"],
+                  "dispute_fee.refund_reason": payload.reason}},
+    )
+    await db.dispute_fee_transactions.update_one(
+        {"grievance_id": grievance_id, "payment_status": "paid"},
+        {"$set": {"payment_status": "refunded", "refund_id": refund_id,
+                  "refunded_at": now_iso, "refund_reason": payload.reason,
+                  "refunded_by_id": user["id"]}},
+    )
+
+    # Notify the payer
+    payer_id = fee.get("paid_by_id")
+    try:
+        payer = await db.users.find_one({"id": payer_id}) or {}
+        if payer.get("email"):
+            from mailer import send_email  # noqa: WPS433
+            await send_email(
+                to=payer["email"],
+                subject=f"Job Atlas · Arbitration fee refunded · {g.get('ref')}",
+                html=(
+                    f"<p>Hi {payer.get('name') or ''},</p>"
+                    f"<p>Good news — the arbitration fee for dispute <b>{g.get('ref')}</b> has been "
+                    f"refunded to your card. It should appear within 5–10 business days.</p>"
+                    f"<p>Reason: <em>{payload.reason}</em></p>"
+                    f"<p>— Job Atlas Trust &amp; Safety</p>"
+                ),
+            )
+    except Exception as _mail_err:
+        try:
+            import logging as _lg
+            _lg.getLogger(__name__).warning("[refund] email to %s failed: %s", payer_id, _mail_err)
+        except Exception:
+            pass
+
+    if payer_id:
+        await db.notifications.insert_one({
+            "id": new_id(), "user_id": payer_id,
+            "type": "dispute_fee_refunded",
+            "grievance_id": grievance_id, "ref": g.get("ref"),
+            "amount_usd": fee.get("amount_usd", DISPUTE_FEE_USD),
+            "message": f"Arbitration fee for {g.get('ref')} refunded. Reason: {payload.reason}",
+            "created_at": now_iso, "read": False,
+        })
+
+    return {"ok": True, "refund_id": refund_id, "refunded_at": now_iso,
+            "amount_usd": fee.get("amount_usd", DISPUTE_FEE_USD)}
+
+
+# ---- Reputation Boost Ribbon ("Proven Reliable") ----------------------------
+def is_proven_reliable(profile: dict) -> bool:
+    """A talent earns the ribbon after clearing at least one revision-recovery
+    cycle. The chip fades PROVEN_RELIABLE_DAYS after the recovery timestamp."""
+    ts = (profile or {}).get("recovery_cleared_at")
+    if not ts:
+        return False
+    try:
+        cleared = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        if cleared.tzinfo is None:
+            cleared = cleared.replace(tzinfo=timezone.utc)
+        return (now() - cleared).days <= PROVEN_RELIABLE_DAYS
+    except Exception:
+        return False
+
