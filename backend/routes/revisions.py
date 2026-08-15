@@ -425,6 +425,74 @@ async def admin_flagged_employers(user: dict = Depends(get_current_user)):
     return {"items": items, "count": len(items)}
 
 
+@api.get("/admin/revisions/refund-analytics")
+async def admin_refund_analytics(user: dict = Depends(get_current_user)):
+    """30-day daily series of paid vs refunded arbitration fees, plus a rolling
+    refund-rate so Trust & Safety can spot runaway refund patterns early."""
+    if not has_admin_scope(user, "moderation"):
+        raise HTTPException(403, "Requires moderation scope")
+
+    start = (now() - timedelta(days=29)).replace(hour=0, minute=0, second=0, microsecond=0)
+    buckets: dict = {}
+    for i in range(30):
+        d = (start + timedelta(days=i)).strftime("%Y-%m-%d")
+        buckets[d] = {"date": d, "paid": 0, "refunded": 0}
+
+    def _fmt(ts):
+        if not ts:
+            return None
+        try:
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00")) if isinstance(ts, str) else ts
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            key = dt.strftime("%Y-%m-%d")
+            return key if key in buckets else None
+        except Exception:
+            return None
+
+    start_iso = start.isoformat()
+
+    # Paid: any dispute_fee_transactions row that hit `paid` in the window.
+    async for tx in db.dispute_fee_transactions.find(
+        {"paid_at": {"$gte": start_iso}},
+        {"_id": 0, "paid_at": 1},
+    ):
+        k = _fmt(tx.get("paid_at"))
+        if k:
+            buckets[k]["paid"] += 1
+
+    # Refunded: same rows once they later transitioned to refunded.
+    async for tx in db.dispute_fee_transactions.find(
+        {"refunded_at": {"$gte": start_iso}},
+        {"_id": 0, "refunded_at": 1},
+    ):
+        k = _fmt(tx.get("refunded_at"))
+        if k:
+            buckets[k]["refunded"] += 1
+
+    series = list(buckets.values())
+    for r in series:
+        r["refund_rate_pct"] = round(r["refunded"] / r["paid"] * 100, 1) if r["paid"] else 0
+
+    total_paid = sum(r["paid"] for r in series)
+    total_refunded = sum(r["refunded"] for r in series)
+    rolling_rate = round(total_refunded / total_paid * 100, 1) if total_paid else 0
+    alert_threshold = int(os.environ.get("REFUND_ALERT_THRESHOLD_PCT", "20"))
+
+    return {
+        "series": series,
+        "totals": {
+            "paid_30d": total_paid,
+            "refunded_30d": total_refunded,
+            "refund_rate_pct": rolling_rate,
+            "amount_refunded_usd": round(total_refunded * DISPUTE_FEE_USD, 2),
+        },
+        "alert": {"threshold_pct": alert_threshold,
+                  "breached": rolling_rate >= alert_threshold and total_paid > 0},
+        "as_of": now().isoformat(),
+    }
+
+
 @api.get("/deliverables/{deliverable_id}/revision-summary")
 async def revision_summary(deliverable_id: str, user: dict = Depends(get_current_user)):
     """Lightweight probe the UI uses to decide whether to show buttons."""

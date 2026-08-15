@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import api, { formatErr } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import {
   CheckCircle, X, Star, Bank, ChatCircleText, CurrencyDollar, Play,
   UsersThree, ShieldCheck, PaintBrush, MagnifyingGlass, Plus, Trash,
@@ -821,6 +822,7 @@ function VerificationsPanel({ scopes }) {
 function RevisionsPanel({ scopes }) {
   const [data, setData] = useState(null);
   const [flagged, setFlagged] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
   const [ruling, setRuling] = useState({}); // {grievanceId: {choice, notes}}
 
   const canRule = (scopes || []).includes("moderation") || (scopes || []).includes("superadmin");
@@ -831,6 +833,8 @@ function RevisionsPanel({ scopes }) {
       setData(r.data);
       const f = await api.get("/admin/employers-flagged");
       setFlagged(f.data.items || []);
+      const a = await api.get("/admin/revisions/refund-analytics");
+      setAnalytics(a.data);
     } catch (e) { toast.error(formatErr(e)); }
   };
   useEffect(() => { load(); }, []);
@@ -856,6 +860,9 @@ function RevisionsPanel({ scopes }) {
         <StatTile label="Open disputes"  value={data.disputes.filter((d) => d.status !== "resolved").length}/>
         <StatTile label="Flagged employers" value={flagged.length}/>
       </div>
+
+      {/* Refund analytics — 30-day rolling area chart */}
+      {analytics && <RefundAnalyticsCard analytics={analytics}/>}
 
       {/* Disputes queue */}
       <section>
@@ -1025,6 +1032,70 @@ function RefundInline({ grievanceId, onDone }) {
         </button>
         <button type="button" onClick={() => setOpen(false)} className="btn-outline text-xs">Cancel</button>
       </div>
+    </div>
+  );
+}
+
+
+
+function RefundAnalyticsCard({ analytics }) {
+  const { series, totals, alert } = analytics || {};
+  const fmtDay = (iso) => { if (!iso) return ""; const [, m, d] = iso.split("-"); return `${Number(m)}/${Number(d)}`; };
+  const isAlert = alert?.breached;
+  return (
+    <div className={`hard-border p-6 shadow-brutal ${isAlert ? "bg-red-50 border-red-500" : "bg-white"}`}
+         data-testid="refund-analytics-card">
+      <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+        <div>
+          <p className="overline text-[#6B21A8]">Refund analytics · 30-day</p>
+          <div className="flex items-baseline gap-4 mt-1 flex-wrap">
+            <p className="font-display font-black text-3xl text-[#0B1B2B]" data-testid="refund-rate-pct">
+              {totals?.refund_rate_pct ?? 0}%
+              <span className="text-sm font-mono text-neutral-500 ml-2">refund rate</span>
+            </p>
+            <p className="text-[11px] font-mono text-neutral-500 uppercase tracking-widest">
+              {totals?.refunded_30d ?? 0} refunded of {totals?.paid_30d ?? 0} paid
+              {" · "}${totals?.amount_refunded_usd ?? 0} out
+            </p>
+          </div>
+        </div>
+        {isAlert && (
+          <span className="hard-border px-3 py-1 bg-red-600 text-white text-[10px] font-mono uppercase tracking-widest"
+                data-testid="refund-alert-chip">
+            ⚠ Above {alert.threshold_pct}% threshold
+          </span>
+        )}
+      </div>
+      <div className="h-32" data-testid="refund-analytics-chart">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={series} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <defs>
+              <linearGradient id="grad-paid" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#6B21A8" stopOpacity={0.45}/>
+                <stop offset="100%" stopColor="#6B21A8" stopOpacity={0.05}/>
+              </linearGradient>
+              <linearGradient id="grad-refunded" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#DC2626" stopOpacity={0.5}/>
+                <stop offset="100%" stopColor="#DC2626" stopOpacity={0.05}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" vertical={false}/>
+            <XAxis dataKey="date" tickFormatter={fmtDay} tick={{ fontSize: 10, fill: "#71717a", fontFamily: "monospace" }}
+                   axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={24}/>
+            <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#71717a", fontFamily: "monospace" }}
+                   axisLine={false} tickLine={false} width={30}/>
+            <Tooltip
+              contentStyle={{ background: "#0B1B2B", border: 0, color: "#fff", fontFamily: "monospace", fontSize: 12 }}
+              labelStyle={{ color: "#A78BFA" }}
+              labelFormatter={(l) => `Day ${fmtDay(l)}`}/>
+            <Area type="monotone" dataKey="paid"     stroke="#6B21A8" strokeWidth={2} fill="url(#grad-paid)"     name="Paid"/>
+            <Area type="monotone" dataKey="refunded" stroke="#DC2626" strokeWidth={2} fill="url(#grad-refunded)" name="Refunded"/>
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+      <p className="text-[10px] font-mono text-neutral-500 mt-2 tracking-widest uppercase">
+        Alert if refund rate crosses {alert?.threshold_pct ?? 20}% · env: REFUND_ALERT_THRESHOLD_PCT
+      </p>
     </div>
   );
 }
