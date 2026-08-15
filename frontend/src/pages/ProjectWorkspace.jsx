@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ const TABS = [
 export default function ProjectWorkspace() {
   const { id } = useParams();
   const { user } = useAuth();
+  const [params, setParams] = useSearchParams();
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("phases");
 
@@ -32,6 +33,29 @@ export default function ProjectWorkspace() {
     } catch (e) { toast.error(formatErr(e)); }
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
+
+  // Stripe redirect handling: ?paid=<session_id>
+  useEffect(() => {
+    const sid = params.get("paid");
+    if (!sid) return;
+    (async () => {
+      try {
+        const r = await api.get(`/projects/milestone-payment/status/${sid}`);
+        if (r.data?.payment_status === "paid") {
+          toast.success("Payment received — milestone marked paid.");
+          load();
+        } else {
+          toast.error("Payment not confirmed yet. Refresh in a minute.");
+        }
+      } catch (e) { toast.error(formatErr(e)); }
+      finally {
+        // Clear the param from the URL
+        params.delete("paid");
+        setParams(params, { replace: true });
+      }
+    })();
+    // eslint-disable-next-line
+  }, []);
 
   const canFinance = user?.role === "admin";  // finance/superadmin scopes checked server-side
 
@@ -145,7 +169,7 @@ export default function ProjectWorkspace() {
       {tab === "variance"   && <VarianceTab project={p} variances={data.variances} onChange={load}/>}
       {tab === "risks"      && <RisksTab project={p} risks={data.risks} onChange={load}/>}
       {tab === "raci"       && <RaciTab project={p} onChange={load}/>}
-      {tab === "milestones" && <MilestonesTab project={p} milestones={data.milestones} invoices={data.invoices} canFinance={canFinance} onChange={load}/>}
+      {tab === "milestones" && <MilestonesTab project={p} milestones={data.milestones} invoices={data.invoices} canFinance={canFinance} canPay={isAdmin || p.employer_id === user?.id} onChange={load}/>}
     </main>
   );
 }
@@ -484,7 +508,7 @@ function RaciTab({ project, onChange }) {
 }
 
 // ---------- Milestones ----------
-function MilestonesTab({ project, milestones, invoices, canFinance, onChange }) {
+function MilestonesTab({ project, milestones, invoices, canFinance, canPay, onChange }) {
   const [form, setForm] = useState({ name: "", percent: 10, due_date: "" });
 
   const submit = async (e) => {
@@ -508,6 +532,18 @@ function MilestonesTab({ project, milestones, invoices, canFinance, onChange }) 
     try { await api.post(`/projects/workspace/${project.id}/milestones/${mid}/paid`);
       toast.success("Marked paid"); onChange();
     } catch (e) { toast.error(formatErr(e)); }
+  };
+  const payViaStripe = async (mid) => {
+    try {
+      const r = await api.post(`/projects/workspace/${project.id}/milestones/${mid}/checkout`, {
+        origin_url: window.location.origin,
+      });
+      window.location.href = r.data.checkout_url;
+    } catch (e) { toast.error(formatErr(e)); }
+  };
+  const downloadPdf = (invId) => {
+    const base = process.env.REACT_APP_BACKEND_URL;
+    window.open(`${base}/api/projects/workspace/${project.id}/invoices/${invId}/pdf`, "_blank");
   };
 
   return (
@@ -542,12 +578,22 @@ function MilestonesTab({ project, milestones, invoices, canFinance, onChange }) 
                 </td>
                 <td className="px-4 py-3">
                   {canFinance && m.status === "pending" && (
-                    <button onClick={() => invoice(m.id)} className="btn-outline text-xs inline-flex items-center gap-1" data-testid={`invoice-${m.id}`}>
+                    <button onClick={() => invoice(m.id)} className="btn-outline text-xs inline-flex items-center gap-1 mr-1" data-testid={`invoice-${m.id}`}>
                       <FileText size={12}/> Issue invoice
                     </button>
                   )}
                   {canFinance && m.status === "invoiced" && (
-                    <button onClick={() => paid(m.id)} className="btn-primary text-xs" data-testid={`paid-${m.id}`}>Mark paid</button>
+                    <button onClick={() => paid(m.id)} className="btn-outline text-xs mr-1" data-testid={`paid-${m.id}`}>Mark paid</button>
+                  )}
+                  {canPay && m.status !== "paid" && (
+                    <button onClick={() => payViaStripe(m.id)} className="btn-primary text-xs inline-flex items-center gap-1" data-testid={`pay-stripe-${m.id}`}>
+                      💳 Pay ${((m.amount || 0) / 1000).toFixed(0)}k
+                    </button>
+                  )}
+                  {m.invoice_id && (
+                    <button onClick={() => downloadPdf(m.invoice_id)} className="hard-border p-1 text-xs bg-white hover:bg-[#FAF9F6] ml-1 inline-flex items-center gap-1" data-testid={`pdf-${m.invoice_id}`}>
+                      <FileText size={12}/> PDF
+                    </button>
                   )}
                 </td>
               </tr>
@@ -575,7 +621,7 @@ function MilestonesTab({ project, milestones, invoices, canFinance, onChange }) 
           <div className="hard-border bg-white shadow-brutal">
             <table className="w-full text-sm">
               <thead className="bg-[#0A0A0A] text-white">
-                <tr>{["Ref","Milestone","Amount","Status","Issued","Paid"].map((h) => <th key={h} className="text-left px-4 py-3 overline">{h}</th>)}</tr>
+                <tr>{["Ref","Milestone","Amount","Status","Issued","Paid","PDF"].map((h) => <th key={h} className="text-left px-4 py-3 overline">{h}</th>)}</tr>
               </thead>
               <tbody>
                 {invoices.map((inv) => {
@@ -588,6 +634,11 @@ function MilestonesTab({ project, milestones, invoices, canFinance, onChange }) 
                       <td className="px-4 py-3"><span className="hard-border px-2 py-1 text-xs">{inv.status}</span></td>
                       <td className="px-4 py-3 font-mono text-xs">{new Date(inv.issued_at).toLocaleDateString()}</td>
                       <td className="px-4 py-3 font-mono text-xs">{inv.paid_at ? new Date(inv.paid_at).toLocaleDateString() : "—"}</td>
+                      <td className="px-4 py-3">
+                        <button onClick={() => downloadPdf(inv.id)} className="hard-border p-1 text-xs bg-white hover:bg-[#FAF9F6] inline-flex items-center gap-1" data-testid={`pdf-history-${inv.id}`}>
+                          <FileText size={12}/> Download
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}

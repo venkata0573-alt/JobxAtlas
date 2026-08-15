@@ -628,3 +628,265 @@ async def mark_milestone_paid(project_id: str, milestone_id: str,
             {"$set": {"status": "paid", "paid_at": now_iso}},
         )
     return {"ok": True}
+
+
+# ---------- Invoice PDF ----------
+def _render_invoice_pdf(*, project: dict, milestone: dict, invoice: dict) -> bytes:
+    """Render a branded milestone invoice as a PDF, returning the raw bytes."""
+    from io import BytesIO
+    from reportlab.lib.pagesizes import LETTER
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.pdfgen import canvas
+
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=LETTER)
+    width, height = LETTER
+
+    ink = colors.HexColor("#0B1B2B")
+    gold = colors.HexColor("#C79A3B")
+    grey = colors.HexColor("#666666")
+    faint = colors.HexColor("#DDDDDD")
+
+    # Header band
+    c.setFillColor(ink)
+    c.rect(0, height - 1.4 * inch, width, 1.4 * inch, fill=1, stroke=0)
+    c.setFillColor(gold)
+    c.setFont("Helvetica-Bold", 22)
+    c.drawString(0.7 * inch, height - 0.7 * inch, "JOB ATLAS")
+    c.setFillColor(colors.white)
+    c.setFont("Helvetica", 10)
+    c.drawString(0.7 * inch, height - 0.95 * inch, "Denkoit Softech Pvt. Ltd. · GSTIN 36AAGCD3748K1ZC")
+    c.drawString(0.7 * inch, height - 1.13 * inch, "support@jobatlas.io")
+    c.setFont("Helvetica-Bold", 14)
+    c.drawRightString(width - 0.7 * inch, height - 0.7 * inch, "MILESTONE INVOICE")
+    c.setFont("Helvetica", 10)
+    c.drawRightString(width - 0.7 * inch, height - 0.95 * inch, f"Ref  {invoice.get('ref')}")
+    c.drawRightString(width - 0.7 * inch, height - 1.13 * inch, f"Issued {(invoice.get('issued_at') or '')[:10]}")
+
+    # Bill to
+    y = height - 2.0 * inch
+    c.setFillColor(grey); c.setFont("Helvetica", 9)
+    c.drawString(0.7 * inch, y, "BILL TO")
+    c.setFillColor(ink); c.setFont("Helvetica-Bold", 13)
+    c.drawString(0.7 * inch, y - 0.22 * inch, project.get("company_name") or "—")
+    c.setFont("Helvetica", 10); c.setFillColor(grey)
+    c.drawString(0.7 * inch, y - 0.42 * inch, project.get("contact_name") or "")
+    c.drawString(0.7 * inch, y - 0.58 * inch, project.get("contact_email") or "")
+
+    # Project block (right)
+    c.setFillColor(grey); c.setFont("Helvetica", 9)
+    c.drawRightString(width - 0.7 * inch, y, "PROJECT")
+    c.setFillColor(ink); c.setFont("Helvetica-Bold", 11)
+    c.drawRightString(width - 0.7 * inch, y - 0.22 * inch, project.get("template_title") or "Project delivery")
+    c.setFont("Helvetica", 10); c.setFillColor(grey)
+    c.drawRightString(width - 0.7 * inch, y - 0.42 * inch, f"Duration {project.get('duration_months', 0)} months")
+    c.drawRightString(width - 0.7 * inch, y - 0.58 * inch, f"Industry {project.get('industry') or '—'}")
+
+    # Line items table
+    ty = y - 1.2 * inch
+    c.setFillColor(ink); c.setFont("Helvetica-Bold", 10)
+    c.drawString(0.7 * inch, ty, "DESCRIPTION")
+    c.drawRightString(width - 3.0 * inch, ty, "% OF TOTAL")
+    c.drawRightString(width - 0.7 * inch, ty, "AMOUNT")
+    c.setStrokeColor(faint); c.setLineWidth(0.5)
+    c.line(0.7 * inch, ty - 0.08 * inch, width - 0.7 * inch, ty - 0.08 * inch)
+
+    ty -= 0.35 * inch
+    c.setFont("Helvetica-Bold", 12); c.setFillColor(ink)
+    c.drawString(0.7 * inch, ty, milestone.get("name") or "Milestone")
+    c.setFont("Helvetica", 10); c.setFillColor(grey)
+    c.drawString(0.7 * inch, ty - 0.18 * inch,
+                 f"Milestone {milestone.get('sequence')} of the fixed-price plan · {project.get('company_name')}")
+    percent = milestone.get("percent") or 0
+    amount = float(milestone.get("amount") or 0)
+    currency = (invoice.get("currency") or "usd").upper()
+    c.setFillColor(ink); c.setFont("Helvetica", 11)
+    c.drawRightString(width - 3.0 * inch, ty, f"{percent}%")
+    c.drawRightString(width - 0.7 * inch, ty, f"{currency} {amount:,.2f}")
+
+    # Totals block
+    tot_y = ty - 1.0 * inch
+    c.setStrokeColor(faint); c.line(0.7 * inch, tot_y + 0.3 * inch, width - 0.7 * inch, tot_y + 0.3 * inch)
+    c.setFillColor(grey); c.setFont("Helvetica", 10)
+    c.drawRightString(width - 3.0 * inch, tot_y, "Subtotal")
+    c.setFillColor(ink); c.setFont("Helvetica-Bold", 11)
+    c.drawRightString(width - 0.7 * inch, tot_y, f"{currency} {amount:,.2f}")
+    tot_y -= 0.25 * inch
+    c.setFillColor(grey); c.setFont("Helvetica", 10)
+    c.drawRightString(width - 3.0 * inch, tot_y, "Tax")
+    c.setFillColor(ink); c.setFont("Helvetica", 11)
+    c.drawRightString(width - 0.7 * inch, tot_y, "included")
+    tot_y -= 0.4 * inch
+    c.setFillColor(gold); c.setFont("Helvetica-Bold", 14)
+    c.drawRightString(width - 3.0 * inch, tot_y, "TOTAL DUE")
+    c.drawRightString(width - 0.7 * inch, tot_y, f"{currency} {amount:,.2f}")
+
+    status_label = (invoice.get("status") or "issued").upper()
+    if status_label == "PAID":
+        c.saveState()
+        c.setFillColor(colors.HexColor("#10B981"))
+        c.rect(0.7 * inch, tot_y - 0.6 * inch, 1.2 * inch, 0.35 * inch, fill=1, stroke=0)
+        c.setFillColor(colors.white); c.setFont("Helvetica-Bold", 12)
+        c.drawString(0.85 * inch, tot_y - 0.5 * inch, "PAID")
+        c.restoreState()
+
+    # Payment terms footer
+    c.setFillColor(grey); c.setFont("Helvetica", 9)
+    footer_y = 0.9 * inch
+    c.drawString(0.7 * inch, footer_y + 0.4 * inch, "Net-14 payment terms. Pay online via the Job Atlas workspace or wire to:")
+    c.drawString(0.7 * inch, footer_y + 0.22 * inch, "ICICI Bank · A/c 112405000771 · IFSC ICIC0001124 · SWIFT ICICINBBCTS")
+    c.drawString(0.7 * inch, footer_y, "Quote the ref exactly on your transfer so we can allocate the payment quickly.")
+
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+@api.get("/projects/workspace/{project_id}/invoices/{invoice_id}/pdf")
+async def download_invoice_pdf(project_id: str, invoice_id: str,
+                                user: dict = Depends(get_current_user)):
+    from fastapi.responses import Response
+    project = await _load_project_or_404(project_id, user)
+    invoice = await db.project_invoices.find_one(
+        {"id": invoice_id, "project_id": project_id}, {"_id": 0},
+    )
+    if not invoice:
+        raise HTTPException(404, "Invoice not found")
+    milestone = await db.project_milestones.find_one(
+        {"id": invoice.get("milestone_id"), "project_id": project_id}, {"_id": 0},
+    )
+    if not milestone:
+        raise HTTPException(404, "Milestone not found")
+    pdf = _render_invoice_pdf(project=project, milestone=milestone, invoice=invoice)
+    filename = f"JobAtlas-{invoice.get('ref', invoice_id)}.pdf"
+    return Response(
+        content=pdf, media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+# ---------- Stripe checkout for a milestone ----------
+class MilestoneCheckoutIn(BaseModel):
+    origin_url: str
+
+
+@api.post("/projects/workspace/{project_id}/milestones/{milestone_id}/checkout")
+async def create_milestone_checkout(project_id: str, milestone_id: str,
+                                     payload: MilestoneCheckoutIn,
+                                     user: dict = Depends(get_current_user)):
+    """Create a Stripe checkout session for a single milestone. Only the linked
+    employer OR an admin can pay. On success, the webhook + return_url both
+    mark the milestone + invoice paid."""
+    import os, stripe
+    stripe_key = os.environ.get("STRIPE_SECRET_KEY")
+    if not stripe_key:
+        raise HTTPException(500, "Stripe is not configured")
+    stripe.api_key = stripe_key
+    project = await _load_project_or_404(project_id, user)
+    if not (user.get("role") == "admin" or project.get("employer_id") == user.get("id")):
+        raise HTTPException(403, "Only the linked employer or an admin can pay this milestone")
+    m = await db.project_milestones.find_one({"id": milestone_id, "project_id": project_id})
+    if not m:
+        raise HTTPException(404, "Milestone not found")
+    if m.get("status") == "paid":
+        raise HTTPException(400, "Milestone already paid")
+
+    # Ensure an invoice exists so the PDF ref lines up with the receipt.
+    invoice = await db.project_invoices.find_one({"milestone_id": milestone_id})
+    if not invoice:
+        invoice = {
+            "id": new_id(), "project_id": project_id, "milestone_id": milestone_id,
+            "amount": float(m.get("amount") or 0),
+            "currency": project.get("currency") or "usd",
+            "ref": f"INV-{new_id()[:8].upper()}",
+            "status": "issued",
+            "issued_by": user["id"], "issued_at": now().isoformat(),
+            "paid_at": None,
+        }
+        await db.project_invoices.insert_one(invoice)
+        await db.project_milestones.update_one(
+            {"id": milestone_id},
+            {"$set": {"status": "invoiced", "invoice_id": invoice["id"],
+                      "invoiced_at": now().isoformat()}},
+        )
+
+    origin = (payload.origin_url or "").rstrip("/")
+    amount_cents = int(round(float(m.get("amount") or 0) * 100))
+    currency = (project.get("currency") or "usd").lower()
+    company = project.get("company_name") or "Project"
+    try:
+        session = stripe.checkout.Session.create(
+            line_items=[{
+                "price_data": {
+                    "currency": currency,
+                    "product_data": {"name": f"{company} · {m.get('name')} ({invoice['ref']})"},
+                    "unit_amount": amount_cents,
+                },
+                "quantity": 1,
+            }],
+            mode="payment",
+            success_url=f"{origin}/projects/{project_id}/workspace?paid={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{origin}/projects/{project_id}/workspace?cancel=1",
+            metadata={
+                "kind": "milestone",
+                "project_id": project_id,
+                "milestone_id": milestone_id,
+                "invoice_id": invoice["id"],
+                "user_id": user["id"],
+            },
+        )
+    except Exception as e:
+        raise HTTPException(400, f"Stripe error: {str(e)[:200]}")
+
+    await db.payment_transactions.insert_one({
+        "id": new_id(),
+        "session_id": session.id,
+        "user_id": user["id"],
+        "kind": "milestone",
+        "project_id": project_id,
+        "milestone_id": milestone_id,
+        "invoice_id": invoice["id"],
+        "amount": amount_cents,
+        "currency": currency,
+        "status": "initiated",
+        "payment_status": "pending",
+        "created_at": now().isoformat(),
+        "updated_at": now().isoformat(),
+    })
+    return {"checkout_url": session.url, "session_id": session.id, "invoice_ref": invoice["ref"]}
+
+
+@api.get("/projects/milestone-payment/status/{session_id}")
+async def milestone_payment_status(session_id: str, user: dict = Depends(get_current_user)):
+    """Called by the frontend after the Stripe redirect. Retrieves the session
+    and — if paid — marks the milestone + invoice as paid (idempotent)."""
+    import stripe
+    rec = await db.payment_transactions.find_one({"session_id": session_id, "kind": "milestone"},
+                                                  {"_id": 0})
+    if not rec:
+        raise HTTPException(404, "Payment session not found")
+    if rec.get("payment_status") != "paid":
+        try:
+            s = stripe.checkout.Session.retrieve(session_id)
+            if s.payment_status == "paid" or s.status == "complete":
+                now_iso = now().isoformat()
+                await db.payment_transactions.update_one(
+                    {"session_id": session_id, "payment_status": {"$ne": "paid"}},
+                    {"$set": {"status": "completed", "payment_status": "paid", "updated_at": now_iso}},
+                )
+                await db.project_milestones.update_one(
+                    {"id": rec["milestone_id"]},
+                    {"$set": {"status": "paid", "paid_at": now_iso}},
+                )
+                await db.project_invoices.update_one(
+                    {"id": rec["invoice_id"]},
+                    {"$set": {"status": "paid", "paid_at": now_iso}},
+                )
+                rec["payment_status"] = "paid"
+        except Exception:
+            from deps import logger
+            logger.exception("stripe retrieve failed for %s", session_id)
+    return {"session_id": session_id, "payment_status": rec.get("payment_status"),
+            "milestone_id": rec.get("milestone_id"), "invoice_id": rec.get("invoice_id")}
+

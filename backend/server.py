@@ -222,6 +222,7 @@ COMPANY_BANK = {
 # registered onto the shared `api` router when server.py imports that module.
 import routes.auth  # noqa: E402,F401  (registers endpoints via decorators)
 import routes.admin  # noqa: E402,F401  (registers /admin/* endpoints)
+import routes.marketplace  # noqa: E402,F401  (SEO + marketplace stats + sitemap)
 import routes.projects  # noqa: E402,F401  (project workspace + milestones)
 
 
@@ -260,6 +261,14 @@ async def list_talent(q: Optional[str] = None, skill: Optional[str] = None,
         query["profile.years_experience"] = {"$gte": int(min_exp)}
     cursor = db.users.find(query, {"_id": 0, "password_hash": 0, "email": 0, "integrations": 0})
     items = await cursor.to_list(200)
+    # Add employer-facing sell rate + tier margin to every card
+    from pricing import sell_rate, margin_pct
+    for u in items:
+        profile = u.get("profile") or {}
+        tr = float(profile.get("hourly_rate") or 0)
+        if tr > 0:
+            u["sell_rate"] = sell_rate(tr)
+            u["margin_pct"] = margin_pct(tr)
     return items
 
 
@@ -495,6 +504,23 @@ async def stripe_webhook(request: Request):
         raise HTTPException(400, "Invalid signature")
     obj, t = event["data"]["object"], event["type"]
     if t == "checkout.session.completed":
+        meta = obj.get("metadata") or {}
+        # Milestone payment path
+        if meta.get("kind") == "milestone":
+            rec = await db.payment_transactions.find_one({"session_id": obj["id"], "kind": "milestone"})
+            if rec and rec.get("payment_status") != "paid":
+                now_iso = now().isoformat()
+                await db.payment_transactions.update_one(
+                    {"session_id": obj["id"], "payment_status": {"$ne": "paid"}},
+                    {"$set": {"status": "completed", "payment_status": "paid", "updated_at": now_iso}})
+                await db.project_milestones.update_one(
+                    {"id": rec["milestone_id"]},
+                    {"$set": {"status": "paid", "paid_at": now_iso}})
+                await db.project_invoices.update_one(
+                    {"id": rec["invoice_id"]},
+                    {"$set": {"status": "paid", "paid_at": now_iso}})
+            return {"ok": True}
+        # Hours package purchase path (existing)
         rec = await db.payment_transactions.find_one({"session_id": obj["id"]})
         if rec and rec.get("payment_status") != "paid":
             await db.payment_transactions.update_one(
@@ -854,11 +880,6 @@ async def post_message(payload: MessageIn, user: dict = Depends(get_current_user
 # ---------- SEO skill landing pages ----------
 # SEO_SKILLS, SEO_CITIES, EMPLOYER_INDUSTRIES are imported from `deps` at the
 # top of this file. Do not redefine here.
-
-
-@api.get("/seo/skills")
-async def seo_skills():
-    return {"skills": SEO_SKILLS}
 
 
 @api.get("/seo/hire/{skill_slug}")
@@ -1233,15 +1254,6 @@ def _curated_for(skill_slug: str, city: Optional[str] = None, limit: int = 24) -
     return out
 
 
-@api.get("/seo/city-skills")
-async def seo_city_skills():
-    combos = []
-    for c in SEO_CITIES:
-        for s in SEO_SKILLS[:6]:
-            combos.append({"slug": f"{s}-{c}", "skill": s, "city": c})
-    return {"combos": combos}
-
-
 @api.get("/seo/hire-city/{slug}")
 async def seo_hire_city(slug: str):
     # Slug format: {skill-slug}-{city}. Skill slugs contain hyphens, so we
@@ -1278,104 +1290,6 @@ async def seo_hire_city(slug: str):
         "title": f"Hire {keyword.title()} in {city_pretty} — Job Atlas",
         "description": f"Hire vetted {keyword} available in {city_pretty} on Job Atlas. Purchase hours, sign contracts, track work in Jira and Asana.",
         "talent": talent,
-    }
-
-
-# ---------- Sitemap autogeneration ----------
-STATIC_SITEMAP_PATHS = [
-    ("/",          "1.0", "weekly"),
-    ("/browse",    "0.9", "daily"),
-    ("/pricing",   "0.9", "monthly"),
-    ("/register",  "0.8", "monthly"),
-    ("/login",     "0.6", "yearly"),
-    ("/legal",     "0.5", "yearly"),
-    ("/grievance", "0.4", "yearly"),
-]
-
-
-def _build_sitemap_xml(origin: str) -> str:
-    origin = origin.rstrip("/")
-    now_iso = now().date().isoformat()
-    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
-             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-    for path, prio, freq in STATIC_SITEMAP_PATHS:
-        lines.append(f"  <url><loc>{origin}{path}</loc>"
-                     f"<lastmod>{now_iso}</lastmod>"
-                     f"<changefreq>{freq}</changefreq>"
-                     f"<priority>{prio}</priority></url>")
-    # Skill-only landing pages (12)
-    for s in SEO_SKILLS:
-        lines.append(f"  <url><loc>{origin}/hire/{s}</loc>"
-                     f"<lastmod>{now_iso}</lastmod>"
-                     f"<changefreq>weekly</changefreq>"
-                     f"<priority>0.8</priority></url>")
-    # City × skill landing pages (54 = 9 cities × 6 top skills)
-    for c in SEO_CITIES:
-        for s in SEO_SKILLS[:6]:
-            lines.append(f"  <url><loc>{origin}/hire/{s}-{c}</loc>"
-                         f"<lastmod>{now_iso}</lastmod>"
-                         f"<changefreq>weekly</changefreq>"
-                         f"<priority>0.7</priority></url>")
-    lines.append("</urlset>")
-    return "\n".join(lines)
-
-
-@api.get("/sitemap.xml")
-async def sitemap_xml(request: Request):
-    """Dynamically generated sitemap covering all static + SEO landing routes."""
-    from fastapi.responses import Response as _XmlResponse
-    # Prefer the explicit env var, then the forwarded host (ingress), then the raw host header
-    origin = os.environ.get("PUBLIC_SITE_URL")
-    if not origin:
-        fwd_host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
-        fwd_proto = request.headers.get("x-forwarded-proto", "https")
-        origin = f"{fwd_proto}://{fwd_host}" if fwd_host else str(request.base_url).rstrip("/")
-    return _XmlResponse(content=_build_sitemap_xml(origin), media_type="application/xml")
-
-
-# ---------- Marketplace stats (live buyer counter) ----------
-@api.get("/marketplace/industries")
-async def marketplace_industries():
-    """Returns the canonical list of employer industries + a live count per industry
-    (0 for industries no one has claimed yet). Used by the Landing trust bar and
-    the employer registration industry picker."""
-    counts = {i: 0 for i in EMPLOYER_INDUSTRIES}
-    pipeline = [
-        {"$match": {"role": "employer", "profile.company_industry": {"$in": EMPLOYER_INDUSTRIES}}},
-        {"$group": {"_id": "$profile.company_industry", "n": {"$sum": 1}}},
-    ]
-    async for row in db.users.aggregate(pipeline):
-        counts[row["_id"]] = int(row["n"])
-    return {
-        "industries": [{"label": i, "count": counts[i]} for i in EMPLOYER_INDUSTRIES],
-        "total_labelled_employers": sum(counts.values()),
-    }
-
-
-@api.get("/marketplace/stats")
-async def marketplace_stats():
-    """Live counts for the Landing trust bar. Aggregates real employer sign-ups
-    with a small baseline so an empty DB still reads credibly on day 1."""
-    active_buyers = await db.users.count_documents({"role": "employer"})
-    engagements = await db.engagements.count_documents({})
-    signed_engagements = await db.engagements.count_documents(
-        {"status": {"$in": ["contract_signed", "active", "completed"]}}
-    )
-    industries_used = len(await db.users.distinct(
-        "profile.company_industry",
-        {"role": "employer", "profile.company_industry": {"$in": EMPLOYER_INDUSTRIES}},
-    ))
-    # Baseline padding for a credible day-1 number, capped so it becomes irrelevant once the DB grows
-    baseline = 42
-    active_buyers_display = max(active_buyers, baseline) if active_buyers < baseline else active_buyers
-    return {
-        "active_buyers": active_buyers,
-        "active_buyers_display": active_buyers_display,
-        "industries": len(EMPLOYER_INDUSTRIES),
-        "industries_active": industries_used,
-        "cities_covered": len(SEO_CITIES),
-        "engagements_total": engagements,
-        "engagements_signed": signed_engagements,
     }
 
 

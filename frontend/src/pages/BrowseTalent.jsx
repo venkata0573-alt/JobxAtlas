@@ -4,8 +4,10 @@ import api, { formatErr } from "@/lib/api";
 import { TID } from "@/constants/testIds";
 import { toast } from "sonner";
 import { MagnifyingGlass, Star, X } from "@phosphor-icons/react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function BrowseTalent() {
+  const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
   const [skill, setSkill] = useState("");
@@ -104,9 +106,14 @@ export default function BrowseTalent() {
                       <p className="text-neutral-600 text-sm mt-1 line-clamp-2">{t.profile?.headline || "Independent professional"}</p>
                     </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="overline text-neutral-400">Rate</p>
+                  <div className="text-right flex-shrink-0" data-testid={`rate-chip-${t.id}`}>
+                    <p className="overline text-neutral-400">Talent rate</p>
                     <p className="font-display font-black text-2xl">${t.profile?.hourly_rate || 0}<span className="text-sm text-neutral-500">/hr</span></p>
+                    {t.sell_rate && user?.role !== "talent" ? (
+                      <p className="mt-1 hard-border bg-[#0B1B2B] text-[#C79A3B] text-[10px] font-mono px-2 py-1 tracking-widest whitespace-nowrap" data-testid={`sell-rate-${t.id}`}>
+                        You pay ${t.sell_rate}/hr
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 {t.profile?.portfolio_images?.length > 0 && (
