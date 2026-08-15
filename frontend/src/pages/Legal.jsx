@@ -92,7 +92,7 @@ export default function Legal() {
 
   return (
     <main className="max-w-6xl mx-auto px-6 md:px-12 py-16">
-      <p className="overline text-[#002FA7] mb-3">LEGAL &amp; COMPLIANCE</p>
+      <p className="overline text-[#6B21A8] mb-3">LEGAL &amp; COMPLIANCE</p>
       <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-3">Everything, in writing.</h1>
       {legal && (
         <p className="text-sm text-neutral-500 font-mono mb-8">

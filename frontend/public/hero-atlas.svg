@@ -44,9 +44,9 @@
       <stop offset="100%" stop-color="#0B1B2B" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="ha-arc" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%"   stop-color="#C79A3B" stop-opacity="0"/>
-      <stop offset="50%"  stop-color="#F0C260" stop-opacity="0.85"/>
-      <stop offset="100%" stop-color="#C79A3B" stop-opacity="0"/>
+      <stop offset="0%"   stop-color="#6B21A8" stop-opacity="0"/>
+      <stop offset="50%"  stop-color="#A78BFA" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#6B21A8" stop-opacity="0"/>
     </linearGradient>
     <filter id="ha-blur"><feGaussianBlur stdDeviation="1.2"/></filter>
   </defs>
@@ -58,7 +58,7 @@
   <ellipse cx="1150" cy="490" rx="720" ry="720" fill="url(#ha-orb)"/>
 
   <!-- Latitude / longitude grid — very faint gold lines to evoke a wireframe globe -->
-  <g stroke="#C79A3B" stroke-opacity="0.09" fill="none">
+  <g stroke="#6B21A8" stroke-opacity="0.09" fill="none">
     <!-- Parallels (latitude) -->
     <ellipse cx="1150" cy="490" rx="620" ry="80"/>
     <ellipse cx="1150" cy="490" rx="580" ry="180"/>
@@ -80,7 +80,7 @@
 
   <!-- Dot-matrix approximating continent shapes on the globe.
        Each <circle> is a warm-gold pinpoint (a "vetted talent" city). -->
-  <g fill="#F0C260">
+  <g fill="#A78BFA">
     <!-- North America cluster -->
     <g opacity="0.85">
       <circle cx="820" cy="330" r="2.5"/><circle cx="810" cy="350" r="2"/><circle cx="835" cy="345" r="2.2"/>
@@ -132,15 +132,15 @@
 
   <!-- A few gently glowing "hub" cities (each pulses with staggered timing) -->
   <g>
-    <circle cx="835"  cy="345" r="6"   fill="#F0C260" class="ha-hub-glow ha-hub-1"/>
+    <circle cx="835"  cy="345" r="6"   fill="#A78BFA" class="ha-hub-glow ha-hub-1"/>
     <circle cx="835"  cy="345" r="2.8" fill="#FFE79A"/>
-    <circle cx="1185" cy="365" r="6"   fill="#F0C260" class="ha-hub-glow ha-hub-2"/>
+    <circle cx="1185" cy="365" r="6"   fill="#A78BFA" class="ha-hub-glow ha-hub-2"/>
     <circle cx="1185" cy="365" r="2.8" fill="#FFE79A"/>
-    <circle cx="1440" cy="355" r="6"   fill="#F0C260" class="ha-hub-glow ha-hub-3"/>
+    <circle cx="1440" cy="355" r="6"   fill="#A78BFA" class="ha-hub-glow ha-hub-3"/>
     <circle cx="1440" cy="355" r="2.8" fill="#FFE79A"/>
-    <circle cx="1300" cy="440" r="6"   fill="#F0C260" class="ha-hub-glow ha-hub-4"/>
+    <circle cx="1300" cy="440" r="6"   fill="#A78BFA" class="ha-hub-glow ha-hub-4"/>
     <circle cx="1300" cy="440" r="2.8" fill="#FFE79A"/>
-    <circle cx="1610" cy="600" r="6"   fill="#F0C260" class="ha-hub-glow ha-hub-5"/>
+    <circle cx="1610" cy="600" r="6"   fill="#A78BFA" class="ha-hub-glow ha-hub-5"/>
     <circle cx="1610" cy="600" r="2.8" fill="#FFE79A"/>
   </g>
 

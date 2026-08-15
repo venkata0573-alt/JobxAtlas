@@ -440,6 +440,218 @@ async def public_trust_stats():
     }
 
 
+@api.get("/trust/timeseries")
+async def public_trust_timeseries():
+    """30-day daily timeseries powering the animated charts on /trust.
+    Buckets: refs_answered, engagements_signed, verified_talents, verified_companies.
+    Days with no activity return 0 so the chart draws a full 30 pts.
+    """
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    now = _dt.now(_tz.utc)
+    start = (now - _td(days=29)).replace(hour=0, minute=0, second=0, microsecond=0)
+    # Prefill 30 buckets keyed by yyyy-mm-dd
+    buckets: Dict[str, Dict[str, int]] = {}
+    for i in range(30):
+        d = (start + _td(days=i)).strftime("%Y-%m-%d")
+        buckets[d] = {"date": d, "refs": 0, "engagements": 0, "verified_talents": 0, "verified_companies": 0}
+
+    def _bucket_from(iso_val):
+        if not iso_val:
+            return None
+        try:
+            if isinstance(iso_val, str):
+                dt = _dt.fromisoformat(iso_val.replace("Z", "+00:00"))
+            else:
+                dt = iso_val
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=_tz.utc)
+            key = dt.strftime("%Y-%m-%d")
+            return key if key in buckets else None
+        except Exception:
+            return None
+
+    start_iso = start.isoformat()
+
+    # References answered
+    async for r in db.reference_checks.find(
+        {"status": "answered", "answered_at": {"$gte": start_iso}},
+        {"answered_at": 1, "_id": 0},
+    ):
+        k = _bucket_from(r.get("answered_at"))
+        if k:
+            buckets[k]["refs"] += 1
+
+    # Engagements signed / active / completed
+    async for e in db.engagements.find(
+        {"status": {"$in": ["contract_signed", "active", "completed"]},
+         "created_at": {"$gte": start_iso}},
+        {"created_at": 1, "_id": 0},
+    ):
+        k = _bucket_from(e.get("created_at"))
+        if k:
+            buckets[k]["engagements"] += 1
+
+    # Verifications (talent + company). Falls back to created_at when
+    # verified_at is absent so historical seed data still lights up the chart.
+    async for u in db.users.find(
+        {"verification_status": "verified"},
+        {"role": 1, "verified_at": 1, "created_at": 1, "_id": 0},
+    ):
+        ts = u.get("verified_at") or u.get("created_at")
+        k = _bucket_from(ts)
+        if not k:
+            continue
+        if u.get("role") == "talent":
+            buckets[k]["verified_talents"] += 1
+        elif u.get("role") == "employer":
+            buckets[k]["verified_companies"] += 1
+
+    return {"series": list(buckets.values()), "as_of": now.isoformat()}
+
+
+def _initials(name: str) -> str:
+    """Return anonymised initials from a full name. e.g. 'Ravi Shankar' → 'R.S.'"""
+    if not name:
+        return "—"
+    parts = [p for p in str(name).strip().split() if p]
+    if not parts:
+        return "—"
+    if len(parts) == 1:
+        return (parts[0][0] + ".").upper()
+    return ".".join(p[0].upper() for p in parts[:2]) + "."
+
+
+@api.get("/trust/timeseries/details")
+async def public_trust_timeseries_details(series: str = "refs"):
+    """Anonymised drill-through items for a single /trust chart series.
+
+    All rows are fully anonymised (initials + industry / role / response chip)
+    so this endpoint is safe to expose publicly. Returns up to 300 rows across
+    the same 30-day window as `/trust/timeseries` to keep the payload light.
+    """
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    valid = {"refs", "engagements", "verified_talents", "verified_companies"}
+    if series not in valid:
+        raise HTTPException(400, f"series must be one of {sorted(valid)}")
+    now = _dt.now(_tz.utc)
+    start = (now - _td(days=29)).replace(hour=0, minute=0, second=0, microsecond=0)
+    start_iso = start.isoformat()
+
+    def _fmt_day(iso_val):
+        if not iso_val:
+            return None
+        try:
+            if isinstance(iso_val, str):
+                dt = _dt.fromisoformat(iso_val.replace("Z", "+00:00"))
+            else:
+                dt = iso_val
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=_tz.utc)
+            return dt.strftime("%Y-%m-%d")
+        except Exception:
+            return None
+
+    items: List[Dict[str, Any]] = []
+
+    if series == "refs":
+        # Reference-check answers. Anonymise both the talent and the reference.
+        # response ∈ {yes, no, partial}
+        talent_ids: List[str] = []
+        docs = await db.reference_checks.find(
+            {"status": "answered", "answered_at": {"$gte": start_iso}},
+            {"_id": 0, "answered_at": 1, "response": 1, "ref_name": 1, "talent_id": 1},
+        ).sort("answered_at", -1).to_list(300)
+        for d in docs:
+            if d.get("talent_id"):
+                talent_ids.append(d["talent_id"])
+        # Batch-fetch talent names
+        talents_by_id: Dict[str, str] = {}
+        if talent_ids:
+            async for u in db.users.find(
+                {"id": {"$in": list(set(talent_ids))}},
+                {"_id": 0, "id": 1, "name": 1},
+            ):
+                talents_by_id[u["id"]] = u.get("name") or ""
+        for d in docs:
+            day = _fmt_day(d.get("answered_at"))
+            if not day:
+                continue
+            items.append({
+                "date": day,
+                "primary": _initials(talents_by_id.get(d.get("talent_id"), "")),
+                "secondary": f"Reference {_initials(d.get('ref_name') or '')}",
+                "chip": (d.get("response") or "answered").lower(),
+                "kind": "reference",
+            })
+
+    elif series == "engagements":
+        # Signed / active / completed engagements. Anonymise employer + talent.
+        docs = await db.engagements.find(
+            {"status": {"$in": ["contract_signed", "active", "completed"]},
+             "created_at": {"$gte": start_iso}},
+            {"_id": 0, "created_at": 1, "status": 1, "hours_purchased": 1,
+             "employer_id": 1, "talent_id": 1},
+        ).sort("created_at", -1).to_list(300)
+        uids: List[str] = []
+        for d in docs:
+            for k in ("employer_id", "talent_id"):
+                if d.get(k):
+                    uids.append(d[k])
+        users_by_id: Dict[str, Dict[str, Any]] = {}
+        if uids:
+            async for u in db.users.find(
+                {"id": {"$in": list(set(uids))}},
+                {"_id": 0, "id": 1, "name": 1, "role": 1, "profile": 1},
+            ):
+                users_by_id[u["id"]] = u
+        for d in docs:
+            day = _fmt_day(d.get("created_at"))
+            if not day:
+                continue
+            emp = users_by_id.get(d.get("employer_id"), {})
+            tal = users_by_id.get(d.get("talent_id"), {})
+            industry = (emp.get("profile") or {}).get("company_industry") or "Company"
+            hours = d.get("hours_purchased") or 0
+            items.append({
+                "date": day,
+                "primary": f"{_initials(tal.get('name') or '')} · {industry}",
+                "secondary": f"{hours}h engagement",
+                "chip": d.get("status") or "signed",
+                "kind": "engagement",
+            })
+
+    elif series in ("verified_talents", "verified_companies"):
+        role = "talent" if series == "verified_talents" else "employer"
+        docs = await db.users.find(
+            {"verification_status": "verified", "role": role},
+            {"_id": 0, "name": 1, "verified_at": 1, "created_at": 1,
+             "profile": 1, "id": 1},
+        ).to_list(300)
+        # Sort by verified_at desc (falls back to created_at)
+        docs.sort(key=lambda u: (u.get("verified_at") or u.get("created_at") or ""), reverse=True)
+        for d in docs:
+            day = _fmt_day(d.get("verified_at") or d.get("created_at"))
+            if not day:
+                continue
+            prof = d.get("profile") or {}
+            if role == "talent":
+                skills = prof.get("skills") or []
+                primary_skill = skills[0] if skills else (prof.get("headline") or "Professional")
+                secondary = f"{primary_skill} · {prof.get('location') or 'Global'}"
+            else:
+                secondary = f"{prof.get('company_industry') or 'Company'} · KYB"
+            items.append({
+                "date": day,
+                "primary": _initials(d.get("name") or ""),
+                "secondary": secondary,
+                "chip": "verified",
+                "kind": role,
+            })
+
+    return {"series": series, "items": items, "count": len(items),
+            "window_start": start_iso, "as_of": now.isoformat()}
+
+
 @api.get("/admin/reference-checks/{talent_id}")
 async def admin_list_reference_checks(talent_id: str, user: dict = Depends(get_current_user)):
     """Ops uses this to see which references have replied before deciding to

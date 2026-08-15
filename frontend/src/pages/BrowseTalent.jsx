@@ -39,7 +39,7 @@ export default function BrowseTalent() {
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
       <div className="flex items-baseline justify-between mb-10">
         <div>
-          <p className="overline text-[#002FA7] mb-3">BROWSE TALENT</p>
+          <p className="overline text-[#6B21A8] mb-3">BROWSE TALENT</p>
           <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight">Vetted professionals.</h1>
         </div>
         <p className="hidden md:block text-sm text-neutral-500 max-w-xs">Contact details are unlocked after you purchase hours and both parties sign the contract.</p>
@@ -50,9 +50,9 @@ export default function BrowseTalent() {
         <div className="hard-border bg-[#0B1B2B] text-white p-4 mb-6 flex items-center justify-between gap-4"
              data-testid="industry-filter-banner">
           <div className="flex items-center gap-3 min-w-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#C79A3B] shrink-0"/>
+            <span className="w-1.5 h-1.5 rounded-full bg-[#6B21A8] shrink-0"/>
             <p className="text-sm">
-              <span className="overline text-[#C79A3B] mr-2">FILTERED BY INDUSTRY</span>
+              <span className="overline text-[#6B21A8] mr-2">FILTERED BY INDUSTRY</span>
               <span className="font-display font-extrabold">{industryFilter}</span>
               <span className="hidden md:inline text-neutral-400 ml-3 text-xs">
                 · Showing talents self-tagged with this industry <em>or</em> who&apos;ve delivered past engagements to buyers in it
@@ -77,7 +77,7 @@ export default function BrowseTalent() {
         </div>
         <input data-testid={TID.browseSkill} placeholder="Skill (e.g. Python, Figma)"
                value={skill} onChange={(e) => setSkill(e.target.value)}
-               className="hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+               className="hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
         <button onClick={load} className="btn-primary">Filter</button>
       </div>
 
@@ -106,7 +106,7 @@ export default function BrowseTalent() {
               <div key={t.id} className={`hard-border bg-white p-7 shadow-brutal-hover relative ${i % 3 === 1 ? "md:translate-y-6" : ""}`}
                    data-testid={TID.browseTalentCard(t.id)}>
                 {t.is_trusted_partner && (
-                  <div className="absolute -top-3 left-4 bg-[#C79A3B] text-white px-3 py-1 hard-border text-[10px] font-mono tracking-widest z-10"
+                  <div className="absolute -top-3 left-4 bg-[#6B21A8] text-white px-3 py-1 hard-border text-[10px] font-mono tracking-widest z-10"
                        data-testid={`trusted-partner-${t.id}`}
                        title={`${t.completed_engagements} completed engagements · ${t.avg_rating}★ avg`}>
                     ★ TRUSTED PARTNER
@@ -118,12 +118,12 @@ export default function BrowseTalent() {
                       <img src={`${process.env.REACT_APP_BACKEND_URL}${t.profile.avatar_url}`}
                            alt={t.name} className="w-12 h-12 hard-border object-cover flex-shrink-0"/>
                     ) : (
-                      <div className="w-12 h-12 hard-border bg-[#0B1B2B] text-[#C79A3B] font-display font-black text-lg flex items-center justify-center flex-shrink-0">
+                      <div className="w-12 h-12 hard-border bg-[#0B1B2B] text-[#6B21A8] font-display font-black text-lg flex items-center justify-center flex-shrink-0">
                         {(t.name || "?").charAt(0).toUpperCase()}
                       </div>
                     )}
                     <div className="min-w-0">
-                      <p className="overline text-[#C79A3B]">{t.profile?.location || "Global"}</p>
+                      <p className="overline text-[#6B21A8]">{t.profile?.location || "Global"}</p>
                       <h3 className="font-display font-black text-2xl tracking-tight mt-1 truncate inline-flex items-center gap-1">
                         {t.name}
                         {t.is_verified && (
@@ -137,7 +137,7 @@ export default function BrowseTalent() {
                     <p className="overline text-neutral-400">Talent rate</p>
                     <p className="font-display font-black text-2xl">${t.profile?.hourly_rate || 0}<span className="text-sm text-neutral-500">/hr</span></p>
                     {t.sell_rate && user?.role !== "talent" ? (
-                      <p className="mt-1 hard-border bg-[#0B1B2B] text-[#C79A3B] text-[10px] font-mono px-2 py-1 tracking-widest whitespace-nowrap" data-testid={`sell-rate-${t.id}`}>
+                      <p className="mt-1 hard-border bg-[#0B1B2B] text-[#6B21A8] text-[10px] font-mono px-2 py-1 tracking-widest whitespace-nowrap" data-testid={`sell-rate-${t.id}`}>
                         You pay ${t.sell_rate}/hr
                       </p>
                     ) : null}

@@ -106,10 +106,10 @@ export default function Admin() {
   return (
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
       <div className="flex items-center gap-3 mb-3 flex-wrap">
-        <p className="overline text-[#002FA7]">ADMIN CONSOLE</p>
+        <p className="overline text-[#6B21A8]">ADMIN CONSOLE</p>
         <div className="flex flex-wrap gap-1" data-testid="admin-scopes">
           {(me.effective_scopes || []).map((s) => (
-            <span key={s} className="hard-border bg-[#0B1B2B] text-[#C79A3B] px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest">{s}</span>
+            <span key={s} className="hard-border bg-[#0B1B2B] text-[#6B21A8] px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest">{s}</span>
           ))}
         </div>
       </div>
@@ -118,7 +118,7 @@ export default function Admin() {
       </h1>
 
       {visibleTabs.length === 0 ? (
-        <p className="hard-border bg-[#FDF6E3] p-6 font-mono text-sm">
+        <p className="hard-border bg-[#F5F3FF] p-6 font-mono text-sm">
           Your admin account has no scopes granted yet. Ask a superadmin to grant you access.
         </p>
       ) : (
@@ -157,8 +157,8 @@ export default function Admin() {
                       <td className="px-4 py-3 font-mono text-xs">{p.utr || "—"}</td>
                       <td className="px-4 py-3"><span className="hard-border px-2 py-1 text-xs">{p.status}</span></td>
                       <td className="px-4 py-3 flex gap-2">
-                        <button onClick={() => act(`/admin/bank-transfers/${p.id}/approve`, "Approved")} className="hard-border p-2 hover:bg-[#002FA7] hover:text-white"><CheckCircle size={16}/></button>
-                        <button onClick={() => act(`/admin/bank-transfers/${p.id}/reject`, "Rejected")} className="hard-border p-2 hover:bg-[#FF0A0A] hover:text-white"><X size={16}/></button>
+                        <button onClick={() => act(`/admin/bank-transfers/${p.id}/approve`, "Approved")} className="hard-border p-2 hover:bg-[#6B21A8] hover:text-white"><CheckCircle size={16}/></button>
+                        <button onClick={() => act(`/admin/bank-transfers/${p.id}/reject`, "Rejected")} className="hard-border p-2 hover:bg-[#6B21A8] hover:text-white"><X size={16}/></button>
                       </td>
                     </tr>
                   ))}
@@ -173,7 +173,7 @@ export default function Admin() {
                 <div key={r.id} className="hard-border bg-white p-5 shadow-brutal">
                   <div className="flex items-center justify-between mb-2">
                     <p className="font-display font-extrabold">{r.reviewer_name} <span className="text-xs text-neutral-500 font-normal">({r.reviewer_role})</span></p>
-                    <div className="flex gap-0.5">{[1,2,3,4,5].map((n) => <Star key={n} size={14} weight={r.rating >= n ? "fill" : "regular"} color="#FF0A0A"/>)}</div>
+                    <div className="flex gap-0.5">{[1,2,3,4,5].map((n) => <Star key={n} size={14} weight={r.rating >= n ? "fill" : "regular"} color="#6B21A8"/>)}</div>
                   </div>
                   <p className="text-sm text-neutral-600 mb-3">{r.text || <em className="text-neutral-400">No comment.</em>}</p>
                   <div className="flex gap-2">
@@ -201,7 +201,7 @@ export default function Admin() {
                       <td className="px-4 py-3"><span className="hard-border px-2 py-1 text-xs">{g.status}</span></td>
                       <td className="px-4 py-3">
                         {g.status !== "resolved" && (
-                          <button onClick={() => act(`/admin/grievances/${g.id}/resolve`, "Resolved")} className="hard-border p-2 hover:bg-[#002FA7] hover:text-white"><CheckCircle size={16}/></button>
+                          <button onClick={() => act(`/admin/grievances/${g.id}/resolve`, "Resolved")} className="hard-border p-2 hover:bg-[#6B21A8] hover:text-white"><CheckCircle size={16}/></button>
                         )}
                       </td>
                     </tr>
@@ -213,10 +213,10 @@ export default function Admin() {
 
           {tab === "payouts" && (
             <>
-              <section className="hard-border bg-[#FDFCF0] p-6 shadow-brutal mb-6">
+              <section className="hard-border bg-[#F5F3FF] p-6 shadow-brutal mb-6">
                 <div className="flex items-end justify-between flex-wrap gap-3">
                   <div>
-                    <p className="overline text-[#002FA7]">Generate payout run</p>
+                    <p className="overline text-[#6B21A8]">Generate payout run</p>
                     <p className="text-sm text-neutral-600 mt-1">Aggregates approved deliverables into per-talent payouts (rate × hours minus commission tier + multi-employer fee).</p>
                   </div>
                   <div className="flex items-end gap-3">
@@ -339,11 +339,11 @@ function SupportPanel() {
           {users.length === 0 ? <p className="text-neutral-500 text-sm py-6 text-center">No users found.</p>
           : users.map((u) => (
             <button key={u.id} onClick={() => openUser(u)}
-                    className={`w-full text-left py-3 px-2 hover:bg-[#FAF9F6] ${selected === u.id ? "bg-[#FDF6E3]" : ""}`}
+                    className={`w-full text-left py-3 px-2 hover:bg-[#F5F3FF] ${selected === u.id ? "bg-[#F5F3FF]" : ""}`}
                     data-testid={`support-user-${u.id}`}>
               <div className="flex justify-between gap-2">
                 <p className="font-display font-bold text-sm truncate">{u.name}</p>
-                <span className="text-[10px] font-mono uppercase text-[#C79A3B]">{u.role}</span>
+                <span className="text-[10px] font-mono uppercase text-[#6B21A8]">{u.role}</span>
               </div>
               <p className="text-xs text-neutral-500 truncate">{u.email}</p>
             </button>
@@ -357,7 +357,7 @@ function SupportPanel() {
         ) : (
           <div className="space-y-4" data-testid="support-detail">
             <div>
-              <p className="overline text-[#C79A3B]">{detail.user.role.toUpperCase()}</p>
+              <p className="overline text-[#6B21A8]">{detail.user.role.toUpperCase()}</p>
               <p className="font-display font-extrabold text-2xl tracking-tight">{detail.user.name}</p>
               <p className="text-xs text-neutral-500 font-mono">{detail.user.email}</p>
               <p className="text-xs text-neutral-500 mt-2">
@@ -365,7 +365,7 @@ function SupportPanel() {
               </p>
             </div>
 
-            <div className="hard-border bg-[#FAF9F6] p-3">
+            <div className="hard-border bg-[#F5F3FF] p-3">
               <p className="overline mb-2">Adjust hours (goodwill)</p>
               <div className="flex gap-2">
                 <input type="number" value={hoursAdj} onChange={(e) => setHoursAdj(e.target.value)}
@@ -461,7 +461,7 @@ function StaffPanel({ selfId, scopes }) {
     <div className="space-y-6" data-testid="staff-panel">
       <div className="flex items-center justify-between">
         <div>
-          <p className="overline text-[#C79A3B]">STAFF & PERMISSIONS</p>
+          <p className="overline text-[#6B21A8]">STAFF & PERMISSIONS</p>
           <h2 className="font-display font-extrabold text-2xl">{staff.length} admin{staff.length === 1 ? "" : "s"}</h2>
         </div>
         <button onClick={() => setShowAdd((v) => !v)} className="btn-primary text-sm inline-flex items-center gap-1" data-testid="add-staff-toggle">
@@ -470,7 +470,7 @@ function StaffPanel({ selfId, scopes }) {
       </div>
 
       {showAdd && (
-        <form onSubmit={create} className="hard-border bg-[#FAF9F6] p-5 space-y-3" data-testid="add-staff-form">
+        <form onSubmit={create} className="hard-border bg-[#F5F3FF] p-5 space-y-3" data-testid="add-staff-form">
           <div className="grid md:grid-cols-3 gap-3">
             <input required placeholder="Name" value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} className="hard-border px-3 py-2 text-sm bg-white" data-testid="staff-name"/>
             <input required type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} className="hard-border px-3 py-2 text-sm bg-white" data-testid="staff-email"/>
@@ -508,7 +508,7 @@ function StaffPanel({ selfId, scopes }) {
           <tbody>
             {staff.map((s) => (
               <tr key={s.id} className="border-t border-black/10 align-top" data-testid={`staff-row-${s.id}`}>
-                <td className="px-4 py-3 font-display font-bold">{s.name}{s.id === selfId && <span className="text-xs text-[#C79A3B] ml-2">(you)</span>}</td>
+                <td className="px-4 py-3 font-display font-bold">{s.name}{s.id === selfId && <span className="text-xs text-[#6B21A8] ml-2">(you)</span>}</td>
                 <td className="px-4 py-3 font-mono text-xs">{s.email}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-1">
@@ -516,7 +516,7 @@ function StaffPanel({ selfId, scopes }) {
                       const on = (s.admin_permissions || []).includes(sc.id);
                       return (
                         <button key={sc.id} onClick={() => updateScopes(s.id, s.admin_permissions || [], sc.id)}
-                                className={`hard-border px-2 py-1 text-[10px] font-mono uppercase tracking-widest ${on ? "bg-[#C79A3B] text-white" : "bg-white text-neutral-500"}`}
+                                className={`hard-border px-2 py-1 text-[10px] font-mono uppercase tracking-widest ${on ? "bg-[#6B21A8] text-white" : "bg-white text-neutral-500"}`}
                                 data-testid={`scope-${s.id}-${sc.id}`}>
                           {sc.id}
                         </button>
@@ -526,7 +526,7 @@ function StaffPanel({ selfId, scopes }) {
                 </td>
                 <td className="px-4 py-3">
                   {s.id !== selfId && (
-                    <button onClick={() => del(s.id)} className="hard-border p-2 hover:bg-[#FF0A0A] hover:text-white" data-testid={`delete-staff-${s.id}`}>
+                    <button onClick={() => del(s.id)} className="hard-border p-2 hover:bg-[#6B21A8] hover:text-white" data-testid={`delete-staff-${s.id}`}>
                       <Trash size={14}/>
                     </button>
                   )}
@@ -571,7 +571,7 @@ function CustomizationPanel() {
   return (
     <div className="space-y-6" data-testid="customization-panel">
       <div>
-        <p className="overline text-[#C79A3B]">SITE CUSTOMIZATION</p>
+        <p className="overline text-[#6B21A8]">SITE CUSTOMIZATION</p>
         <h2 className="font-display font-extrabold text-2xl">Landing content & feature flags</h2>
         <p className="text-xs text-neutral-500 mt-1">These fields drive the public marketing surface. Changes go live on save.</p>
       </div>
@@ -616,7 +616,7 @@ function CustomizationPanel() {
           <div className="flex flex-wrap gap-2">
             {Object.entries(doc.features || {}).map(([k, v]) => (
               <button key={k} onClick={() => setFeature(k, !v)}
-                      className={`hard-border px-3 py-2 text-xs ${v ? "bg-[#C79A3B] text-white" : "bg-white text-neutral-500"}`}
+                      className={`hard-border px-3 py-2 text-xs ${v ? "bg-[#6B21A8] text-white" : "bg-white text-neutral-500"}`}
                       data-testid={`cust-flag-${k}`}>
                 {v ? "ON" : "OFF"} · {k}
               </button>
@@ -654,7 +654,7 @@ function ProjectLeadsPanel({ scopes }) {
   return (
     <div className="space-y-4" data-testid="project-leads-panel">
       <div>
-        <p className="overline text-[#C79A3B]">PROJECT LEADS</p>
+        <p className="overline text-[#6B21A8]">PROJECT LEADS</p>
         <h2 className="font-display font-extrabold text-2xl">{leads.length} scoping request{leads.length === 1 ? "" : "s"}</h2>
         <p className="text-xs text-neutral-500 mt-1">Convert a lead into a full delivery workspace with PMI phases, variance tracking, risk register, RACI and 25% milestone billing.</p>
       </div>
@@ -679,7 +679,7 @@ function ProjectLeadsPanel({ scopes }) {
                 <td className="px-4 py-3 font-mono text-xs">{l.duration_months} mo</td>
                 <td className="px-4 py-3 font-mono">${((l.estimated_total_cost || 0) / 1000).toFixed(0)}k</td>
                 <td className="px-4 py-3">
-                  <span className={`hard-border px-2 py-1 text-xs ${l.status === "converted" ? "bg-[#0B1B2B] text-[#C79A3B]" : ""}`}>{l.status}</span>
+                  <span className={`hard-border px-2 py-1 text-xs ${l.status === "converted" ? "bg-[#0B1B2B] text-[#6B21A8]" : ""}`}>{l.status}</span>
                 </td>
                 <td className="px-4 py-3">
                   {l.converted_project_id ? (
@@ -750,7 +750,7 @@ function VerificationsPanel({ scopes }) {
     <div className="space-y-4" data-testid="verifications-panel">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <p className="overline text-[#C79A3B]">TRUST & SAFETY</p>
+          <p className="overline text-[#6B21A8]">TRUST & SAFETY</p>
           <h2 className="font-display font-extrabold text-2xl">{items.length} · {status}</h2>
         </div>
         <div className="flex gap-1">
@@ -776,7 +776,7 @@ function VerificationsPanel({ scopes }) {
                   <p className="overline text-neutral-500">{(u.role || "").toUpperCase()}</p>
                   <p className="font-display font-extrabold text-lg tracking-tight">
                     {u.name}
-                    {u.role === "employer" && u.verification_status === "verified" && <span className="text-[#C79A3B] ml-1" title="Verified company">✦</span>}
+                    {u.role === "employer" && u.verification_status === "verified" && <span className="text-[#6B21A8] ml-1" title="Verified company">✦</span>}
                     {u.role === "talent" && u.verification_status === "verified" && <span className="text-[#0EA5E9] ml-1" title="BGV verified">✓</span>}
                   </p>
                   <p className="text-xs font-mono text-neutral-500">{u.email}</p>
@@ -797,7 +797,7 @@ function VerificationsPanel({ scopes }) {
                 )}
               </div>
               {u.verification_notes && (
-                <p className="text-xs text-neutral-600 mt-3 hard-border bg-[#FAF9F6] px-2 py-1"><b>Notes:</b> {u.verification_notes}</p>
+                <p className="text-xs text-neutral-600 mt-3 hard-border bg-[#F5F3FF] px-2 py-1"><b>Notes:</b> {u.verification_notes}</p>
               )}
               {status === "pending" && canDecide && (
                 <div className="flex gap-2 mt-4">

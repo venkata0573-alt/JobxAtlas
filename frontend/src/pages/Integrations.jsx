@@ -3,7 +3,14 @@ import api, { formatErr } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { TID } from "@/constants/testIds";
-import { PuzzlePiece, ArrowsClockwise, Trash, FileArrowUp } from "@phosphor-icons/react";
+import { PuzzlePiece, ArrowsClockwise, Trash, FileArrowUp, Handshake, CheckCircle } from "@phosphor-icons/react";
+
+const CRM_PROVIDERS = [
+  { id: "hubspot",    name: "HubSpot",      token_label: "Private-app access token",  needs_instance: false, help: "Settings → Integrations → Private Apps → Access token" },
+  { id: "salesforce", name: "Salesforce",   token_label: "OAuth access token",         needs_instance: true,  help: "OAuth Playground or Connected App refresh flow" },
+  { id: "slack",      name: "Slack",        token_label: "Bot user OAuth token (xoxb-)", needs_instance: false, help: "OAuth & Permissions → Bot User OAuth Token" },
+  { id: "sharepoint", name: "SharePoint",   token_label: "Graph API access token",     needs_instance: false, help: "Azure AD app registration → Client credentials" },
+];
 
 export default function Integrations() {
   const { user, refresh } = useAuth();
@@ -14,15 +21,53 @@ export default function Integrations() {
   const [items, setItems] = useState([]);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef(null);
+  // ---- CRM state ----
+  const [crmConns, setCrmConns] = useState([]);
+  const [crmProv, setCrmProv] = useState(null);      // selected CRM provider spec
+  const [crmToken, setCrmToken] = useState("");
+  const [crmInstance, setCrmInstance] = useState("");
+  const [crmConnecting, setCrmConnecting] = useState(false);
 
   const loadWork = async () => {
     try { const r = await api.get("/work/items"); setItems(r.data); } catch (e) { toast.error(formatErr(e)); }
+  };
+  const loadCrm = async () => {
+    try { const r = await api.get("/integrations/crm"); setCrmConns(r.data.items || []); }
+    catch { /* endpoint gated by role; ignore for talents */ }
   };
 
   useEffect(() => {
     api.get("/integrations/providers").then((r) => setProviders(r.data));
     loadWork();
-  }, []);
+    if (user?.role === "employer") loadCrm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role]);
+
+  const connectCrm = async (e) => {
+    e.preventDefault();
+    if (!crmProv || !crmToken.trim()) { toast.error("Pick a provider and paste your token"); return; }
+    if (crmProv.needs_instance && !crmInstance.trim()) { toast.error(`${crmProv.name} requires an instance URL`); return; }
+    setCrmConnecting(true);
+    try {
+      await api.post("/integrations/crm/connect", {
+        provider: crmProv.id,
+        access_token: crmToken.trim(),
+        instance_url: crmInstance.trim() || null,
+      });
+      toast.success(`${crmProv.name} connected`);
+      setCrmProv(null); setCrmToken(""); setCrmInstance("");
+      await loadCrm();
+    } catch (err) { toast.error(formatErr(err)); }
+    finally { setCrmConnecting(false); }
+  };
+  const disconnectCrm = async (provider) => {
+    if (!window.confirm(`Disconnect ${provider}?`)) return;
+    try {
+      await api.delete(`/integrations/crm/${provider}`);
+      toast.success(`${provider} disconnected`);
+      await loadCrm();
+    } catch (e) { toast.error(formatErr(e)); }
+  };
 
   const connect = async (e) => {
     e.preventDefault();
@@ -62,10 +107,115 @@ export default function Integrations() {
 
   return (
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
-      <p className="overline text-[#002FA7] mb-3">INTEGRATIONS</p>
+      <p className="overline text-[#6B21A8] mb-3">INTEGRATIONS</p>
       <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-3">One inbox for every task.</h1>
       <p className="text-neutral-600 max-w-2xl mb-10">Connect the tools your teams already use, or upload project plans directly.
         We map everything into a single work log per engagement.</p>
+
+      {/* -------------------- CRM & Sales Tools (employer only) -------------------- */}
+      {user?.role === "employer" && (
+        <section className="mb-14" data-testid="crm-section">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="hard-border bg-[#6B21A8] text-white w-10 h-10 flex items-center justify-center">
+              <Handshake size={18} weight="duotone"/>
+            </div>
+            <div>
+              <p className="overline text-[#6B21A8]">CRM &amp; SALES TOOLS</p>
+              <h2 className="font-display font-extrabold text-2xl tracking-tight">Push shortlisted talent into your CRM in one click.</h2>
+            </div>
+          </div>
+          <p className="text-sm text-neutral-600 max-w-2xl mb-6">
+            Connect HubSpot, Salesforce, Slack, or SharePoint. We validate your token against the vendor&apos;s
+            live API before saving. Push a shortlisted professional as a Contact (HubSpot) or Lead (Salesforce)
+            without leaving Job Atlas.
+          </p>
+
+          {/* Active CRM connections */}
+          {crmConns.length > 0 && (
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6" data-testid="crm-connections">
+              {crmConns.map((c) => (
+                <div key={c.provider} className="hard-border bg-white p-4 shadow-brutal flex items-center justify-between" data-testid={`crm-conn-${c.provider}`}>
+                  <div className="min-w-0">
+                    <p className="font-display font-extrabold text-sm tracking-tight capitalize inline-flex items-center gap-1">
+                      <CheckCircle size={14} weight="fill" color="#6B21A8"/> {c.provider}
+                    </p>
+                    <p className="text-[10px] font-mono text-neutral-500 mt-1 truncate">Token {c.token_masked || "•••"}</p>
+                    {c.instance_url && (
+                      <p className="text-[10px] font-mono text-neutral-500 truncate" title={c.instance_url}>{c.instance_url}</p>
+                    )}
+                  </div>
+                  <button onClick={() => disconnectCrm(c.provider)}
+                          data-testid={`crm-disconnect-${c.provider}`}
+                          className="hard-border p-2 bg-white text-neutral-500 hover:bg-red-50 hover:text-red-700"
+                          title="Disconnect">
+                    <Trash size={14}/>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Connect a CRM */}
+          <div className="hard-border bg-white p-6 shadow-brutal" data-testid="crm-connect-card">
+            <p className="overline mb-3">Connect a provider</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+              {CRM_PROVIDERS.map((p) => {
+                const already = crmConns.some((c) => c.provider === p.id);
+                return (
+                  <button key={p.id} type="button"
+                          onClick={() => !already && setCrmProv(p)}
+                          disabled={already}
+                          data-testid={`crm-provider-${p.id}`}
+                          className={`hard-border p-3 text-left transition-colors ${
+                            crmProv?.id === p.id ? "bg-[#0B1B2B] text-white border-[#0B1B2B]"
+                            : already ? "bg-[#F5F3FF] opacity-60 cursor-not-allowed"
+                            : "bg-white hover:bg-[#F5F3FF]"
+                          }`}>
+                    <p className="font-display font-extrabold text-sm">{p.name}</p>
+                    <p className={`text-[10px] mt-1 truncate ${crmProv?.id === p.id ? "text-[#A78BFA]" : "text-neutral-500"}`}>
+                      {already ? "Connected ✓" : p.token_label}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {crmProv && (
+              <form onSubmit={connectCrm} className="space-y-3 border-t border-black/10 pt-4" data-testid="crm-connect-form">
+                <p className="overline text-[#6B21A8]">{crmProv.name} · Credentials</p>
+                <p className="text-[11px] font-mono text-neutral-500">{crmProv.help}</p>
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">{crmProv.token_label}</label>
+                  <input value={crmToken} onChange={(e) => setCrmToken(e.target.value)}
+                         type="password" required
+                         data-testid="crm-token-input"
+                         className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8] font-mono text-sm"/>
+                </div>
+                {crmProv.needs_instance && (
+                  <div>
+                    <label className="text-xs text-neutral-500 mb-1 block">Instance URL (e.g. https://myco.my.salesforce.com)</label>
+                    <input value={crmInstance} onChange={(e) => setCrmInstance(e.target.value)}
+                           placeholder="https://…" required
+                           data-testid="crm-instance-input"
+                           className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8] font-mono text-sm"/>
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <button type="submit" disabled={crmConnecting} className="btn-primary text-sm" data-testid="crm-connect-btn">
+                    {crmConnecting ? "Validating…" : `Connect ${crmProv.name} →`}
+                  </button>
+                  <button type="button" onClick={() => { setCrmProv(null); setCrmToken(""); setCrmInstance(""); }}
+                          className="btn-outline text-sm">Cancel</button>
+                </div>
+                <p className="text-[11px] text-neutral-500">Tokens are validated against the vendor&apos;s live API before we persist them. Disconnect anytime.</p>
+              </form>
+            )}
+            {!crmProv && (
+              <p className="text-xs text-neutral-500 font-mono">Pick a provider above to paste your token.</p>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Existing connections */}
       {connections.length > 0 && (
@@ -82,7 +232,7 @@ export default function Integrations() {
                   <button onClick={() => doSync(c.id)} data-testid={TID.integrationSync(c.id)}
                           className="hard-border p-2 hover:bg-[#0A0A0A] hover:text-white"><ArrowsClockwise size={16}/></button>
                   <button onClick={() => disconnect(c.id)} data-testid={TID.integrationDisconnect(c.id)}
-                          className="hard-border p-2 hover:bg-[#FF0A0A] hover:text-white"><Trash size={16}/></button>
+                          className="hard-border p-2 hover:bg-[#6B21A8] hover:text-white"><Trash size={16}/></button>
                 </div>
               </div>
             ))}
@@ -94,7 +244,7 @@ export default function Integrations() {
         {/* Provider picker */}
         <section className="hard-border bg-white p-8 shadow-brutal">
           <div className="flex items-center gap-3 mb-4">
-            <PuzzlePiece size={22} weight="duotone" color="#002FA7"/>
+            <PuzzlePiece size={22} weight="duotone" color="#6B21A8"/>
             <h2 className="font-display font-extrabold text-2xl tracking-tight">Connect a provider</h2>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
@@ -114,12 +264,12 @@ export default function Integrations() {
                 <label className="text-xs text-neutral-500 mb-1 block">{selected.token_label}</label>
                 <input data-testid={TID.integrationToken} value={token} onChange={(e) => setToken(e.target.value)}
                        type="password" required
-                       className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7] font-mono"/>
+                       className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8] font-mono"/>
               </div>
               <div>
                 <label className="text-xs text-neutral-500 mb-1 block">{selected.workspace_label}</label>
                 <input data-testid={TID.integrationWorkspace} value={workspace} onChange={(e) => setWorkspace(e.target.value)}
-                       className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+                       className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
               </div>
               <button type="submit" className="btn-primary" data-testid={TID.integrationConnect}>Connect →</button>
               <p className="text-xs text-neutral-500">If we can&apos;t reach the API, we&apos;ll seed placeholder tasks so you can preview the flow.</p>
@@ -128,9 +278,9 @@ export default function Integrations() {
         </section>
 
         {/* File upload */}
-        <section className="hard-border bg-[#FDFCF0] p-8 shadow-brutal">
+        <section className="hard-border bg-[#F5F3FF] p-8 shadow-brutal">
           <div className="flex items-center gap-3 mb-4">
-            <FileArrowUp size={22} weight="duotone" color="#002FA7"/>
+            <FileArrowUp size={22} weight="duotone" color="#6B21A8"/>
             <h2 className="font-display font-extrabold text-2xl tracking-tight">Upload a plan</h2>
           </div>
           <p className="text-sm text-neutral-600 mb-4">Excel (.xlsx/.xls) with a &quot;Task&quot; column, or MS Project XML export.</p>

@@ -13,7 +13,7 @@ const HERO = "/hero-atlas.svg?v=2";
 
 const Feature = ({ Icon, title, desc }) => (
   <div className="hard-border bg-white p-8">
-    <div className="hard-border bg-[#002FA7] text-white w-12 h-12 flex items-center justify-center mb-6">
+    <div className="hard-border bg-[#6B21A8] text-white w-12 h-12 flex items-center justify-center mb-6">
       <Icon size={22} weight="duotone" />
     </div>
     <h3 className="font-display font-extrabold text-2xl tracking-tight mb-2">{title}</h3>
@@ -83,12 +83,12 @@ export default function Landing() {
         <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A0A]/85 via-[#0A0A0A]/55 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0A0A0A]/60" />
         <div className="relative max-w-7xl mx-auto px-6 md:px-12 py-24 md:py-40">
-          <p className="overline text-[#FF0A0A] mb-6">The premium marketplace for hourly experts</p>
+          <p className="overline text-[#6B21A8] mb-6">The premium marketplace for hourly experts</p>
           <h1 className="font-display font-extrabold text-5xl sm:text-6xl lg:text-7xl tracking-tight leading-[0.95] max-w-4xl">
             Hire experts by the hour.<br/>
             Ship projects by the week.<br/>
             <span
-              className="text-[#FF0A0A] inline-block transition-all duration-300 ease-out"
+              className="text-[#6B21A8] inline-block transition-all duration-300 ease-out"
               style={{ opacity: verbFade ? 1 : 0, transform: verbFade ? "translateY(0)" : "translateY(-4px)" }}
               data-testid="hero-verb-rotator">
               {HERO_VERBS[verbIndex]} without the guesswork.
@@ -112,10 +112,10 @@ export default function Landing() {
             </Link>
           </div>
           <div className="mt-14 flex flex-wrap gap-x-8 gap-y-3 text-sm text-neutral-400 font-mono">
-            <span className="inline-flex items-center gap-2"><Star weight="fill" color="#FF0A0A" size={14}/> Vetted global talent pool</span>
-            <span className="inline-flex items-center gap-2"><ShieldCheck weight="fill" color="#FF0A0A" size={14}/> Structured engagements from day one</span>
-            <span className="inline-flex items-center gap-2"><Certificate weight="fill" color="#FF0A0A" size={14}/> Transparent, milestone-linked pricing</span>
-            <span className="inline-flex items-center gap-2"><ChartLineUp weight="fill" color="#C79A3B" size={14}/> Same-day payment on accepted work</span>
+            <span className="inline-flex items-center gap-2"><Star weight="fill" color="#6B21A8" size={14}/> Vetted global talent pool</span>
+            <span className="inline-flex items-center gap-2"><ShieldCheck weight="fill" color="#6B21A8" size={14}/> Structured engagements from day one</span>
+            <span className="inline-flex items-center gap-2"><Certificate weight="fill" color="#6B21A8" size={14}/> Transparent, milestone-linked pricing</span>
+            <span className="inline-flex items-center gap-2"><ChartLineUp weight="fill" color="#6B21A8" size={14}/> Same-day payment on accepted work</span>
           </div>
         </div>
       </section>
@@ -131,8 +131,8 @@ export default function Landing() {
           </h2>
           <div className="grid md:grid-cols-3 gap-6">
             {TESTIMONIALS.map((t, i) => (
-              <blockquote key={i} className={`hard-border bg-[#FAF9F6] p-8 shadow-brutal ${i === 1 ? "md:-translate-y-3" : ""}`}>
-                <Quotes size={26} weight="fill" color="#C79A3B"/>
+              <blockquote key={i} className={`hard-border bg-[#F5F3FF] p-8 shadow-brutal ${i === 1 ? "md:-translate-y-3" : ""}`}>
+                <Quotes size={26} weight="fill" color="#6B21A8"/>
                 <p className="mt-4 leading-relaxed text-[#1a1a1a]">{t.quote}</p>
                 <footer className="mt-6 border-t border-black/10 pt-4 flex items-center justify-between">
                   <div>
@@ -148,12 +148,12 @@ export default function Landing() {
           {/* Employer Trust Bar — anonymised buyer categories, premium layout */}
           <div className="mt-16 relative overflow-hidden hard-border bg-gradient-to-br from-[#0B1B2B] via-[#122740] to-[#0B1B2B] text-white p-8 md:p-12">
             {/* Decorative corner accent */}
-            <div className="absolute top-0 right-0 w-40 h-40 bg-[#C79A3B] opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"/>
+            <div className="absolute top-0 right-0 w-40 h-40 bg-[#6B21A8] opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"/>
             <div className="absolute bottom-0 left-0 w-32 h-32 bg-[#6B21A8] opacity-10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"/>
 
             <div className="relative flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-8">
               <div>
-                <p className="overline text-[#C79A3B] mb-2">TRUSTED BY BUYERS OF EVERY SHAPE</p>
+                <p className="overline text-[#6B21A8] mb-2">TRUSTED BY BUYERS OF EVERY SHAPE</p>
                 <h3 className="font-display font-extrabold text-2xl md:text-3xl tracking-tight leading-tight max-w-xl">
                   From Series-A founders to public-sector innovation teams.
                 </h3>
@@ -191,15 +191,15 @@ export default function Landing() {
                   key={row.label}
                   to={`/browse?industry=${encodeURIComponent(row.label)}`}
                   data-testid={`trust-industry-${row.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`}
-                  className="hard-border border-white/15 bg-white/[0.03] hover:bg-white/[0.10] hover:border-[#C79A3B]/50 transition-colors px-4 py-3 flex items-center justify-between gap-3 group">
+                  className="hard-border border-white/15 bg-white/[0.03] hover:bg-white/[0.10] hover:border-[#6B21A8]/50 transition-colors px-4 py-3 flex items-center justify-between gap-3 group">
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#C79A3B] shrink-0"/>
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#6B21A8] shrink-0"/>
                     <span className="text-sm text-neutral-200 group-hover:text-white leading-tight truncate">{row.label}</span>
                   </div>
                   {row.count > 0 ? (
-                    <span className="text-[10px] font-mono text-[#C79A3B] tabular-nums shrink-0">×{row.count}</span>
+                    <span className="text-[10px] font-mono text-[#6B21A8] tabular-nums shrink-0">×{row.count}</span>
                   ) : (
-                    <span className="text-[10px] font-mono text-white/30 group-hover:text-[#C79A3B] tabular-nums shrink-0">→</span>
+                    <span className="text-[10px] font-mono text-white/30 group-hover:text-[#6B21A8] tabular-nums shrink-0">→</span>
                   )}
                 </Link>
               ))}
@@ -209,7 +209,7 @@ export default function Landing() {
               <p className="text-[11px] font-mono text-neutral-500 uppercase tracking-[0.2em]">
                 Company names withheld · Non-disclosure honoured on every engagement
               </p>
-              <Link to="/register" className="text-xs font-mono text-[#C79A3B] hover:text-white transition-colors">
+              <Link to="/register" className="text-xs font-mono text-[#6B21A8] hover:text-white transition-colors">
                 Add your company →
               </Link>
             </div>
@@ -247,7 +247,7 @@ export default function Landing() {
       {/* HOW IT WORKS */}
       <section className="bg-[#F9F9F9] border-t border-black/10">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-24">
-          <p className="overline text-[#002FA7] mb-3">HOW IT WORKS</p>
+          <p className="overline text-[#6B21A8] mb-3">HOW IT WORKS</p>
           <h2 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight max-w-2xl mb-16">
             One platform. Three unbreakable rules.
           </h2>
@@ -263,7 +263,7 @@ export default function Landing() {
 
       {/* Two engagement models + Work tracking */}
       <section className="max-w-7xl mx-auto px-6 md:px-12 py-24 grid md:grid-cols-2 gap-6">
-        <div className="hard-border bg-[#FDFCF0] p-10 md:p-14 shadow-brutal">
+        <div className="hard-border bg-[#F5F3FF] p-10 md:p-14 shadow-brutal">
           <div className="hard-border bg-[#6B21A8] text-white w-12 h-12 flex items-center justify-center mb-6">
             <ShieldCheck size={22} weight="duotone" />
           </div>
@@ -278,10 +278,10 @@ export default function Landing() {
           </p>
         </div>
         <div className="hard-border bg-white p-10 md:p-14 shadow-brutal">
-          <div className="hard-border bg-[#002FA7] text-white w-12 h-12 flex items-center justify-center mb-6">
+          <div className="hard-border bg-[#6B21A8] text-white w-12 h-12 flex items-center justify-center mb-6">
             <PuzzlePiece size={22} weight="duotone" />
           </div>
-          <p className="overline text-[#002FA7] mb-3">Work tracked automatically</p>
+          <p className="overline text-[#6B21A8] mb-3">Work tracked automatically</p>
           <h3 className="font-display font-extrabold text-3xl tracking-tight mb-4">
             Plug in Jira, Asana, Confluence, SAP…
           </h3>
@@ -299,7 +299,7 @@ export default function Landing() {
 
       {/* FAQ */}
       <section className="max-w-4xl mx-auto px-6 md:px-12 py-24" itemScope itemType="https://schema.org/FAQPage">
-        <p className="overline text-[#002FA7] mb-3">FREQUENTLY ASKED</p>
+        <p className="overline text-[#6B21A8] mb-3">FREQUENTLY ASKED</p>
         <h2 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-12">Straight answers.</h2>
         <div className="divide-y divide-black/10 hard-border bg-white shadow-brutal">
           {FAQ.map((f, i) => (
@@ -332,7 +332,7 @@ export default function Landing() {
       </section>
 
       {/* Leadership team note */}
-      <section className="border-t border-black/10 bg-[#FAF9F6]">
+      <section className="border-t border-black/10 bg-[#F5F3FF]">
         <div className="max-w-4xl mx-auto px-6 md:px-12 py-20 text-center">
           <p className="overline text-[#6B21A8] mb-6">A NOTE FROM THE LEADERSHIP TEAM</p>
           <p className="font-display text-xl md:text-2xl leading-relaxed text-[#0B1B2B] max-w-2xl mx-auto">

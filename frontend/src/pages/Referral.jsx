@@ -24,7 +24,7 @@ export default function Referral() {
 
   return (
     <main className="max-w-4xl mx-auto px-6 md:px-12 py-16">
-      <p className="overline text-[#002FA7] mb-3">REFERRALS</p>
+      <p className="overline text-[#6B21A8] mb-3">REFERRALS</p>
       <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-3">
         Bring a friend. Get 2% back.
       </h1>
@@ -36,24 +36,24 @@ export default function Referral() {
         <p className="overline mb-3">Your referral code</p>
         <div className="flex items-center gap-3 mb-4">
           <p className="font-display font-extrabold text-4xl tracking-tight">{r.code}</p>
-          <button onClick={() => { navigator.clipboard.writeText(r.code); toast.success("Copied"); }} className="hard-border p-2 hover:bg-[#002FA7] hover:text-white"><Copy size={16}/></button>
+          <button onClick={() => { navigator.clipboard.writeText(r.code); toast.success("Copied"); }} className="hard-border p-2 hover:bg-[#6B21A8] hover:text-white"><Copy size={16}/></button>
         </div>
         <div className="hard-border bg-[#F9F9F9] p-3 flex items-center justify-between gap-3">
           <span className="font-mono text-xs break-all">{link}</span>
           <div className="flex gap-2">
-            <button onClick={() => { navigator.clipboard.writeText(link); toast.success("Link copied"); }} className="hard-border p-2 hover:bg-[#002FA7] hover:text-white"><Copy size={14}/></button>
-            <button onClick={() => navigator.share?.({ title: "Job Atlas", url: link })} className="hard-border p-2 hover:bg-[#002FA7] hover:text-white"><Share size={14}/></button>
+            <button onClick={() => { navigator.clipboard.writeText(link); toast.success("Link copied"); }} className="hard-border p-2 hover:bg-[#6B21A8] hover:text-white"><Copy size={14}/></button>
+            <button onClick={() => navigator.share?.({ title: "Job Atlas", url: link })} className="hard-border p-2 hover:bg-[#6B21A8] hover:text-white"><Share size={14}/></button>
           </div>
         </div>
         <p className="text-xs text-neutral-500 mt-4">Bonus hours earned so far: <strong>{r.total_bonus_hours}</strong></p>
       </section>
 
-      <section className="hard-border bg-[#FDFCF0] p-8 shadow-brutal mb-8">
+      <section className="hard-border bg-[#F5F3FF] p-8 shadow-brutal mb-8">
         <p className="overline mb-3">Got a code?</p>
         <form onSubmit={claim} className="flex flex-col md:flex-row gap-3">
           <input value={code} onChange={(e) => setCode(e.target.value)}
                  placeholder="TH-XXXXXX"
-                 className="flex-1 hard-border px-3 py-3 bg-white font-mono focus:outline-none focus:border-[#002FA7]"/>
+                 className="flex-1 hard-border px-3 py-3 bg-white font-mono focus:outline-none focus:border-[#6B21A8]"/>
           <button type="submit" className="btn-primary">Apply</button>
         </form>
       </section>

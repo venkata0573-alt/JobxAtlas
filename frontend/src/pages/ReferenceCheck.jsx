@@ -40,8 +40,8 @@ export default function ReferenceCheck() {
     <main className="max-w-lg mx-auto p-8 md:p-16" data-testid="reference-check-page">
       <div className="hard-border bg-white p-8 shadow-brutal">
         <div className="flex items-center gap-2 mb-3">
-          <ShieldCheck size={22} weight="fill" color="#C79A3B"/>
-          <p className="overline text-[#C79A3B]">JOB ATLAS · REFERENCE CHECK</p>
+          <ShieldCheck size={22} weight="fill" color="#6B21A8"/>
+          <p className="overline text-[#6B21A8]">JOB ATLAS · REFERENCE CHECK</p>
         </div>
         {state === "loading" && <p className="font-mono text-neutral-500">Loading…</p>}
         {state === "error" && (
@@ -60,7 +60,7 @@ export default function ReferenceCheck() {
         {state === "prompt" && data && (
           <form onSubmit={submit}>
             <h1 className="font-display font-extrabold text-2xl tracking-tight mb-2">
-              Did you work with <span className="text-[#C79A3B]">{data.talent_name}</span>?
+              Did you work with <span className="text-[#6B21A8]">{data.talent_name}</span>?
             </h1>
             <p className="text-sm text-neutral-600 mb-6">
               You&apos;re listed as their <b>{data.ref_relationship}</b>{data.ref_company ? ` at ${data.ref_company}` : ""}. One click — no login needed.
@@ -68,7 +68,7 @@ export default function ReferenceCheck() {
             <div className="space-y-2 mb-4">
               {[
                 { id: "yes",     label: "Yes — I worked with them as described.",     tone: "bg-[#EDF7EE] border-emerald-400" },
-                { id: "partial", label: "Partly — some details are off, see notes.",  tone: "bg-[#FDF6E3] border-[#C79A3B]" },
+                { id: "partial", label: "Partly — some details are off, see notes.",  tone: "bg-[#F5F3FF] border-[#6B21A8]" },
                 { id: "no",      label: "No — I don't recognise this person.",         tone: "bg-[#FEF0F0] border-red-300" },
               ].map((opt) => (
                 <label key={opt.id} className={`hard-border block cursor-pointer p-3 ${answer === opt.id ? opt.tone : "bg-white"}`} data-testid={`ref-answer-${opt.id}`}>

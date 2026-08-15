@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
 import { toast } from "sonner";
-import { BookmarkSimple, Trash, ShoppingCart, MapPin, Star, PaperPlaneTilt, X } from "@phosphor-icons/react";
+import { BookmarkSimple, Trash, ShoppingCart, MapPin, Star, PaperPlaneTilt, X, UploadSimple } from "@phosphor-icons/react";
 
 export default function Shortlist() {
   const [items, setItems] = useState([]);
@@ -12,15 +12,46 @@ export default function Shortlist() {
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [broadcastMsg, setBroadcastMsg] = useState("");
   const [broadcastSending, setBroadcastSending] = useState(false);
+  const [crmConns, setCrmConns] = useState([]);
+  const [pushing, setPushing] = useState(null); // talent_id being pushed
   const nav = useNavigate();
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); loadCrm(); }, []);
   const load = async () => {
     try {
       const r = await api.get("/shortlist");
       setItems(r.data.items || []);
     } catch (e) { toast.error(formatErr(e)); }
     finally { setLoading(false); }
+  };
+  const loadCrm = async () => {
+    try { const r = await api.get("/integrations/crm"); setCrmConns(r.data.items || []); }
+    catch { /* ignore */ }
+  };
+
+  const pushToCrm = async (t) => {
+    if (crmConns.length === 0) {
+      toast.error("Connect a CRM first — /integrations");
+      return;
+    }
+    // If multiple providers connected, ask; otherwise auto-use the only one.
+    const provider = crmConns.length === 1
+      ? crmConns[0].provider
+      : window.prompt(`Push to which CRM? Options: ${crmConns.map((c) => c.provider).join(", ")}`, crmConns[0].provider);
+    if (!provider) return;
+    setPushing(t.talent_id);
+    try {
+      await api.post("/integrations/crm/push-lead", {
+        provider,
+        talent_id: t.talent_id,
+        talent_name: t.talent_name,
+        hourly_rate: t.hourly_rate,
+        headline: t.headline || "",
+        location: t.location || "",
+      });
+      toast.success(`Pushed ${t.talent_name} to ${provider}`);
+    } catch (e) { toast.error(formatErr(e)); }
+    finally { setPushing(null); }
   };
 
   const remove = async (talentId) => {
@@ -80,7 +111,7 @@ export default function Shortlist() {
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
       <div className="flex items-start justify-between gap-4 mb-10 flex-wrap">
         <div>
-          <p className="overline text-[#C79A3B] mb-3">MY SHORTLIST</p>
+          <p className="overline text-[#6B21A8] mb-3">MY SHORTLIST</p>
           <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight">Talents you&apos;ve saved.</h1>
           <p className="text-neutral-600 mt-2 max-w-xl">
             Contact information stays locked until you purchase a bundle of hours. Reach out to any shortlisted
@@ -94,8 +125,8 @@ export default function Shortlist() {
       </div>
 
       {items.length === 0 ? (
-        <section className="hard-border bg-[#FAF9F6] p-16 text-center shadow-brutal" data-testid="shortlist-empty">
-          <BookmarkSimple size={40} weight="duotone" className="mx-auto mb-4 text-[#C79A3B]"/>
+        <section className="hard-border bg-[#F5F3FF] p-16 text-center shadow-brutal" data-testid="shortlist-empty">
+          <BookmarkSimple size={40} weight="duotone" className="mx-auto mb-4 text-[#6B21A8]"/>
           <h2 className="font-display font-extrabold text-2xl tracking-tight mb-2">Your shortlist is empty.</h2>
           <p className="text-neutral-600 max-w-md mx-auto mb-6">
             Browse curated city × skill pages and tap any talent card to open a preview. Use <strong>Shortlist for future hire</strong> to save profiles here.
@@ -108,9 +139,9 @@ export default function Shortlist() {
           <section className="hard-border bg-gradient-to-br from-[#0B1B2B] via-[#122740] to-[#0B1B2B] text-white p-8 md:p-10 shadow-brutal mb-8" data-testid="shortlist-summary">
             <div className="grid md:grid-cols-[1.4fr_1fr] gap-8 items-center">
               <div>
-                <p className="overline text-[#C79A3B] mb-3">READY TO PURCHASE HOURS</p>
+                <p className="overline text-[#6B21A8] mb-3">READY TO PURCHASE HOURS</p>
                 <h2 className="font-display font-extrabold text-3xl tracking-tight mb-3">
-                  {stats.count} talent{stats.count > 1 ? "s" : ""} · avg <span className="text-[#F0C260]">${stats.avg}/hr</span>
+                  {stats.count} talent{stats.count > 1 ? "s" : ""} · avg <span className="text-[#A78BFA]">${stats.avg}/hr</span>
                 </h2>
                 <p className="text-sm text-neutral-300 leading-relaxed max-w-md">
                   Buy a bundle of hours to unlock direct messaging with everyone on this shortlist.
@@ -123,7 +154,7 @@ export default function Shortlist() {
                       <button
                         key={h}
                         onClick={() => setHoursPerTalent(h)}
-                        className={`px-3 py-2 text-sm font-mono ${hoursPerTalent === h ? "bg-[#C79A3B] text-[#0B1B2B]" : "bg-transparent text-white hover:bg-white/10"}`}
+                        className={`px-3 py-2 text-sm font-mono ${hoursPerTalent === h ? "bg-[#6B21A8] text-[#0B1B2B]" : "bg-transparent text-white hover:bg-white/10"}`}
                         data-testid={`hours-per-talent-${h}`}>
                         {h}h
                       </button>
@@ -141,7 +172,7 @@ export default function Shortlist() {
                 </p>
                 <button
                   onClick={gotoPurchase}
-                  className="mt-6 w-full inline-flex items-center justify-center gap-2 bg-[#C79A3B] hover:bg-[#F0C260] text-[#0B1B2B] font-display font-extrabold text-sm tracking-tight px-4 py-3 hard-border border-[#C79A3B]"
+                  className="mt-6 w-full inline-flex items-center justify-center gap-2 bg-[#6B21A8] hover:bg-[#A78BFA] text-[#0B1B2B] font-display font-extrabold text-sm tracking-tight px-4 py-3 hard-border border-[#6B21A8]"
                   data-testid="purchase-for-shortlist-btn">
                   <ShoppingCart size={16} weight="fill"/> Purchase hours for this shortlist →
                 </button>
@@ -162,11 +193,11 @@ export default function Shortlist() {
             {items.map((t) => (
               <div key={t.talent_id} className="hard-border bg-white p-6 shadow-brutal" data-testid={`shortlist-item-${t.talent_id}`}>
                 <div className="flex items-start justify-between mb-2 gap-2">
-                  <p className="overline text-[#C79A3B] inline-flex items-center gap-1 truncate">
+                  <p className="overline text-[#6B21A8] inline-flex items-center gap-1 truncate">
                     <MapPin size={11} weight="fill"/> {t.location || "Global"}
                   </p>
                   {t.is_curated && (
-                    <span className="text-[10px] font-mono text-[#C79A3B] uppercase tracking-widest inline-flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] font-mono text-[#6B21A8] uppercase tracking-widest inline-flex items-center gap-1 shrink-0">
                       <Star size={11} weight="fill"/> Vetted
                     </span>
                   )}
@@ -182,13 +213,25 @@ export default function Shortlist() {
                 )}
                 <div className="flex justify-between items-baseline mt-5 pt-4 border-t border-black/10">
                   <p className="font-display font-black text-xl">${t.hourly_rate}<span className="text-xs text-neutral-500">/hr</span></p>
-                  <button
-                    onClick={() => remove(t.talent_id)}
-                    disabled={removing === t.talent_id}
-                    className="text-xs text-neutral-500 hover:text-red-700 inline-flex items-center gap-1"
-                    data-testid={`remove-${t.talent_id}`}>
-                    <Trash size={12}/> Remove
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {crmConns.length > 0 && !t.is_curated && (
+                      <button
+                        onClick={() => pushToCrm(t)}
+                        disabled={pushing === t.talent_id}
+                        className="text-xs text-[#6B21A8] hover:text-[#0B1B2B] inline-flex items-center gap-1"
+                        data-testid={`crm-push-${t.talent_id}`}
+                        title={`Push to ${crmConns.map((c) => c.provider).join(", ")}`}>
+                        <UploadSimple size={12} weight="bold"/> {pushing === t.talent_id ? "Pushing…" : "Push to CRM"}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => remove(t.talent_id)}
+                      disabled={removing === t.talent_id}
+                      className="text-xs text-neutral-500 hover:text-red-700 inline-flex items-center gap-1"
+                      data-testid={`remove-${t.talent_id}`}>
+                      <Trash size={12}/> Remove
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -210,7 +253,7 @@ export default function Shortlist() {
               data-testid="close-broadcast-modal">
               <X size={20}/>
             </button>
-            <p className="overline text-[#C79A3B] mb-2">BROADCAST TO SHORTLIST</p>
+            <p className="overline text-[#6B21A8] mb-2">BROADCAST TO SHORTLIST</p>
             <h2 className="font-display font-extrabold text-2xl tracking-tight text-[#0B1B2B]">Send one note to {realCount} talent{realCount === 1 ? "" : "s"}.</h2>
             <p className="text-sm text-neutral-600 mt-2 leading-relaxed">
               Everyone on your shortlist will receive the same in-app note. When the Resend API key is

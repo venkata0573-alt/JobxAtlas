@@ -130,39 +130,39 @@ export default function Projects() {
       {/* Hero */}
       <section className="border-b border-black/10 bg-[#0B1B2B] text-white">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-24">
-          <p className="overline text-[#C79A3B] mb-4">PROJECT DELIVERY · PMI-STRUCTURED</p>
+          <p className="overline text-[#6B21A8] mb-4">PROJECT DELIVERY · PMI-STRUCTURED</p>
           <h1 className="font-display font-black text-4xl md:text-6xl tracking-tight leading-[1.05]">
             Two ways to work with Job Atlas.<br/>
-            <span className="text-[#F0C260]">Pick your model. Ship on time.</span>
+            <span className="text-[#A78BFA]">Pick your model. Ship on time.</span>
           </h1>
           <div className="grid md:grid-cols-2 gap-6 mt-12 max-w-4xl">
             <div className="hard-border border-white/20 bg-white/[0.03] p-6">
               <p className="overline text-neutral-400 mb-2">MODEL 1</p>
               <h3 className="font-display font-extrabold text-2xl tracking-tight">Hire by the hour</h3>
               <p className="text-sm text-neutral-300 mt-2 leading-relaxed">Single vetted expert. Book hours in bulk, integrate into your existing team. Best for sprint capacity, specialist skills, and short bursts of work.</p>
-              <Link to="/browse" className="mt-6 inline-flex items-center gap-2 text-[#C79A3B] hover:text-[#F0C260] text-sm font-mono">Browse talent <ArrowRight size={14}/></Link>
+              <Link to="/browse" className="mt-6 inline-flex items-center gap-2 text-[#6B21A8] hover:text-[#A78BFA] text-sm font-mono">Browse talent <ArrowRight size={14}/></Link>
             </div>
-            <div className="hard-border border-[#C79A3B]/60 bg-[#C79A3B]/10 p-6">
-              <p className="overline text-[#C79A3B] mb-2">MODEL 2 — THIS PAGE</p>
+            <div className="hard-border border-[#6B21A8]/60 bg-[#6B21A8]/10 p-6">
+              <p className="overline text-[#6B21A8] mb-2">MODEL 2 — THIS PAGE</p>
               <h3 className="font-display font-extrabold text-2xl tracking-tight">Deliver a project</h3>
               <p className="text-sm text-neutral-200 mt-2 leading-relaxed">Multi-month engagement with a pre-loaded team blueprint by industry. PMI process groups, milestone gates, weekly variance reports. Best for scoped outcomes over 3–12 months.</p>
-              <a href="#templates" className="mt-6 inline-flex items-center gap-2 text-[#F0C260] hover:text-white text-sm font-mono">See templates <ArrowRight size={14}/></a>
+              <a href="#templates" className="mt-6 inline-flex items-center gap-2 text-[#A78BFA] hover:text-white text-sm font-mono">See templates <ArrowRight size={14}/></a>
             </div>
           </div>
         </div>
       </section>
 
       {/* PMI phases */}
-      <section className="bg-[#FAF9F6] border-b border-black/10">
+      <section className="bg-[#F5F3FF] border-b border-black/10">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-16">
-          <p className="overline text-[#C79A3B] mb-3">HOW WE DELIVER · PMI PROCESS GROUPS</p>
+          <p className="overline text-[#6B21A8] mb-3">HOW WE DELIVER · PMI PROCESS GROUPS</p>
           <h2 className="font-display font-extrabold text-3xl md:text-4xl tracking-tight max-w-2xl mb-10">
             Every project moves through five gated phases.
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             {phases.map((p, idx) => (
               <div key={p.id} className="hard-border bg-white p-5 shadow-brutal" data-testid={`phase-${p.id}`}>
-                <p className="font-mono text-xs text-[#C79A3B] tracking-widest">PHASE {idx + 1}</p>
+                <p className="font-mono text-xs text-[#6B21A8] tracking-widest">PHASE {idx + 1}</p>
                 <h3 className="font-display font-extrabold text-xl tracking-tight mt-1">{p.name}</h3>
                 <p className="text-xs text-neutral-500 mt-3 font-mono uppercase tracking-widest">Gate</p>
                 <p className="text-sm text-[#0B1B2B] mt-1">{p.gate}</p>
@@ -179,7 +179,7 @@ export default function Projects() {
       {/* Templates gallery */}
       <section id="templates" className="border-b border-black/10">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-20">
-          <p className="overline text-[#C79A3B] mb-3">TEMPLATES · PRE-LOADED TEAMS BY INDUSTRY</p>
+          <p className="overline text-[#6B21A8] mb-3">TEMPLATES · PRE-LOADED TEAMS BY INDUSTRY</p>
           <h2 className="font-display font-extrabold text-3xl md:text-4xl tracking-tight max-w-2xl mb-6">
             Pick a proven blueprint, swap seats, and ship.
           </h2>
@@ -198,12 +198,12 @@ export default function Projects() {
               <button key={t.id} onClick={() => openTemplate(t.id)}
                       className="text-left hard-border bg-white p-6 shadow-brutal-hover group"
                       data-testid={`project-template-${t.id}`}>
-                <p className="overline text-[#C79A3B]">{t.industry}</p>
+                <p className="overline text-[#6B21A8]">{t.industry}</p>
                 <h3 className="font-display font-black text-xl tracking-tight mt-1 group-hover:text-[#6B21A8] transition-colors">{t.title}</h3>
                 <p className="text-sm text-neutral-600 mt-2 leading-relaxed line-clamp-3">{t.summary}</p>
                 <div className="flex items-center justify-between mt-5 pt-4 border-t border-black/10 text-xs font-mono text-neutral-500">
-                  <span className="inline-flex items-center gap-1"><Clock size={12} weight="fill" color="#C79A3B"/> {t.duration_months} months</span>
-                  <span className="inline-flex items-center gap-1"><Users size={12} weight="fill" color="#C79A3B"/> {t.team.reduce((n, s) => n + s.count, 0)} seats</span>
+                  <span className="inline-flex items-center gap-1"><Clock size={12} weight="fill" color="#6B21A8"/> {t.duration_months} months</span>
+                  <span className="inline-flex items-center gap-1"><Users size={12} weight="fill" color="#6B21A8"/> {t.team.reduce((n, s) => n + s.count, 0)} seats</span>
                 </div>
               </button>
             ))}
@@ -211,12 +211,12 @@ export default function Projects() {
             <button onClick={() => setShowCustom(true)}
                     className="text-left hard-border bg-[#0B1B2B] text-white p-6 shadow-brutal-hover group"
                     data-testid="project-template-custom">
-              <p className="overline text-[#C79A3B]">BUILD YOUR OWN</p>
-              <h3 className="font-display font-black text-xl tracking-tight mt-1 group-hover:text-[#F0C260] transition-colors">Custom project</h3>
+              <p className="overline text-[#6B21A8]">BUILD YOUR OWN</p>
+              <h3 className="font-display font-black text-xl tracking-tight mt-1 group-hover:text-[#A78BFA] transition-colors">Custom project</h3>
               <p className="text-sm text-neutral-300 mt-2 leading-relaxed">
-                Blueprint doesn&apos;t fit? Assemble your own team seat-by-seat, name your industry, set your duration. Same PMI phases, same 25%-milestone billing, same margin.
+                Blueprint doesn&apos;t fit? Assemble your own team seat-by-seat, name your industry, set your duration. Same PMI phases, same 25%-milestone billing, same all-in pricing.
               </p>
-              <div className="flex items-center justify-between mt-5 pt-4 border-t border-white/20 text-xs font-mono text-[#C79A3B]">
+              <div className="flex items-center justify-between mt-5 pt-4 border-t border-white/20 text-xs font-mono text-[#6B21A8]">
                 <span>Any industry</span>
                 <span>Any team →</span>
               </div>
@@ -235,16 +235,16 @@ export default function Projects() {
               <p className="text-neutral-500 font-mono text-sm">Loading blueprint…</p>
             ) : (
               <>
-                <p className="overline text-[#C79A3B]">{detail.industry}</p>
+                <p className="overline text-[#6B21A8]">{detail.industry}</p>
                 <h3 className="font-display font-black text-3xl tracking-tight mt-1">{detail.title}</h3>
                 <p className="text-neutral-600 mt-2 leading-relaxed">{detail.summary}</p>
 
                 <div className="grid grid-cols-3 gap-3 my-6">
-                  <div className="hard-border bg-[#FAF9F6] p-3 text-center">
+                  <div className="hard-border bg-[#F5F3FF] p-3 text-center">
                     <p className="font-display font-black text-xl">{detail.duration_months}</p>
                     <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mt-1">Months</p>
                   </div>
-                  <div className="hard-border bg-[#FAF9F6] p-3 text-center">
+                  <div className="hard-border bg-[#F5F3FF] p-3 text-center">
                     <p className="font-display font-black text-xl">{seats.length || detail.monthly_headcount}</p>
                     <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mt-1">Seats</p>
                   </div>
@@ -252,29 +252,46 @@ export default function Projects() {
                     {user ? (
                       <>
                         <p className="font-display font-black text-xl">${(costs.monthly / 1000).toFixed(1)}k</p>
-                        <p className="text-[10px] font-mono text-[#F0C260] uppercase tracking-widest mt-1">You pay / mo</p>
+                        <p className="text-[10px] font-mono text-[#A78BFA] uppercase tracking-widest mt-1">You pay / mo</p>
                       </>
                     ) : (
                       <>
-                        <p className="font-display font-black text-lg">Custom quote</p>
-                        <p className="text-[10px] font-mono text-[#F0C260] uppercase tracking-widest mt-1">Sign in to reveal</p>
+                        <p className="font-display font-black text-lg">Estimate</p>
+                        <p className="text-[10px] font-mono text-[#A78BFA] uppercase tracking-widest mt-1">Sign in for quote</p>
                       </>
                     )}
                   </div>
                 </div>
 
                 {user ? (
-                  <div className="hard-border bg-[#F5EEF9] px-3 py-2 mb-4 text-xs font-mono flex items-center justify-between gap-2 flex-wrap" data-testid="price-transparency">
-                    <span>Team cost <span className="font-bold">${(costs.talent_monthly / 1000).toFixed(1)}k/mo</span></span>
-                    <span>·</span>
-                    <span>Job Atlas margin <span className="font-bold">{costs.margin_pct}%</span></span>
-                    <span>·</span>
-                    <span>Total {detail.duration_months}mo: <span className="font-bold">${(costs.total / 1000).toFixed(0)}k</span></span>
+                  <div className="hard-border bg-[#F5F3FF] px-4 py-3 mb-4" data-testid="price-transparency">
+                    <p className="overline text-[#6B21A8] mb-2">Your cost breakdown</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs font-mono">
+                      <div>
+                        <p className="text-neutral-500 text-[10px] uppercase tracking-widest">Seats</p>
+                        <p className="font-display font-extrabold text-sm text-[#0B1B2B]">{seats.length}</p>
+                      </div>
+                      <div>
+                        <p className="text-neutral-500 text-[10px] uppercase tracking-widest">Hrs / seat / mo</p>
+                        <p className="font-display font-extrabold text-sm text-[#0B1B2B]">160</p>
+                      </div>
+                      <div>
+                        <p className="text-neutral-500 text-[10px] uppercase tracking-widest">Monthly</p>
+                        <p className="font-display font-extrabold text-sm text-[#0B1B2B]">${(costs.monthly / 1000).toFixed(1)}k</p>
+                      </div>
+                      <div>
+                        <p className="text-neutral-500 text-[10px] uppercase tracking-widest">{detail.duration_months}-mo total</p>
+                        <p className="font-display font-extrabold text-sm text-[#6B21A8]">${(costs.total / 1000).toFixed(0)}k</p>
+                      </div>
+                    </div>
+                    <p className="text-[10px] font-mono text-neutral-500 mt-2">
+                      All-in blended rate — talent pay, delivery ops, and platform fees baked in. No hidden line-items.
+                    </p>
                   </div>
                 ) : (
-                  <div className="hard-border bg-[#F5EEF9] px-3 py-3 mb-4 text-xs flex items-center justify-between gap-2 flex-wrap" data-testid="pricing-signin-nudge">
+                  <div className="hard-border bg-[#F5F3FF] px-3 py-3 mb-4 text-xs flex items-center justify-between gap-2 flex-wrap" data-testid="pricing-signin-nudge">
                     <span className="font-mono">
-                      <b>{seats.length} seats · {detail.duration_months} months</b> — full quote unlocks after sign-in. No card, no obligation.
+                      <b>{seats.length} seats · {detail.duration_months} months</b> — estimate only. Sign in to see the accurate quote based on the exact team you assemble.
                     </span>
                     <Link to="/register" className="btn-primary text-xs">Sign in to see quote →</Link>
                   </div>
@@ -283,7 +300,7 @@ export default function Projects() {
                 <div className="flex items-center justify-between mb-3">
                   <p className="overline text-neutral-500">Assemble the team · auto-matched from our vetted bench</p>
                   <button onClick={reshuffle} disabled={reshuffling}
-                          className="hard-border text-xs px-3 py-2 bg-white hover:bg-[#FAF9F6] inline-flex items-center gap-1"
+                          className="hard-border text-xs px-3 py-2 bg-white hover:bg-[#F5F3FF] inline-flex items-center gap-1"
                           data-testid="reshuffle-team-btn">
                     <ArrowsClockwise size={12} weight="bold" className={reshuffling ? "animate-spin" : ""}/>
                     Reshuffle unlocked
@@ -295,9 +312,9 @@ export default function Projects() {
                     const t = s.current;
                     return (
                       <div key={idx}
-                           className={`hard-border p-3 flex items-center gap-3 ${s.locked ? "bg-[#FDF6E3] border-[#C79A3B]" : "bg-white"}`}
+                           className={`hard-border p-3 flex items-center gap-3 ${s.locked ? "bg-[#F5F3FF] border-[#6B21A8]" : "bg-white"}`}
                            data-testid={`seat-${idx}`}>
-                        <div className="hard-border bg-[#0B1B2B] text-[#C79A3B] w-9 h-9 flex items-center justify-center shrink-0 text-xs font-mono">
+                        <div className="hard-border bg-[#0B1B2B] text-[#6B21A8] w-9 h-9 flex items-center justify-center shrink-0 text-xs font-mono">
                           #{idx + 1}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -311,7 +328,7 @@ export default function Projects() {
                           )}
                         </div>
                         <button onClick={() => toggleLock(idx)}
-                                className={`hard-border p-2 shrink-0 ${s.locked ? "bg-[#C79A3B] text-white" : "bg-white text-[#0B1B2B]"}`}
+                                className={`hard-border p-2 shrink-0 ${s.locked ? "bg-[#6B21A8] text-white" : "bg-white text-[#0B1B2B]"}`}
                                 title={s.locked ? "Locked · click to unlock" : "Lock this seat"}
                                 data-testid={`toggle-lock-${idx}`}>
                           {s.locked ? <LockSimple size={14} weight="fill"/> : <LockSimpleOpen size={14}/>}
@@ -321,9 +338,9 @@ export default function Projects() {
                   })}
                 </div>
 
-                <form onSubmit={submitLead} className="hard-border bg-[#FAF9F6] p-5 space-y-3" data-testid="project-lead-form">
+                <form onSubmit={submitLead} className="hard-border bg-[#F5F3FF] p-5 space-y-3" data-testid="project-lead-form">
                   <p className="font-display font-extrabold text-lg inline-flex items-center gap-2">
-                    <Sparkle size={16} weight="fill" color="#C79A3B"/> Request scoping — no commitment
+                    <Sparkle size={16} weight="fill" color="#6B21A8"/> Request scoping — no commitment
                   </p>
                   <p className="text-xs text-neutral-600 -mt-1">
                     We&apos;ll send your assembled team ({seats.filter((s) => s.locked).length} locked, {seats.length - seats.filter((s) => s.locked).length} flexible)
@@ -384,7 +401,7 @@ export default function Projects() {
                     className="absolute top-6 right-6 text-neutral-400 hover:text-neutral-700" data-testid="close-custom-modal">
               <X size={20}/>
             </button>
-            <p className="overline text-[#C79A3B]">CUSTOM PROJECT</p>
+            <p className="overline text-[#6B21A8]">CUSTOM PROJECT</p>
             <h3 className="font-display font-black text-3xl tracking-tight">Build your own blueprint</h3>
             <div className="grid md:grid-cols-2 gap-3">
               <input required placeholder="Project title" value={customForm.custom_title} onChange={(e) => setCustomForm({...customForm, custom_title: e.target.value})} className="hard-border px-3 py-2 text-sm" data-testid="cp-title"/>

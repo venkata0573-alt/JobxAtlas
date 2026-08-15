@@ -79,7 +79,7 @@ export default function SkillLanding() {
 
   return (
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
-      <p className="overline text-[#C79A3B] mb-3">
+      <p className="overline text-[#6B21A8] mb-3">
         HIRE {data.keyword.toUpperCase()}{data.city_pretty ? ` · ${data.city_pretty.toUpperCase()}` : ""}
       </p>
       <h1 className="font-display font-black text-4xl md:text-5xl tracking-tight mb-4">{heading}</h1>
@@ -101,10 +101,10 @@ export default function SkillLanding() {
             <form onSubmit={(e) => signup(e, "notify")} className="max-w-md mx-auto flex gap-2">
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                      placeholder="you@company.com" required
-                     className="flex-1 hard-border px-3 py-3 focus:outline-none focus:border-[#C79A3B]"/>
+                     className="flex-1 hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
               <button type="submit" className="btn-primary">Notify me</button>
             </form>
-          ) : <p className="text-sm text-[#C79A3B] font-mono">You&apos;re on the list — we&apos;ll be in touch.</p>}
+          ) : <p className="text-sm text-[#6B21A8] font-mono">You&apos;re on the list — we&apos;ll be in touch.</p>}
           <p className="text-xs text-neutral-500 mt-6">
             Or browse the <Link to="/browse" className="underline">full talent marketplace →</Link>
           </p>
@@ -118,9 +118,9 @@ export default function SkillLanding() {
               className="text-left hard-border bg-white p-7 shadow-brutal-hover cursor-pointer group"
               data-testid={`curated-talent-card-${t.id}`}>
               <div className="flex items-center justify-between">
-                <p className="overline text-[#C79A3B]">{t.profile?.location || data.city_pretty || "Global"}</p>
+                <p className="overline text-[#6B21A8]">{t.profile?.location || data.city_pretty || "Global"}</p>
                 {t.curated && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-mono text-[#C79A3B] uppercase tracking-widest">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-mono text-[#6B21A8] uppercase tracking-widest">
                     <CheckCircle size={12} weight="fill"/> Vetted
                   </span>
                 )}
@@ -162,9 +162,9 @@ export default function SkillLanding() {
             </button>
 
             <div className="flex items-center justify-between mb-2">
-              <p className="overline text-[#C79A3B]">{selected.profile?.location || "Global"}</p>
+              <p className="overline text-[#6B21A8]">{selected.profile?.location || "Global"}</p>
               {selected.curated && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-mono text-[#C79A3B] uppercase tracking-widest">
+                <span className="inline-flex items-center gap-1 text-[10px] font-mono text-[#6B21A8] uppercase tracking-widest">
                   <CheckCircle size={12} weight="fill"/> Vetted talent
                 </span>
               )}
@@ -173,15 +173,15 @@ export default function SkillLanding() {
             <p className="text-neutral-600 mt-1">{selected.profile?.headline || "Independent professional"}</p>
 
             <div className="grid grid-cols-3 gap-3 my-6 text-center">
-              <div className="hard-border bg-[#FAF9F6] p-3">
+              <div className="hard-border bg-[#F5F3FF] p-3">
                 <p className="font-display font-black text-xl">${selected.profile?.hourly_rate || 0}</p>
                 <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mt-1">Per hour</p>
               </div>
-              <div className="hard-border bg-[#FAF9F6] p-3">
+              <div className="hard-border bg-[#F5F3FF] p-3">
                 <p className="font-display font-black text-xl">{selected.profile?.years_experience || 0}</p>
                 <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mt-1">Yrs exp</p>
               </div>
-              <div className="hard-border bg-[#FAF9F6] p-3">
+              <div className="hard-border bg-[#F5F3FF] p-3">
                 <p className="font-display font-black text-xl">{selected.profile?.available_hours_per_week || 20}</p>
                 <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mt-1">Hrs / wk</p>
               </div>
@@ -194,9 +194,9 @@ export default function SkillLanding() {
               ))}
             </div>
 
-            <div className="hard-border bg-[#FDF6E3] p-4 mb-6">
+            <div className="hard-border bg-[#F5F3FF] p-4 mb-6">
               <p className="text-sm font-display font-extrabold text-[#0B1B2B] inline-flex items-center gap-2">
-                <Lock size={16} weight="fill" color="#C79A3B"/> Contact details unlock after purchase
+                <Lock size={16} weight="fill" color="#6B21A8"/> Contact details unlock after purchase
               </p>
               <p className="text-xs text-neutral-600 mt-2 leading-relaxed">
                 To message <strong>{selected.name.split(" ")[0]}</strong> or any vetted talent on Job Atlas,
@@ -216,7 +216,7 @@ export default function SkillLanding() {
                 onClick={() => toggleShortlist(selected)}
                 disabled={shortlisting}
                 className={`text-sm flex-1 inline-flex items-center justify-center gap-2 hard-border px-4 py-3 font-semibold transition-colors
-                  ${shortlisted.has(selected.id) ? "bg-[#0B1B2B] text-white border-[#0B1B2B]" : "bg-white text-[#0B1B2B] hover:bg-[#FAF9F6]"}`}
+                  ${shortlisted.has(selected.id) ? "bg-[#0B1B2B] text-white border-[#0B1B2B]" : "bg-white text-[#0B1B2B] hover:bg-[#F5F3FF]"}`}
                 data-testid="shortlist-btn">
                 <BookmarkSimple size={16} weight={shortlisted.has(selected.id) ? "fill" : "regular"}/>
                 {shortlisted.has(selected.id) ? "Shortlisted ✓" : "Shortlist for future hire"}
@@ -235,7 +235,7 @@ export default function SkillLanding() {
       {/* Talent-side CTA */}
       <section className="hard-border bg-[#0B1B2B] text-white p-10 shadow-brutal grid md:grid-cols-[1.4fr_1fr] gap-8 items-center">
         <div>
-          <p className="overline text-[#C79A3B] mb-3">ARE YOU A {data.keyword.toUpperCase()}?</p>
+          <p className="overline text-[#6B21A8] mb-3">ARE YOU A {data.keyword.toUpperCase()}?</p>
           <h2 className="font-display font-black text-3xl md:text-4xl tracking-tight mb-3">Get listed on Job Atlas.</h2>
           <p className="text-neutral-300 max-w-lg">
             Structured contracts, transparent commission, weekly payouts to your bank. Join a marketplace that treats independent
@@ -247,12 +247,12 @@ export default function SkillLanding() {
             <label className="overline block mb-2 text-[#0B1B2B]">Your email</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                    placeholder="you@example.com" required
-                   className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#C79A3B] text-[#0B1B2B] mb-3"/>
+                   className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8] text-[#0B1B2B] mb-3"/>
             <button type="submit" className="btn-accent w-full">Get listed →</button>
             <p className="text-[10px] text-neutral-500 mt-2 font-mono">One email. No spam. Invitation to complete your profile.</p>
           </form>
         ) : (
-          <div className="hard-border bg-[#C79A3B] p-6 text-[#0B1B2B]">
+          <div className="hard-border bg-[#6B21A8] p-6 text-[#0B1B2B]">
             <p className="font-display font-black text-xl">You&apos;re on the list ✓</p>
             <p className="text-sm mt-2">We&apos;ll email you an onboarding link within 24 hours.</p>
           </div>

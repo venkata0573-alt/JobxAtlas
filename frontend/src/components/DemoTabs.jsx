@@ -11,7 +11,7 @@ const DECKS = {
   employer: {
     label: "For employers",
     subtitle: "Ship faster with structured, hourly experts.",
-    color: "#002FA7",
+    color: "#6B21A8",
     steps: [
       { img: "/demo/landing.jpg",
         head: "Land on Job Atlas",
@@ -48,7 +48,7 @@ const DECKS = {
   talent: {
     label: "For individuals",
     subtitle: "Get discovered. Get paid. Own your calendar.",
-    color: "#FF0A0A",
+    color: "#6B21A8",
     steps: [
       { img: "/demo/register.jpg",
         head: "Create your profile in a minute",
@@ -121,7 +121,7 @@ export default function DemoTabs() {
       <div className="max-w-7xl mx-auto px-6 md:px-12 py-24">
         <div className="flex items-baseline justify-between flex-wrap gap-6 mb-4">
           <div>
-            <p className="overline text-[#002FA7] mb-3">HOW IT WORKS · STEP BY STEP</p>
+            <p className="overline text-[#6B21A8] mb-3">HOW IT WORKS · STEP BY STEP</p>
             <h2 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight max-w-2xl">
               Five clicks. That&apos;s it.
             </h2>
@@ -147,7 +147,7 @@ export default function DemoTabs() {
                 <button onClick={() => setI(x)}
                         className={`w-full border-r border-black last:border-r-0 p-4 text-left transition-colors ${active ? "bg-[#0A0A0A] text-white" : done ? "bg-[#F9F9F9]" : "bg-white hover:bg-neutral-50"}`}>
                   <div className="flex items-center gap-2">
-                    <span className={`hard-border w-6 h-6 flex items-center justify-center text-xs font-display font-extrabold ${done ? "bg-[#002FA7] text-white border-[#002FA7]" : active ? "bg-[#FF0A0A] text-white border-[#FF0A0A]" : ""}`}>
+                    <span className={`hard-border w-6 h-6 flex items-center justify-center text-xs font-display font-extrabold ${done ? "bg-[#6B21A8] text-white border-[#6B21A8]" : active ? "bg-[#6B21A8] text-white border-[#6B21A8]" : ""}`}>
                       {done ? <Check size={12} weight="bold"/> : x + 1}
                     </span>
                     <span className="text-[10px] uppercase tracking-widest font-mono opacity-70">Step {x + 1}</span>
@@ -190,15 +190,15 @@ export default function DemoTabs() {
           </figure>
 
           {/* Text card */}
-          <div className="hard-border bg-[#FDFCF0] p-8 shadow-brutal flex flex-col">
+          <div className="hard-border bg-[#F5F3FF] p-8 shadow-brutal flex flex-col">
             <p className="overline mb-3" style={{ color: deck.color }}>Step {i + 1}</p>
             <h3 className="font-display font-extrabold text-3xl tracking-tight mb-4">{step.head}</h3>
             <div className="hard-border bg-white p-4 mb-4">
-              <p className="overline mb-2 text-[#002FA7]">What you do</p>
+              <p className="overline mb-2 text-[#6B21A8]">What you do</p>
               <p className="text-sm leading-relaxed">{step.do}</p>
             </div>
             <div className="hard-border bg-white p-4 mb-6">
-              <p className="overline mb-2" style={{ color: "#FF0A0A" }}>Why it matters</p>
+              <p className="overline mb-2" style={{ color: "#6B21A8" }}>Why it matters</p>
               <p className="text-sm leading-relaxed">{step.why}</p>
             </div>
 
@@ -214,7 +214,7 @@ export default function DemoTabs() {
                 </button>
               </div>
               <button onClick={() => setNarrate((n) => !n)}
-                      className="hard-border px-3 py-2 text-xs font-display font-extrabold inline-flex items-center gap-2 hover:bg-[#002FA7] hover:text-white">
+                      className="hard-border px-3 py-2 text-xs font-display font-extrabold inline-flex items-center gap-2 hover:bg-[#6B21A8] hover:text-white">
                 {narrate ? <SpeakerHigh size={14} weight="fill"/> : <SpeakerX size={14} weight="fill"/>}
                 {narrate ? "Narration on" : "Narrate this step"}
               </button>

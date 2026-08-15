@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 31 — /trust drill-through feature tested end-to-end. Backend 6/6 pytest cases green: refs/engagements/verified_talents/verified_companies return anonymised items (initials-only, no PII), bogus series returns 400, /trust/timeseries still returns 30 daily buckets. Frontend Playwright verified: all 4 chart cards are BUTTON elements, side-drawer modal opens with correct title ('Engagements signed', 'References answered'), body scroll lock active (overflow=hidden), 20 engagement rows grouped under 1 day header, chips rendered (CONTRACT_SIGNED), search filter narrows results and shows 'No matches' for garbage input, clear button resets, X-close and backdrop-click both dismiss the modal and restore body scroll. Verb rotator color rendered violet on landing. Regression scan of red/gold/Klein-blue across / /trust /pricing etc. — only cosmetic residue found (see below).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "public/index.html <head>", "issues": ["<meta name=\"theme-color\" content=\"#002FA7\"> still references Klein blue. Not rendered on page (only tints mobile browser chrome address bar) but per iteration goal 'purge all #002FA7' this should be updated to the violet palette (e.g. #6B21A8)."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration31_trust_drill.py",
+    "/app/test_reports/pytest/iteration31.xml"
+  ],
+  "action_items": [
+    "Update public/index.html <meta name=theme-color> from #002FA7 to a violet value (e.g. #6B21A8) to complete the Klein-blue purge."
+  ],
+  "critical_code_review_comments": [
+    "Recharts spams 'width(-1) and height(-1)' warnings on every render — chart containers likely rendered before the parent has size (e.g. inside a hidden section). Non-blocking but noisy; consider guarding with an IntersectionObserver or a fixed min-height wrapper.",
+    "Two 401 network errors observed on / and /trust (likely /api/auth/me probe from unauthenticated visitors). Not breaking, but consider suppressing the console error for expected 401s on public pages."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration31_trust_drill.py"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% critical flows"},
+  "test_credentials": "Not needed — /trust and its drill-through endpoint are public.",
+  "seed_data_creation": "None — used existing seed (20 signed engagements, 9 refs, 2 verified talents).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend drill endpoint at /api/trust/timeseries/details?series=refs|engagements|verified_talents|verified_companies works and is fully anonymised. Frontend modal is a right-side drawer with data-testid='trust-drill-modal'; items grouped by [data-testid^='drill-day-'], each row [data-testid='drill-item'] with chip [data-testid^='drill-chip-']. Body scroll lock verified. Only leftover Klein-blue reference is the hidden <meta theme-color> in public/index.html — flagged for main agent."
+}

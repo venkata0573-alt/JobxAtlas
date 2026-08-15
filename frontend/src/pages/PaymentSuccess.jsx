@@ -30,7 +30,7 @@ export default function PaymentSuccess() {
   return (
     <main className="max-w-2xl mx-auto px-6 py-24 text-center">
       <div className="hard-border bg-white p-12 shadow-brutal">
-        <div className="mx-auto w-16 h-16 hard-border flex items-center justify-center mb-6" style={{background: paid ? "#002FA7" : "#F9F9F9", color: paid ? "#fff" : "#0A0A0A"}}>
+        <div className="mx-auto w-16 h-16 hard-border flex items-center justify-center mb-6" style={{background: paid ? "#6B21A8" : "#F9F9F9", color: paid ? "#fff" : "#0A0A0A"}}>
           <CheckCircle size={30} weight="fill"/>
         </div>
         <h1 className="font-display font-extrabold text-3xl tracking-tight mb-2">

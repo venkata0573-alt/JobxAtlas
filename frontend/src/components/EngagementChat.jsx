@@ -100,7 +100,7 @@ export default function EngagementChat({ engagementId }) {
                 )}
                 <p className={`text-[10px] font-mono mt-1 ${mine ? "text-white/70" : "text-neutral-500"}`}>{new Date(m.created_at).toLocaleString()}</p>
                 {m.flagged && (
-                  <p className={`text-[10px] mt-1 inline-flex items-center gap-1 ${mine ? "text-[#C79A3B]" : "text-red-600"}`}>
+                  <p className={`text-[10px] mt-1 inline-flex items-center gap-1 ${mine ? "text-[#6B21A8]" : "text-red-600"}`}>
                     <WarningOctagon size={10} weight="fill"/> flagged for moderator review
                   </p>
                 )}
@@ -118,7 +118,7 @@ export default function EngagementChat({ engagementId }) {
         <input value={text} onChange={(e) => setText(e.target.value)}
                placeholder={uploading ? "Uploading…" : "Type a message… (phone / email will be flagged)"}
                disabled={uploading}
-               className="flex-1 hard-border px-3 py-3 focus:outline-none focus:border-[#C79A3B]"/>
+               className="flex-1 hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
         <button type="submit" className="btn-primary inline-flex items-center gap-2" disabled={uploading}>
           <PaperPlaneTilt size={14} weight="fill"/> Send
         </button>

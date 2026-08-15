@@ -14,7 +14,7 @@ const Rating = ({ v, onChange, disabled }) => (
               onClick={() => onChange && onChange(n)}
               data-testid={TID.reviewRating(n)}
               className={`p-1 ${disabled ? "cursor-default" : "cursor-pointer"}`}>
-        <Star size={22} weight={v >= n ? "fill" : "regular"} color={v >= n ? "#FF0A0A" : "#0A0A0A"}/>
+        <Star size={22} weight={v >= n ? "fill" : "regular"} color={v >= n ? "#6B21A8" : "#0A0A0A"}/>
       </button>
     ))}
   </div>
@@ -128,7 +128,7 @@ export default function EngagementDetail() {
   return (
     <main className="max-w-4xl mx-auto px-6 md:px-12 py-16">
       <Link to={user.role === "employer" ? "/employer" : "/talent"} className="text-sm underline underline-offset-4">← Back</Link>
-      <p className="overline text-[#002FA7] mt-6 mb-3">ENGAGEMENT CONTRACT</p>
+      <p className="overline text-[#6B21A8] mt-6 mb-3">ENGAGEMENT CONTRACT</p>
       <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-2">
         {eng.employer_name} × {eng.talent_name}
       </h1>
@@ -139,7 +139,7 @@ export default function EngagementDetail() {
       </div>
 
       {/* Contract paper */}
-      <article className="mx-auto max-w-3xl bg-[#FDFCF0] hard-border p-8 md:p-12 shadow-brutal">
+      <article className="mx-auto max-w-3xl bg-[#F5F3FF] hard-border p-8 md:p-12 shadow-brutal">
         <p className="overline mb-6 text-neutral-600">Master Services Agreement · v1.1</p>
         <p className="mb-4 leading-relaxed">
           This engagement is between <strong>{eng.employer_name}</strong> (&quot;Employer&quot;) and <strong>{eng.talent_name}</strong> (&quot;Talent&quot;),
@@ -156,9 +156,9 @@ export default function EngagementDetail() {
         {isOnsite && (
           <div className="my-6 hard-border bg-white p-5">
             <div className="flex gap-3 items-start">
-              <WarningOctagon size={22} weight="fill" color="#FF0A0A" className="mt-0.5"/>
+              <WarningOctagon size={22} weight="fill" color="#6B21A8" className="mt-0.5"/>
               <div>
-                <p className="overline text-[#FF0A0A]">On-site Terms · Health, Safety, Transport</p>
+                <p className="overline text-[#6B21A8]">On-site Terms · Health, Safety, Transport</p>
                 <ul className="text-sm leading-relaxed mt-2 list-disc pl-5 space-y-1">
                   <li>Both parties shall comply with all applicable local health &amp; safety laws at the site of work
                       ({eng.location || "as disclosed above"}) and take reasonable responsibility for the well-being of themselves and the other party.</li>
@@ -181,9 +181,9 @@ export default function EngagementDetail() {
         <p className="mb-4 leading-relaxed"><strong>Payment:</strong> All fees are settled via the Platform. Direct payments between parties are forbidden.</p>
         <div className="my-6 hard-border bg-white p-5">
           <div className="flex gap-3 items-start">
-            <WarningOctagon size={22} weight="fill" color="#FF0A0A" className="mt-0.5"/>
+            <WarningOctagon size={22} weight="fill" color="#6B21A8" className="mt-0.5"/>
             <div>
-              <p className="overline text-[#FF0A0A]">12-Month Exclusivity Clause</p>
+              <p className="overline text-[#6B21A8]">12-Month Exclusivity Clause</p>
               <p className="text-sm leading-relaxed mt-1">
                 For 12 months from the effective date (until <strong>{exclusive}</strong>) the Employer shall not
                 directly engage, hire or contract the Talent outside the Platform. Reciprocally the Talent shall
@@ -206,7 +206,7 @@ export default function EngagementDetail() {
                 <>
                   <p className="font-signature text-4xl">{eng[key].name}</p>
                   <p className="text-xs text-neutral-500 mt-2 font-mono">Signed by {who} · {new Date(eng[key].signed_at).toLocaleString()}</p>
-                  {isOnsite && eng[key].onsite_ack && <p className="text-xs text-[#002FA7] mt-1">✓ On-site terms acknowledged</p>}
+                  {isOnsite && eng[key].onsite_ack && <p className="text-xs text-[#6B21A8] mt-1">✓ On-site terms acknowledged</p>}
                 </>
               ) : (
                 <p className="text-neutral-400 italic">Awaiting signature…</p>
@@ -216,7 +216,7 @@ export default function EngagementDetail() {
         </div>
 
         {eng.status === "contract_signed" && (
-          <div className="mt-8 hard-border bg-[#002FA7] text-white p-4 flex items-center gap-3">
+          <div className="mt-8 hard-border bg-[#6B21A8] text-white p-4 flex items-center gap-3">
             <CheckCircle size={22} weight="fill"/>
             <p className="font-display font-extrabold tracking-tight">Contract fully executed. Work may begin.</p>
           </div>
@@ -226,10 +226,10 @@ export default function EngagementDetail() {
       {/* Sign form */}
       {!iSigned && (
         <form onSubmit={sign} className="mt-8 hard-border bg-white p-8 shadow-brutal">
-          <p className="overline text-[#002FA7] mb-3">Your signature</p>
+          <p className="overline text-[#6B21A8] mb-3">Your signature</p>
           <input data-testid={TID.contractSignature} value={sig} onChange={(e) => setSig(e.target.value)}
                  placeholder="Type your full legal name"
-                 className="w-full hard-border px-3 py-4 focus:outline-none focus:border-[#002FA7] font-signature text-3xl"/>
+                 className="w-full hard-border px-3 py-4 focus:outline-none focus:border-[#6B21A8] font-signature text-3xl"/>
           <label className="flex items-start gap-2 mt-4 text-sm cursor-pointer">
             <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)}
                    data-testid={TID.contractAgree} className="mt-1"/>
@@ -260,30 +260,30 @@ export default function EngagementDetail() {
           </p>
 
           {isTalent && (
-            <form onSubmit={submitDeliverable} className="grid md:grid-cols-2 gap-4 mb-8 hard-border bg-[#FDFCF0] p-5">
+            <form onSubmit={submitDeliverable} className="grid md:grid-cols-2 gap-4 mb-8 hard-border bg-[#F5F3FF] p-5">
               <div>
                 <label className="overline block mb-1">Title</label>
                 <input value={dTitle} onChange={(e) => setDTitle(e.target.value)}
                        data-testid={TID.deliverableTitle} required
-                       className="w-full hard-border px-3 py-2 bg-white focus:outline-none focus:border-[#002FA7]"/>
+                       className="w-full hard-border px-3 py-2 bg-white focus:outline-none focus:border-[#6B21A8]"/>
               </div>
               <div>
                 <label className="overline block mb-1">Link (optional)</label>
                 <input value={dLink} onChange={(e) => setDLink(e.target.value)} type="url"
                        data-testid={TID.deliverableLink} placeholder="https://…"
-                       className="w-full hard-border px-3 py-2 bg-white font-mono focus:outline-none focus:border-[#002FA7]"/>
+                       className="w-full hard-border px-3 py-2 bg-white font-mono focus:outline-none focus:border-[#6B21A8]"/>
               </div>
               <div className="md:col-span-2">
                 <label className="overline block mb-1">Description</label>
                 <textarea value={dDesc} onChange={(e) => setDDesc(e.target.value)} rows={3}
                           data-testid={TID.deliverableDesc}
-                          className="w-full hard-border px-3 py-2 bg-white focus:outline-none focus:border-[#002FA7]"/>
+                          className="w-full hard-border px-3 py-2 bg-white focus:outline-none focus:border-[#6B21A8]"/>
               </div>
               <div>
                 <label className="overline block mb-1">Hours claimed</label>
                 <input type="number" min="0" step="0.5" value={dHours} onChange={(e) => setDHours(e.target.value)}
                        data-testid={TID.deliverableHours}
-                       className="w-full hard-border px-3 py-2 bg-white font-mono focus:outline-none focus:border-[#002FA7]"/>
+                       className="w-full hard-border px-3 py-2 bg-white font-mono focus:outline-none focus:border-[#6B21A8]"/>
               </div>
               <div className="flex items-end">
                 <button type="submit" className="btn-primary w-full" data-testid={TID.deliverableSubmit}>
@@ -356,7 +356,7 @@ export default function EngagementDetail() {
             <textarea value={rText} onChange={(e) => setRText(e.target.value)} rows={3}
                       data-testid={TID.reviewText}
                       placeholder="What went well? Anything the other party could improve?"
-                      className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+                      className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
             <button type="submit" className="btn-primary" data-testid={TID.reviewSubmit}>Submit for moderation →</button>
           </form>
         </section>

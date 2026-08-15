@@ -48,7 +48,7 @@ export default function PurchaseHours() {
 
   return (
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
-      <p className="overline text-[#002FA7] mb-3">HOUR PACKAGES</p>
+      <p className="overline text-[#6B21A8] mb-3">HOUR PACKAGES</p>
       <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-4">Fuel your team.</h1>
       <p className="text-neutral-600 max-w-2xl mb-8">
         Card via Stripe (fastest), or a direct bank transfer to our India account (great for Indian companies, GST invoice available).
@@ -56,13 +56,13 @@ export default function PurchaseHours() {
 
       {/* Shortlist context banner (shown when arriving from /employer/shortlist) */}
       {shortlistCtx && (
-        <div className="hard-border bg-[#FDF6E3] p-6 mb-8 shadow-brutal flex flex-col md:flex-row md:items-center justify-between gap-4" data-testid="shortlist-context-banner">
+        <div className="hard-border bg-[#F5F3FF] p-6 mb-8 shadow-brutal flex flex-col md:flex-row md:items-center justify-between gap-4" data-testid="shortlist-context-banner">
           <div className="flex items-start gap-4">
-            <div className="hard-border bg-[#0B1B2B] text-[#C79A3B] w-11 h-11 flex items-center justify-center shrink-0">
+            <div className="hard-border bg-[#0B1B2B] text-[#6B21A8] w-11 h-11 flex items-center justify-center shrink-0">
               <BookmarkSimple size={20} weight="fill"/>
             </div>
             <div>
-              <p className="overline text-[#C79A3B] mb-1">SHOPPING FOR YOUR SHORTLIST</p>
+              <p className="overline text-[#6B21A8] mb-1">SHOPPING FOR YOUR SHORTLIST</p>
               <p className="font-display font-extrabold text-lg leading-tight text-[#0B1B2B]">
                 {shortlistCtx.talents} talent{shortlistCtx.talents > 1 ? "s" : ""} · {shortlistCtx.hours_per_talent}h each ·
                 <span className="ml-1 text-[#0B1B2B]">${shortlistCtx.est_budget.toLocaleString()} est. bundle</span>
@@ -93,7 +93,7 @@ export default function PurchaseHours() {
         {Object.entries(data.packages || {}).map(([id, p], i) => (
           <div key={id} className={`hard-border bg-white p-8 shadow-brutal ${i===1 ? "md:-translate-y-3" : ""}`}
                data-testid={TID.pkgCard(id)}>
-            <div className="hard-border bg-[#002FA7] text-white w-12 h-12 flex items-center justify-center mb-6">
+            <div className="hard-border bg-[#6B21A8] text-white w-12 h-12 flex items-center justify-center mb-6">
               <Clock size={20} weight="fill"/>
             </div>
             <p className="overline text-neutral-500">{p.name}</p>
@@ -128,9 +128,9 @@ export default function PurchaseHours() {
 
       {/* Bank details panel */}
       {tab === "bank" && bank && (
-        <section className="hard-border bg-[#FDFCF0] p-8 md:p-12 shadow-brutal mt-4">
+        <section className="hard-border bg-[#F5F3FF] p-8 md:p-12 shadow-brutal mt-4">
           <div className="flex items-center gap-3 mb-4">
-            <Bank size={22} weight="duotone" color="#002FA7"/>
+            <Bank size={22} weight="duotone" color="#6B21A8"/>
             <h2 className="font-display font-extrabold text-2xl tracking-tight">Send ₹{bank.amount_inr.toLocaleString()} · Reference {bank.reference}</h2>
           </div>
           <p className="text-sm text-neutral-600 mb-6">Quote the reference exactly so we can credit your hours automatically.</p>
@@ -153,7 +153,7 @@ export default function PurchaseHours() {
                     <p className="overline">{k}</p>
                     <p className="font-mono text-sm break-all mt-1">{v}</p>
                   </div>
-                  <button type="button" onClick={() => copy(String(v))} className="hard-border p-2 hover:bg-[#002FA7] hover:text-white flex-shrink-0">
+                  <button type="button" onClick={() => copy(String(v))} className="hard-border p-2 hover:bg-[#6B21A8] hover:text-white flex-shrink-0">
                     <Copy size={14}/>
                   </button>
                 </div>
@@ -175,13 +175,13 @@ export default function PurchaseHours() {
               <p className="text-sm text-neutral-600 mb-3">Paste the UTR / UPI reference from your bank confirmation. We&apos;ll verify and credit your hours within 1 business day.</p>
               <div className="flex flex-col md:flex-row gap-3">
                 <input value={utr} onChange={(e) => setUtr(e.target.value)} placeholder="e.g. ICIC1234567890 or UPI ref"
-                       className="flex-1 hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7] font-mono"
+                       className="flex-1 hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8] font-mono"
                        data-testid="bank-utr-input"/>
                 <button onClick={submitUtr} className="btn-primary" data-testid="bank-submit-utr">Submit reference →</button>
               </div>
             </div>
           ) : (
-            <div className="hard-border bg-[#002FA7] text-white p-6 flex items-center gap-3 mt-8">
+            <div className="hard-border bg-[#6B21A8] text-white p-6 flex items-center gap-3 mt-8">
               <CheckCircle size={22} weight="fill"/>
               <p className="font-display font-extrabold tracking-tight">Reference received. We&apos;ll credit your hours once the transfer clears.</p>
             </div>

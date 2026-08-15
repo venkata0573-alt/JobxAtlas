@@ -60,7 +60,7 @@ export default function EmployerDashboard() {
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
       <div className="flex items-baseline justify-between mb-6 flex-wrap gap-4">
         <div>
-          <p className="overline text-[#002FA7] mb-3">EMPLOYER DASHBOARD</p>
+          <p className="overline text-[#6B21A8] mb-3">EMPLOYER DASHBOARD</p>
           <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight">Welcome, {user?.name?.split(" ")[0]}.</h1>
         </div>
         <div className="flex gap-2">
@@ -97,7 +97,7 @@ export default function EmployerDashboard() {
           <div className="space-y-2">
             {alerts.filter((a) => !a.read).slice(0, 3).map((a) => (
               <Link key={a.id} to={`/projects/${a.project_id}/workspace`}
-                    className="flex items-center justify-between hard-border bg-white px-4 py-2 hover:bg-[#FDF6E3] text-sm gap-3 flex-wrap"
+                    className="flex items-center justify-between hard-border bg-white px-4 py-2 hover:bg-[#F5F3FF] text-sm gap-3 flex-wrap"
                     data-testid={`alert-${a.id}`}>
                 <span>
                   <b>{a.project_company}</b> · {a.week_start} · Hours <span className={a.hours_variance_pct > 0 ? "text-red-700" : "text-emerald-700"}>{a.hours_variance_pct > 0 ? "+" : ""}{a.hours_variance_pct}%</span> · Cost <span className={a.cost_variance_pct > 0 ? "text-red-700" : "text-emerald-700"}>{a.cost_variance_pct > 0 ? "+" : ""}{a.cost_variance_pct}%</span>
@@ -116,7 +116,7 @@ export default function EmployerDashboard() {
         <section className="hard-border bg-white p-8 shadow-brutal mb-10" data-testid="employer-projects">
           <div className="flex items-baseline justify-between mb-6 gap-4 flex-wrap">
             <div>
-              <p className="overline text-[#C79A3B] mb-1">MULTI-MONTH DELIVERY</p>
+              <p className="overline text-[#6B21A8] mb-1">MULTI-MONTH DELIVERY</p>
               <h2 className="font-display font-extrabold text-2xl tracking-tight inline-flex items-center gap-2">
                 <Briefcase size={22} weight="duotone" color="#0B1B2B"/>
                 Your projects
@@ -129,14 +129,14 @@ export default function EmployerDashboard() {
               const activePhase = (pr.phases || []).find((p) => p.status === "in_progress");
               return (
                 <Link key={pr.id} to={`/projects/${pr.id}/workspace`}
-                      className="hard-border bg-[#FAF9F6] p-5 hover:bg-[#FDF6E3] transition-colors"
+                      className="hard-border bg-[#F5F3FF] p-5 hover:bg-[#F5F3FF] transition-colors"
                       data-testid={`project-card-${pr.id}`}>
                   <div className="flex items-start justify-between mb-2 gap-2">
                     <div className="min-w-0">
                       <p className="font-display font-extrabold text-lg tracking-tight truncate">{pr.company_name}</p>
                       <p className="text-xs font-mono text-neutral-500 truncate">{pr.template_title}</p>
                     </div>
-                    <span className={`hard-border px-2 py-1 text-[10px] font-mono uppercase tracking-widest shrink-0 ${pr.status === "active" ? "bg-[#0B1B2B] text-[#C79A3B]" : ""}`}>
+                    <span className={`hard-border px-2 py-1 text-[10px] font-mono uppercase tracking-widest shrink-0 ${pr.status === "active" ? "bg-[#0B1B2B] text-[#6B21A8]" : ""}`}>
                       {pr.status}
                     </span>
                   </div>
@@ -181,7 +181,7 @@ export default function EmployerDashboard() {
               </div>
             )}
           </section>
-          <section className="hard-border bg-[#FDFCF0] p-8 shadow-brutal">
+          <section className="hard-border bg-[#F5F3FF] p-8 shadow-brutal">
             <h2 className="font-display font-extrabold text-2xl tracking-tight mb-6">Your finances</h2>
             <dl className="space-y-3 font-mono text-sm">
               <Fin label="Total spent"                       v={`$${overview.finances.total_spent_usd.toLocaleString()}`}/>
@@ -232,7 +232,7 @@ export default function EmployerDashboard() {
               <p className="overline mb-2">3 · Scope of work</p>
               <textarea value={scope} onChange={(e) => setScope(e.target.value)} required rows={3}
                         placeholder="What will they deliver?"
-                        className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+                        className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
             </div>
 
             <div>
@@ -253,14 +253,14 @@ export default function EmployerDashboard() {
             </div>
 
             {mode !== "remote" && (
-              <div className="hard-border bg-[#FDFCF0] p-5 space-y-4">
-                <p className="overline text-[#FF0A0A]">On-site details (required)</p>
+              <div className="hard-border bg-[#F5F3FF] p-5 space-y-4">
+                <p className="overline text-[#6B21A8]">On-site details (required)</p>
                 <div>
                   <label className="text-xs text-neutral-600 block mb-1">Location / address</label>
                   <input value={location} onChange={(e) => setLocation(e.target.value)}
                          data-testid={TID.engLocation}
                          placeholder="Full address inc. city, country"
-                         className="w-full hard-border px-3 py-3 bg-white focus:outline-none focus:border-[#002FA7]"/>
+                         className="w-full hard-border px-3 py-3 bg-white focus:outline-none focus:border-[#6B21A8]"/>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -314,9 +314,9 @@ export default function EmployerDashboard() {
               ))}
             </div>
           )}
-          <div className="hard-border bg-[#FDFCF0] p-4 mt-6">
+          <div className="hard-border bg-[#F5F3FF] p-4 mt-6">
             <div className="flex items-start gap-2">
-              <WarningOctagon weight="fill" color="#FF0A0A" size={16} className="mt-0.5"/>
+              <WarningOctagon weight="fill" color="#6B21A8" size={16} className="mt-0.5"/>
               <p className="text-xs leading-relaxed">Direct hiring outside Job Atlas is prohibited for 12 months per engagement. All work must remain routed through the platform.</p>
             </div>
           </div>

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from "recharts";
 import { PuzzlePiece, Clock, ChartBar, ListChecks, WarningOctagon } from "@phosphor-icons/react";
 
-const COLORS = ["#002FA7", "#0A0A0A", "#FF0A0A", "#7C7C7C", "#B0B0B0"];
+const COLORS = ["#6B21A8", "#0A0A0A", "#6B21A8", "#7C7C7C", "#B0B0B0"];
 
 const Stat = ({ k, label, sub }) => (
   <div className="p-8 border-r border-b border-black/10 bg-white">
@@ -45,7 +45,7 @@ export default function DashboardMetrics({ metrics, role }) {
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="hard-border bg-white p-6 shadow-brutal lg:col-span-1">
           <div className="flex items-center gap-2 mb-4">
-            <ChartBar size={18} weight="duotone" color="#002FA7"/>
+            <ChartBar size={18} weight="duotone" color="#6B21A8"/>
             <p className="overline">Task status</p>
           </div>
           {status.length === 0 ? (
@@ -71,7 +71,7 @@ export default function DashboardMetrics({ metrics, role }) {
 
         <div className="hard-border bg-white p-6 shadow-brutal lg:col-span-1">
           <div className="flex items-center gap-2 mb-4">
-            <PuzzlePiece size={18} weight="duotone" color="#002FA7"/>
+            <PuzzlePiece size={18} weight="duotone" color="#6B21A8"/>
             <p className="overline">Work by source</p>
           </div>
           {sources.length === 0 ? (
@@ -82,15 +82,15 @@ export default function DashboardMetrics({ metrics, role }) {
                 <XAxis dataKey="name" tick={{ fontSize: 10, fontFamily: "JetBrains Mono" }} stroke="#0A0A0A"/>
                 <YAxis tick={{ fontSize: 10 }} stroke="#0A0A0A" allowDecimals={false}/>
                 <Tooltip cursor={{ fill: "rgba(0,47,167,0.08)" }} contentStyle={{ border: "1px solid #0A0A0A", borderRadius: 0 }}/>
-                <Bar dataKey="value" fill="#002FA7" stroke="#0A0A0A" strokeWidth={1}/>
+                <Bar dataKey="value" fill="#6B21A8" stroke="#0A0A0A" strokeWidth={1}/>
               </BarChart>
             </ResponsiveContainer>
           )}
         </div>
 
-        <div className="hard-border bg-[#FDFCF0] p-6 shadow-brutal lg:col-span-1">
+        <div className="hard-border bg-[#F5F3FF] p-6 shadow-brutal lg:col-span-1">
           <div className="flex items-center gap-2 mb-4">
-            <ListChecks size={18} weight="duotone" color="#002FA7"/>
+            <ListChecks size={18} weight="duotone" color="#6B21A8"/>
             <p className="overline">Upcoming</p>
           </div>
           {metrics.upcoming.length === 0 ? (
@@ -114,21 +114,21 @@ export default function DashboardMetrics({ metrics, role }) {
       {/* Shared footer strip */}
       <div className="grid md:grid-cols-3 gap-6">
         <Link to="/integrations" className="hard-border bg-white p-6 shadow-brutal-hover flex items-center gap-4">
-          <PuzzlePiece size={26} weight="duotone" color="#002FA7"/>
+          <PuzzlePiece size={26} weight="duotone" color="#6B21A8"/>
           <div>
             <p className="font-display font-extrabold text-lg tracking-tight">{metrics.integrations_connected} connected</p>
             <p className="text-xs text-neutral-500">Jira · Asana · Confluence · Monday · SAP…</p>
           </div>
         </Link>
         <div className="hard-border bg-white p-6 shadow-brutal flex items-center gap-4">
-          <ListChecks size={26} weight="duotone" color="#002FA7"/>
+          <ListChecks size={26} weight="duotone" color="#6B21A8"/>
           <div>
             <p className="font-display font-extrabold text-lg tracking-tight">{metrics.work_items_total} tasks tracked</p>
             <p className="text-xs text-neutral-500">Across all connected sources & uploads</p>
           </div>
         </div>
-        <div className="hard-border bg-[#FDFCF0] p-6 flex items-center gap-4">
-          <WarningOctagon size={26} weight="fill" color="#FF0A0A"/>
+        <div className="hard-border bg-[#F5F3FF] p-6 flex items-center gap-4">
+          <WarningOctagon size={26} weight="fill" color="#6B21A8"/>
           <div>
             <p className="font-display font-extrabold text-lg tracking-tight">12-month exclusivity</p>
             <p className="text-xs text-neutral-700">All engagements protected via platform contract.</p>

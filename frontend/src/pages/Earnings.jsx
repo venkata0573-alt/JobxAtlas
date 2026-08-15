@@ -46,7 +46,7 @@ export default function Earnings() {
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
       <div className="flex items-baseline justify-between mb-8 flex-wrap gap-4">
         <div>
-          <p className="overline text-[#002FA7] mb-3">EARNINGS</p>
+          <p className="overline text-[#6B21A8] mb-3">EARNINGS</p>
           <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight">Rolling 30-day statement.</h1>
           <p className="text-neutral-600 mt-2">{String(e.period_start).slice(0,10)} → {String(e.period_end).slice(0,10)}</p>
         </div>
@@ -64,7 +64,7 @@ export default function Earnings() {
           { k: `$${e.net.toFixed(2)}`,  label: "Net payable",     Icon: Bank },
         ].map(({ k, label, Icon }, i) => (
           <div key={i} className="p-8 border-r border-b border-black/10 bg-white">
-            <Icon size={20} weight="duotone" color="#002FA7"/>
+            <Icon size={20} weight="duotone" color="#6B21A8"/>
             <div className="font-display font-extrabold text-4xl tracking-tight mt-3">{k}</div>
             <p className="overline text-neutral-500 mt-2">{label}</p>
           </div>
@@ -83,8 +83,8 @@ export default function Earnings() {
             <Row label="Net payable"                  v={`$${e.net.toFixed(2)}`} bold/>
           </div>
         </div>
-        <aside className="hard-border bg-[#FDFCF0] p-8 shadow-brutal">
-          <p className="overline text-[#002FA7] mb-3">Volume tiers</p>
+        <aside className="hard-border bg-[#F5F3FF] p-8 shadow-brutal">
+          <p className="overline text-[#6B21A8] mb-3">Volume tiers</p>
           <p className="text-sm text-neutral-600 mb-4">Commission drops as you clock more approved hours in a rolling month:</p>
           <ul className="space-y-2 font-mono text-sm">
             <li>≤ 40h    · 8%</li>

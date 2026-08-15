@@ -90,11 +90,11 @@ export default function Calendar() {
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
       <div className="flex items-baseline justify-between mb-6 flex-wrap gap-3">
         <div>
-          <p className="overline text-[#002FA7] mb-3">CALENDAR & AVAILABILITY</p>
+          <p className="overline text-[#6B21A8] mb-3">CALENDAR & AVAILABILITY</p>
           <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight">Your week, on your terms.</h1>
         </div>
         <div className="flex items-center gap-3">
-          <GlobeHemisphereEast size={18} weight="duotone" color="#002FA7"/>
+          <GlobeHemisphereEast size={18} weight="duotone" color="#6B21A8"/>
           <span className="overline">View timezone</span>
           <select value={viewTz} onChange={(e) => setViewTz(e.target.value)}
                   className="hard-border px-3 py-2 font-mono text-sm bg-white">
@@ -143,7 +143,7 @@ export default function Calendar() {
                        data-testid={TID.availSlotEnd(i)}
                        className="w-full hard-border px-3 py-2 font-mono"/>
               </div>
-              <button onClick={() => rmSlot(i)} className="hard-border p-2 hover:bg-[#FF0A0A] hover:text-white">
+              <button onClick={() => rmSlot(i)} className="hard-border p-2 hover:bg-[#6B21A8] hover:text-white">
                 <X size={16}/>
               </button>
             </div>
@@ -163,7 +163,7 @@ export default function Calendar() {
       {/* Weekly grid (view timezone) */}
       <section className="hard-border bg-white shadow-brutal overflow-x-auto mb-8">
         <div className="p-6 border-b border-black/10 flex items-center gap-3">
-          <Clock size={18} weight="duotone" color="#002FA7"/>
+          <Clock size={18} weight="duotone" color="#6B21A8"/>
           <h2 className="font-display font-extrabold text-2xl tracking-tight">Weekly view</h2>
           <span className="text-xs text-neutral-500 font-mono ml-auto">Showing in {viewTz}</span>
         </div>
@@ -177,7 +177,7 @@ export default function Calendar() {
                 {grid[i].length === 0 ? (
                   <p className="text-xs text-neutral-400 italic">—</p>
                 ) : grid[i].map((sl, x) => (
-                  <div key={x} className="hard-border bg-[#002FA7] text-white p-2 font-mono text-xs">
+                  <div key={x} className="hard-border bg-[#6B21A8] text-white p-2 font-mono text-xs">
                     {sl.start} — {sl.end}
                   </div>
                 ))}

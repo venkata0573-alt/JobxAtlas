@@ -82,7 +82,7 @@ export default function TalentProfile() {
 
   return (
     <main className="max-w-4xl mx-auto px-6 md:px-12 py-16">
-      <p className="overline text-[#002FA7] mb-3">{isEmployer ? "COMPANY PROFILE" : "TALENT PROFILE"}</p>
+      <p className="overline text-[#6B21A8] mb-3">{isEmployer ? "COMPANY PROFILE" : "TALENT PROFILE"}</p>
       <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-10">
         Showcase what you do best.
       </h1>
@@ -115,13 +115,13 @@ export default function TalentProfile() {
           <label className="overline block mb-2">Headline</label>
           <input data-testid={TID.profileHeadline} value={p.headline || ""} onChange={(e) => setP({ ...p, headline: e.target.value })}
                  placeholder="Senior Product Designer · Design Systems"
-                 className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+                 className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
         </div>
         <div>
           <label className="overline block mb-2">Bio</label>
           <textarea data-testid={TID.profileBio} value={p.bio || ""} onChange={(e) => setP({ ...p, bio: e.target.value })}
                     rows={4} placeholder="What you do, for whom, and how"
-                    className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+                    className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
         </div>
         {!isEmployer && (
           <>
@@ -129,7 +129,7 @@ export default function TalentProfile() {
               <label className="overline block mb-2">Skills (comma-separated)</label>
               <input data-testid={TID.profileSkills} value={skillsInput} onChange={(e) => setSkillsInput(e.target.value)}
                      placeholder="React, TypeScript, Node.js, Figma"
-                     className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+                     className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
             </div>
 
             <div data-testid="talent-industry-picker">
@@ -147,7 +147,7 @@ export default function TalentProfile() {
                         onClick={() => toggleIndustry(i.label)}
                         data-testid={`talent-industry-${i.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`}
                         className={`hard-border px-3 py-2 text-left text-xs transition-colors ${
-                          active ? "bg-[#0B1B2B] text-white border-[#0B1B2B]" : "bg-white hover:bg-[#FAF9F6]"
+                          active ? "bg-[#0B1B2B] text-white border-[#0B1B2B]" : "bg-white hover:bg-[#F5F3FF]"
                         }`}>
                         <span className="font-display font-bold leading-tight block">{i.label}</span>
                       </button>
@@ -164,21 +164,21 @@ export default function TalentProfile() {
                 <label className="overline block mb-2">Years of experience</label>
                 <input data-testid={TID.profileYears} type="number" min="0" value={p.years_experience || 0}
                        onChange={(e) => setP({ ...p, years_experience: e.target.value })}
-                       className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+                       className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
               </div>
               <div>
                 <label className="overline block mb-2">Location</label>
                 <input data-testid={TID.profileLocation} value={p.location || ""} onChange={(e) => setP({ ...p, location: e.target.value })}
                        placeholder="London, UK"
-                       className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+                       className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
               </div>
             </div>
 
             {/* AI Rate Suggest */}
-            <div className="hard-border bg-[#FDFCF0] p-6">
+            <div className="hard-border bg-[#F5F3FF] p-6">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <p className="overline text-[#002FA7] mb-1">AI-powered rate suggestion</p>
+                  <p className="overline text-[#6B21A8] mb-1">AI-powered rate suggestion</p>
                   <p className="text-sm text-neutral-600">Claude analyses your skills and experience against market rates.</p>
                 </div>
                 <button type="button" onClick={doSuggest} disabled={suggesting}
@@ -190,7 +190,7 @@ export default function TalentProfile() {
                 <div className="grid grid-cols-3 gap-2 mt-3">
                   {["low", "mid", "high"].map((k) => (
                     <button type="button" key={k} onClick={() => setP({ ...p, hourly_rate: suggest[k] })}
-                            className="hard-border p-3 bg-white text-left hover:bg-[#002FA7] hover:text-white">
+                            className="hard-border p-3 bg-white text-left hover:bg-[#6B21A8] hover:text-white">
                       <div className="overline">{k}</div>
                       <div className="font-display font-extrabold text-2xl">${suggest[k]}</div>
                     </button>
@@ -204,14 +204,14 @@ export default function TalentProfile() {
               <label className="overline block mb-2">Your hourly rate (USD)</label>
               <input data-testid={TID.profileHourlyRate} type="number" min="0" step="1" value={p.hourly_rate || 0}
                      onChange={(e) => setP({ ...p, hourly_rate: e.target.value })}
-                     className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+                     className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
             </div>
             <div>
               <label className="overline block mb-2">Portfolio URL</label>
               <input data-testid={TID.profilePortfolio} value={p.portfolio_url || ""}
                      onChange={(e) => setP({ ...p, portfolio_url: e.target.value })}
                      placeholder="https://…"
-                     className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+                     className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
             </div>
           </>
         )}
@@ -219,7 +219,7 @@ export default function TalentProfile() {
           <div>
             <label className="overline block mb-2">Company</label>
             <input value={p.company || ""} onChange={(e) => setP({ ...p, company: e.target.value })}
-                   className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#C79A3B]"/>
+                   className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
             <label className="overline block mt-4 mb-2">Company logo</label>
             <div className="flex items-center gap-4">
               {p.company_logo_url && (

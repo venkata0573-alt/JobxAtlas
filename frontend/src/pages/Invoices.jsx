@@ -56,7 +56,7 @@ export default function Invoices() {
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16" data-testid="invoices-page">
       <div className="flex items-baseline justify-between mb-6 flex-wrap gap-4">
         <div>
-          <p className="overline text-[#C79A3B] mb-2">FINANCE</p>
+          <p className="overline text-[#6B21A8] mb-2">FINANCE</p>
           <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight">Invoices</h1>
           <p className="text-sm text-neutral-600 mt-2">Every milestone invoice across your projects. Download PDFs, pay in one click.</p>
         </div>
@@ -143,12 +143,12 @@ export default function Invoices() {
                 <td className="px-4 py-3">
                   <div className="flex gap-1 flex-wrap">
                     <button onClick={() => downloadPdf(inv.project_id, inv.id)}
-                            className="hard-border px-2 py-1 text-xs bg-white hover:bg-[#FAF9F6] inline-flex items-center gap-1"
+                            className="hard-border px-2 py-1 text-xs bg-white hover:bg-[#F5F3FF] inline-flex items-center gap-1"
                             data-testid={`pdf-${inv.id}`}>
                       <FileText size={12}/> PDF
                     </button>
                     <Link to={`/projects/${inv.project_id}/workspace`}
-                          className="hard-border px-2 py-1 text-xs bg-white hover:bg-[#FAF9F6] inline-flex items-center gap-1"
+                          className="hard-border px-2 py-1 text-xs bg-white hover:bg-[#F5F3FF] inline-flex items-center gap-1"
                           data-testid={`open-workspace-${inv.id}`}>
                       Workspace <ArrowRight size={10}/>
                     </Link>
@@ -161,9 +161,9 @@ export default function Invoices() {
       </div>
 
       {!billing.attached && (
-        <div className="hard-border bg-[#FDF6E3] p-5 shadow-brutal mt-8" data-testid="attach-card-cta">
+        <div className="hard-border bg-[#F5F3FF] p-5 shadow-brutal mt-8" data-testid="attach-card-cta">
           <div className="flex items-center gap-3 mb-2">
-            <CreditCard size={20} weight="duotone" color="#C79A3B"/>
+            <CreditCard size={20} weight="duotone" color="#6B21A8"/>
             <p className="font-display font-extrabold text-lg">Enable auto-collect</p>
           </div>
           <p className="text-sm text-neutral-700 mb-3">

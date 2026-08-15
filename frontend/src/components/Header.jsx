@@ -11,7 +11,7 @@ export default function Header() {
   const [open, setOpen] = useState(false);
 
   const dashHref = user && user.role === "employer" ? "/employer" : (user && user.role === "admin" ? "/admin" : "/talent");
-  const linkCls = "hover:text-[#C79A3B] transition-colors whitespace-nowrap";
+  const linkCls = "hover:text-[#6B21A8] transition-colors whitespace-nowrap";
 
   const guestLinks = (
     <>
@@ -39,7 +39,7 @@ export default function Header() {
   ) : null;
 
   return (
-    <header className="sticky top-0 z-50 backdrop-blur-xl bg-[#FAF9F6]/90 border-b border-black/10">
+    <header className="sticky top-0 z-50 backdrop-blur-xl bg-[#F5F3FF]/90 border-b border-black/10">
       <div className="max-w-7xl mx-auto px-6 md:px-10 py-4 flex items-center justify-between gap-6">
         <Link to="/" className="flex items-center gap-3" data-testid={TID.navLogo}>
           <img src="/icon.svg" alt="Job Atlas" className="w-11 h-11"/>
@@ -78,7 +78,7 @@ export default function Header() {
       </div>
 
       {open && (
-        <div className="md:hidden bg-[#FAF9F6] border-t border-black/10 px-6 py-5 space-y-4 text-sm">
+        <div className="md:hidden bg-[#F5F3FF] border-t border-black/10 px-6 py-5 space-y-4 text-sm">
           {user ? userLinks : guestLinks}
           {user && user !== false ? (
             <button className="btn-outline text-sm w-full" onClick={async () => { setOpen(false); await logout(); nav("/"); }}>

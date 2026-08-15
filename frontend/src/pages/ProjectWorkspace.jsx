@@ -104,7 +104,7 @@ export default function ProjectWorkspace() {
 
       <div className="flex items-start justify-between gap-4 flex-wrap mb-8">
         <div>
-          <p className="overline text-[#C79A3B]">{p.industry?.toUpperCase()} · {p.duration_months} MONTHS</p>
+          <p className="overline text-[#6B21A8]">{p.industry?.toUpperCase()} · {p.duration_months} MONTHS</p>
           <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mt-1">{p.company_name}</h1>
           <p className="text-sm text-neutral-500 mt-1 font-mono">{p.template_title}</p>
         </div>
@@ -126,7 +126,7 @@ export default function ProjectWorkspace() {
               ⋮ Save as template
             </button>
           )}
-          <span className={`hard-border px-4 py-2 text-xs font-mono uppercase tracking-widest ${p.status === "active" ? "bg-[#0B1B2B] text-[#C79A3B]" : "bg-neutral-200"}`}>
+          <span className={`hard-border px-4 py-2 text-xs font-mono uppercase tracking-widest ${p.status === "active" ? "bg-[#0B1B2B] text-[#6B21A8]" : "bg-neutral-200"}`}>
             {p.status}
           </span>
         </div>
@@ -137,11 +137,9 @@ export default function ProjectWorkspace() {
         <div className="hard-border bg-white p-4 shadow-brutal" data-testid="rollup-budget">
           <p className="overline text-neutral-500 mb-1">Budget</p>
           <p className="font-display font-black text-2xl">${(r.total_budget / 1000).toFixed(0)}k</p>
-          {isAdmin && p.total_talent_cost > 0 && (
-            <p className="text-[10px] text-neutral-500 font-mono mt-1" data-testid="admin-team-cost">
-              Team cost ${(p.total_talent_cost / 1000).toFixed(0)}k
-            </p>
-          )}
+          <p className="text-[10px] text-neutral-500 font-mono mt-1">
+            {p.duration_months || 1}-mo total · all-in
+          </p>
         </div>
         <div className="hard-border bg-white p-4 shadow-brutal" data-testid="rollup-billed">
           <p className="overline text-neutral-500 mb-1">Billed</p>
@@ -157,20 +155,12 @@ export default function ProjectWorkspace() {
             {r.hours_variance_pct > 0 ? "+" : ""}{r.hours_variance_pct}%
           </p>
         </div>
-        {isAdmin && p.blended_margin_pct !== undefined ? (
-          <div className="hard-border bg-[#0B1B2B] text-white p-4 shadow-brutal" data-testid="rollup-margin">
-            <p className="overline text-[#C79A3B] mb-1">Job Atlas margin</p>
-            <p className="font-display font-black text-2xl text-[#F0C260]">{p.blended_margin_pct}%</p>
-            <p className="text-[10px] text-neutral-400 font-mono mt-1">${(p.total_margin / 1000).toFixed(0)}k gross</p>
-          </div>
-        ) : (
-          <div className={`hard-border p-4 shadow-brutal ${Math.abs(r.cost_variance_pct) > 10 ? "bg-[#FEF0F0] border-red-300" : "bg-white"}`} data-testid="rollup-cost-var">
-            <p className="overline text-neutral-500 mb-1">Cost variance</p>
-            <p className={`font-display font-black text-2xl ${r.cost_variance_pct > 0 ? "text-red-700" : "text-emerald-700"}`}>
-              {r.cost_variance_pct > 0 ? "+" : ""}{r.cost_variance_pct}%
-            </p>
-          </div>
-        )}
+        <div className={`hard-border p-4 shadow-brutal ${Math.abs(r.cost_variance_pct) > 10 ? "bg-[#FEF0F0] border-red-300" : "bg-white"}`} data-testid="rollup-cost-var">
+          <p className="overline text-neutral-500 mb-1">Cost variance</p>
+          <p className={`font-display font-black text-2xl ${r.cost_variance_pct > 0 ? "text-red-700" : "text-emerald-700"}`}>
+            {r.cost_variance_pct > 0 ? "+" : ""}{r.cost_variance_pct}%
+          </p>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -210,11 +200,11 @@ function PhasesTab({ project, onChange }) {
         const isActive = ph.status === "in_progress";
         return (
           <div key={ph.id}
-               className={`hard-border p-5 shadow-brutal ${isComplete ? "bg-[#EDF7EE]" : isActive ? "bg-[#FDF6E3]" : "bg-white"}`}
+               className={`hard-border p-5 shadow-brutal ${isComplete ? "bg-[#EDF7EE]" : isActive ? "bg-[#F5F3FF]" : "bg-white"}`}
                data-testid={`phase-card-${ph.id}`}>
             <div className="flex items-center gap-2 mb-2">
               {isComplete ? <CheckCircle size={18} weight="fill" color="#10B981"/> :
-               isActive ? <Play size={18} weight="fill" color="#C79A3B"/> :
+               isActive ? <Play size={18} weight="fill" color="#6B21A8"/> :
                           <Circle size={18} color="#999"/>}
               <p className="font-mono text-[10px] text-neutral-500 tracking-widest">PHASE {idx + 1}</p>
             </div>
@@ -275,9 +265,9 @@ function VarianceTab({ project, variances, onChange }) {
 
   return (
     <div className="space-y-6" data-testid="variance-tab">
-      <form onSubmit={submit} className="hard-border bg-[#FAF9F6] p-5 space-y-3 shadow-brutal">
+      <form onSubmit={submit} className="hard-border bg-[#F5F3FF] p-5 space-y-3 shadow-brutal">
         <div className="flex items-center gap-2">
-          <ChartLineUp size={18} weight="duotone" color="#C79A3B"/>
+          <ChartLineUp size={18} weight="duotone" color="#6B21A8"/>
           <p className="font-display font-extrabold text-lg">Log this week&apos;s variance</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -370,9 +360,9 @@ function RisksTab({ project, risks, onChange }) {
 
   return (
     <div className="space-y-6" data-testid="risks-tab">
-      <form onSubmit={submit} className="hard-border bg-[#FAF9F6] p-5 space-y-3 shadow-brutal">
+      <form onSubmit={submit} className="hard-border bg-[#F5F3FF] p-5 space-y-3 shadow-brutal">
         <p className="font-display font-extrabold text-lg inline-flex items-center gap-2">
-          <Warning size={18} weight="duotone" color="#C79A3B"/> Add a risk
+          <Warning size={18} weight="duotone" color="#6B21A8"/> Add a risk
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <input required placeholder="Risk title" value={form.title} onChange={(e) => setForm({...form, title: e.target.value})}
@@ -481,7 +471,7 @@ function RaciTab({ project, onChange }) {
     finally { setSaving(false); }
   };
 
-  const cellColor = (v) => v === "R" ? "bg-[#0B1B2B] text-white" : v === "A" ? "bg-[#C79A3B] text-white" : v === "C" ? "bg-blue-100 text-blue-800" : v === "I" ? "bg-neutral-100 text-neutral-600" : "";
+  const cellColor = (v) => v === "R" ? "bg-[#0B1B2B] text-white" : v === "A" ? "bg-[#6B21A8] text-white" : v === "C" ? "bg-blue-100 text-blue-800" : v === "I" ? "bg-neutral-100 text-neutral-600" : "";
 
   return (
     <div className="space-y-4" data-testid="raci-tab">
@@ -567,9 +557,9 @@ function MilestonesTab({ project, milestones, invoices, canFinance, canPay, onCh
 
   return (
     <div className="space-y-6" data-testid="milestones-tab">
-      <div className="hard-border bg-[#FDF6E3] p-5 shadow-brutal">
+      <div className="hard-border bg-[#F5F3FF] p-5 shadow-brutal">
         <div className="flex items-center gap-2 mb-2">
-          <Receipt size={18} weight="duotone" color="#C79A3B"/>
+          <Receipt size={18} weight="duotone" color="#6B21A8"/>
           <p className="font-display font-extrabold text-lg">Fixed-price milestone plan · 25% × 4</p>
         </div>
         <p className="text-xs text-neutral-700">Default plan: 25% at kickoff, 25% at each of two major deliverables, 25% at final sign-off. Add extra milestones below if scope demands more billing checkpoints.</p>
@@ -610,7 +600,7 @@ function MilestonesTab({ project, milestones, invoices, canFinance, canPay, onCh
                     </button>
                   )}
                   {m.invoice_id && (
-                    <button onClick={() => downloadPdf(m.invoice_id)} className="hard-border p-1 text-xs bg-white hover:bg-[#FAF9F6] ml-1 inline-flex items-center gap-1" data-testid={`pdf-${m.invoice_id}`}>
+                    <button onClick={() => downloadPdf(m.invoice_id)} className="hard-border p-1 text-xs bg-white hover:bg-[#F5F3FF] ml-1 inline-flex items-center gap-1" data-testid={`pdf-${m.invoice_id}`}>
                       <FileText size={12}/> PDF
                     </button>
                   )}
@@ -621,7 +611,7 @@ function MilestonesTab({ project, milestones, invoices, canFinance, canPay, onCh
         </table>
       </div>
 
-      <form onSubmit={submit} className="hard-border bg-[#FAF9F6] p-5 space-y-3">
+      <form onSubmit={submit} className="hard-border bg-[#F5F3FF] p-5 space-y-3">
         <p className="font-display font-extrabold text-lg">Add a custom milestone</p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <input required placeholder="Name" value={form.name} onChange={(e) => setForm({...form, name: e.target.value})}
@@ -654,7 +644,7 @@ function MilestonesTab({ project, milestones, invoices, canFinance, canPay, onCh
                       <td className="px-4 py-3 font-mono text-xs">{new Date(inv.issued_at).toLocaleDateString()}</td>
                       <td className="px-4 py-3 font-mono text-xs">{inv.paid_at ? new Date(inv.paid_at).toLocaleDateString() : "—"}</td>
                       <td className="px-4 py-3">
-                        <button onClick={() => downloadPdf(inv.id)} className="hard-border p-1 text-xs bg-white hover:bg-[#FAF9F6] inline-flex items-center gap-1" data-testid={`pdf-history-${inv.id}`}>
+                        <button onClick={() => downloadPdf(inv.id)} className="hard-border p-1 text-xs bg-white hover:bg-[#F5F3FF] inline-flex items-center gap-1" data-testid={`pdf-history-${inv.id}`}>
                           <FileText size={12}/> Download
                         </button>
                       </td>

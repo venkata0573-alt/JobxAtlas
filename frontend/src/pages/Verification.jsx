@@ -31,7 +31,7 @@ export default function Verification() {
 
   return (
     <main className="max-w-3xl mx-auto p-8 md:p-16" data-testid="verification-page">
-      <p className="overline text-[#C79A3B] mb-2">TRUST & SAFETY</p>
+      <p className="overline text-[#6B21A8] mb-2">TRUST & SAFETY</p>
       <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-4">Verify your profile</h1>
       <p className="text-sm text-neutral-600 mb-8">
         Verified {user?.role === "employer" ? "companies" : "talents"} appear ahead in search + get a {user?.role === "employer" ? "golden star" : "blue tick"} on every card. Verified accounts convert at 3× the unverified rate.
@@ -61,9 +61,9 @@ export default function Verification() {
       </div>
 
       {/* Profile verification status */}
-      <div className={`hard-border p-5 mb-6 shadow-brutal ${isVerified ? "bg-[#EDF7EE]" : isPending ? "bg-[#FDF6E3]" : isRejected ? "bg-[#FEF0F0]" : "bg-white"}`} data-testid="profile-verification-status">
+      <div className={`hard-border p-5 mb-6 shadow-brutal ${isVerified ? "bg-[#EDF7EE]" : isPending ? "bg-[#F5F3FF]" : isRejected ? "bg-[#FEF0F0]" : "bg-white"}`} data-testid="profile-verification-status">
         <div className="flex items-center gap-3 mb-1">
-          <ShieldCheck size={22} weight="fill" color={isVerified ? "#10B981" : isPending ? "#C79A3B" : "#666"}/>
+          <ShieldCheck size={22} weight="fill" color={isVerified ? "#10B981" : isPending ? "#6B21A8" : "#666"}/>
           <p className="font-display font-extrabold text-lg">
             {isVerified && (user?.role === "employer" ? "Verified company ✦" : "Verified talent ✓")}
             {isPending && "Verification pending review"}
@@ -160,7 +160,7 @@ function BgvForm({ profile, onDone }) {
         <p className="text-xs text-neutral-500 mb-3">Add every role from the last 5 years. We verify the last two.</p>
         <div className="space-y-3">
           {works.map((w, i) => (
-            <div key={i} className="hard-border bg-[#FAF9F6] p-3 space-y-2" data-testid={`work-${i}`}>
+            <div key={i} className="hard-border bg-[#F5F3FF] p-3 space-y-2" data-testid={`work-${i}`}>
               <div className="grid md:grid-cols-2 gap-2">
                 <input required placeholder="Company" value={w.company} onChange={(e) => { const c=[...works]; c[i].company=e.target.value; setWorks(c);}} className="hard-border px-3 py-2 text-sm"/>
                 <input required placeholder="Role" value={w.role} onChange={(e) => { const c=[...works]; c[i].role=e.target.value; setWorks(c);}} className="hard-border px-3 py-2 text-sm"/>
@@ -181,7 +181,7 @@ function BgvForm({ profile, onDone }) {
         <p className="text-xs text-neutral-500 mb-3">A recent manager + a recent peer works best. We contact them directly.</p>
         <div className="space-y-3">
           {refs.map((r, i) => (
-            <div key={i} className="hard-border bg-[#FAF9F6] p-3 space-y-2" data-testid={`ref-${i}`}>
+            <div key={i} className="hard-border bg-[#F5F3FF] p-3 space-y-2" data-testid={`ref-${i}`}>
               <div className="grid md:grid-cols-2 gap-2">
                 <input required placeholder="Name" value={r.name} onChange={(e) => { const c=[...refs]; c[i].name=e.target.value; setRefs(c);}} className="hard-border px-3 py-2 text-sm"/>
                 <input required type="email" placeholder="Email" value={r.email} onChange={(e) => { const c=[...refs]; c[i].email=e.target.value; setRefs(c);}} className="hard-border px-3 py-2 text-sm"/>

@@ -58,7 +58,7 @@ export default function EOI() {
 
   return (
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
-      <p className="overline text-[#002FA7] mb-3">EXPRESSIONS OF INTEREST</p>
+      <p className="overline text-[#6B21A8] mb-3">EXPRESSIONS OF INTEREST</p>
       <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-3">
         {isTalent ? "Choose your next engagement." : "Talent wants to work with you."}
       </h1>
@@ -72,34 +72,34 @@ export default function EOI() {
         {isTalent && (
           <form onSubmit={submit} className="hard-border bg-white p-8 shadow-brutal h-fit">
             <div className="flex items-center gap-2 mb-4">
-              <PaperPlaneTilt size={22} weight="duotone" color="#002FA7"/>
+              <PaperPlaneTilt size={22} weight="duotone" color="#6B21A8"/>
               <h2 className="font-display font-extrabold text-2xl tracking-tight">Raise an EOI</h2>
             </div>
             <div className="mb-4">
               <label className="overline block mb-2">Employer ID (leave blank for open)</label>
               <input value={employerId} onChange={(e) => setEmployerId(e.target.value)}
                      data-testid={TID.eoiEmployer} placeholder="Optional — open to any"
-                     className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7] font-mono text-sm"/>
+                     className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8] font-mono text-sm"/>
             </div>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="overline block mb-2">Hours / week</label>
                 <input data-testid={TID.eoiHours} type="number" min="1" value={hours}
                        onChange={(e) => setHours(e.target.value)}
-                       className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+                       className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
               </div>
               <div>
                 <label className="overline block mb-2">Start date</label>
                 <input value={startDate} onChange={(e) => setStartDate(e.target.value)}
                        placeholder="YYYY-MM-DD"
-                       className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7] font-mono"/>
+                       className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8] font-mono"/>
               </div>
             </div>
             <div className="mb-4">
               <label className="overline block mb-2">Message</label>
               <textarea data-testid={TID.eoiMessage} value={msg} onChange={(e) => setMsg(e.target.value)}
                         rows={5} required placeholder="What you bring to the table, timezone, availability…"
-                        className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+                        className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
             </div>
             <button type="submit" className="btn-primary w-full" data-testid={TID.eoiSubmit}>Submit EOI →</button>
           </form>
@@ -107,7 +107,7 @@ export default function EOI() {
 
         <section className={`hard-border bg-white p-8 shadow-brutal ${!isTalent ? "lg:col-span-2" : ""}`}>
           <div className="flex items-center gap-2 mb-4">
-            <Handshake size={22} weight="duotone" color="#002FA7"/>
+            <Handshake size={22} weight="duotone" color="#6B21A8"/>
             <h2 className="font-display font-extrabold text-2xl tracking-tight">
               {isTalent ? "Your EOIs" : "Incoming EOIs"}
             </h2>

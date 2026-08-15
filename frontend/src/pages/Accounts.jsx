@@ -53,7 +53,7 @@ export default function Accounts() {
 
   return (
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
-      <p className="overline text-[#002FA7] mb-3">CONNECTED ACCOUNTS</p>
+      <p className="overline text-[#6B21A8] mb-3">CONNECTED ACCOUNTS</p>
       <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-3">
         {isEmployer ? "Bring your business online." : "Show the world you're the real deal."}
       </h1>
@@ -71,12 +71,12 @@ export default function Accounts() {
               const Icon = ICONS[a.provider] || Globe;
               return (
                 <div key={a.id} className="hard-border bg-white p-5 flex items-center gap-4">
-                  <Icon size={26} weight="duotone" color="#002FA7"/>
+                  <Icon size={26} weight="duotone" color="#6B21A8"/>
                   <div className="min-w-0 flex-1">
                     <p className="font-display font-extrabold text-lg tracking-tight">{a.provider_name}</p>
                     <p className="text-xs font-mono text-neutral-500 truncate">{a.handle}</p>
                   </div>
-                  <button onClick={() => disconnect(a.id)} className="hard-border p-2 hover:bg-[#FF0A0A] hover:text-white">
+                  <button onClick={() => disconnect(a.id)} className="hard-border p-2 hover:bg-[#6B21A8] hover:text-white">
                     <Trash size={16}/>
                   </button>
                 </div>
@@ -97,7 +97,7 @@ export default function Accounts() {
               return (
                 <button key={p.id} type="button" onClick={() => setSelected(p)}
                         className={`hard-border p-4 text-left ${active ? "bg-[#0A0A0A] text-white" : "bg-white"}`}>
-                  <Icon size={22} weight="duotone" color={active ? "#fff" : "#002FA7"}/>
+                  <Icon size={22} weight="duotone" color={active ? "#fff" : "#6B21A8"}/>
                   <p className="font-display font-extrabold mt-2">{p.name}</p>
                   <p className="text-xs opacity-70">{p.handle_label}</p>
                 </button>
@@ -106,7 +106,7 @@ export default function Accounts() {
           </div>
         </section>
 
-        <section className="hard-border bg-[#FDFCF0] p-8 shadow-brutal">
+        <section className="hard-border bg-[#F5F3FF] p-8 shadow-brutal">
           <h2 className="font-display font-extrabold text-2xl tracking-tight mb-4">
             {selected ? `Connect ${selected.name}` : "Pick a provider →"}
           </h2>
@@ -118,12 +118,12 @@ export default function Accounts() {
               <div>
                 <label className="overline block mb-2">{selected.handle_label}</label>
                 <input value={handle} onChange={(e) => setHandle(e.target.value)} required
-                       className="w-full hard-border px-3 py-3 bg-white focus:outline-none focus:border-[#002FA7]"/>
+                       className="w-full hard-border px-3 py-3 bg-white focus:outline-none focus:border-[#6B21A8]"/>
               </div>
               <div>
                 <label className="overline block mb-2">API token (optional)</label>
                 <input value={token} onChange={(e) => setToken(e.target.value)} type="password"
-                       className="w-full hard-border px-3 py-3 bg-white focus:outline-none focus:border-[#002FA7] font-mono"/>
+                       className="w-full hard-border px-3 py-3 bg-white focus:outline-none focus:border-[#6B21A8] font-mono"/>
               </div>
               <button type="submit" className="btn-primary w-full">Connect {selected.name} →</button>
             </form>

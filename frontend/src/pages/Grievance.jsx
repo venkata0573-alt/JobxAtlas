@@ -34,7 +34,7 @@ export default function Grievance() {
     return (
       <main className="max-w-2xl mx-auto px-6 py-24">
         <div className="hard-border bg-white p-10 shadow-brutal text-center">
-          <div className="mx-auto hard-border bg-[#002FA7] text-white w-14 h-14 flex items-center justify-center mb-4">
+          <div className="mx-auto hard-border bg-[#6B21A8] text-white w-14 h-14 flex items-center justify-center mb-4">
             <CheckCircle size={26} weight="fill"/>
           </div>
           <h1 className="font-display font-extrabold text-3xl tracking-tight mb-2">Grievance submitted</h1>
@@ -55,7 +55,7 @@ export default function Grievance() {
 
   return (
     <main className="max-w-3xl mx-auto px-6 md:px-12 py-16">
-      <p className="overline text-[#FF0A0A] mb-3">GRIEVANCE FORM</p>
+      <p className="overline text-[#6B21A8] mb-3">GRIEVANCE FORM</p>
       <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-3">
         Speak up. In writing.
       </h1>
@@ -64,8 +64,8 @@ export default function Grievance() {
         we will not share your submission with the other party without your consent.
       </p>
 
-      <div className="hard-border bg-[#FDFCF0] p-5 mb-8 flex items-start gap-3">
-        <WarningOctagon size={22} weight="fill" color="#FF0A0A"/>
+      <div className="hard-border bg-[#F5F3FF] p-5 mb-8 flex items-start gap-3">
+        <WarningOctagon size={22} weight="fill" color="#6B21A8"/>
         <p className="text-sm">
           For emergencies, contact local authorities first. This form is for platform-related grievances only.
         </p>
@@ -76,31 +76,31 @@ export default function Grievance() {
           <label className="overline block mb-2">Subject</label>
           <input value={f.subject} onChange={set("subject")} data-testid={TID.grievanceSubject} required
                  placeholder="One-line summary"
-                 className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+                 className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
         </div>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="overline block mb-2">Engagement ID (optional)</label>
             <input value={f.engagement_id} onChange={set("engagement_id")}
-                   className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7] font-mono text-sm"/>
+                   className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8] font-mono text-sm"/>
           </div>
           <div>
             <label className="overline block mb-2">Against party ID (optional)</label>
             <input value={f.against_party_id} onChange={set("against_party_id")}
-                   className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7] font-mono text-sm"/>
+                   className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8] font-mono text-sm"/>
           </div>
         </div>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="overline block mb-2">Incident date</label>
             <input value={f.incident_date} onChange={set("incident_date")} type="date"
-                   className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7] font-mono"/>
+                   className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8] font-mono"/>
           </div>
           <div>
             <label className="overline block mb-2">Your contact email</label>
             <input value={f.contact_email} onChange={set("contact_email")} type="email" required
                    data-testid={TID.grievanceEmail}
-                   className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+                   className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
           </div>
         </div>
         <div>
@@ -108,7 +108,7 @@ export default function Grievance() {
           <textarea value={f.description} onChange={set("description")} rows={7} required
                     data-testid={TID.grievanceDescription}
                     placeholder="What happened, when, and how it has affected you or your engagement?"
-                    className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+                    className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#6B21A8]"/>
         </div>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <p className="text-xs text-neutral-500 flex items-center gap-2 font-mono">

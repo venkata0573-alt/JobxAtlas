@@ -11,7 +11,7 @@ export default function Pricing() {
   const tc = p.talent_commission;
   return (
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
-      <p className="overline text-[#002FA7] mb-3">PRICING</p>
+      <p className="overline text-[#6B21A8] mb-3">PRICING</p>
       <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-3">Cheaper than Upwork. Fairer than Fiverr.</h1>
       <p className="text-neutral-600 max-w-2xl mb-10">
         Free while you evaluate. When you&apos;re ready, our employer platform fee is <strong>{p.platform_fee_pct}%</strong> —
@@ -48,14 +48,14 @@ export default function Pricing() {
       <p className="overline text-neutral-500 mb-4">For Individuals — volume-tiered commission on your hourly rate</p>
       <div className="grid md:grid-cols-4 gap-4 mb-6">
         {tc.tiers.map((t, i) => (
-          <div key={i} className={`hard-border p-6 shadow-brutal ${i === tc.tiers.length - 1 ? "bg-[#002FA7] text-white" : "bg-white"}`}>
+          <div key={i} className={`hard-border p-6 shadow-brutal ${i === tc.tiers.length - 1 ? "bg-[#6B21A8] text-white" : "bg-white"}`}>
             <p className="overline mb-2">{t.label}</p>
             <p className="font-display font-extrabold text-5xl tracking-tight">{t.commission_pct}<span className="text-2xl">%</span></p>
             <p className="text-xs mt-2 opacity-70 font-mono">deducted at payout</p>
           </div>
         ))}
       </div>
-      <div className="hard-border bg-[#FDFCF0] p-6 mb-16 shadow-brutal">
+      <div className="hard-border bg-[#F5F3FF] p-6 mb-16 shadow-brutal">
         <p className="text-sm leading-relaxed">
           <strong>Multi-employer monthly fee:</strong> {" "}
           <span className="font-mono">${tc.multi_employer_fee.amount_usd} / ₹{tc.multi_employer_fee.amount_inr} / month</span>
@@ -91,7 +91,7 @@ export default function Pricing() {
             ].map((row, i) => (
               <tr key={i}>
                 {row.map((cell, j) => (
-                  <td key={j} className={`px-4 py-3 ${j === 1 ? "font-mono font-bold text-[#002FA7]" : "font-mono"}`}>
+                  <td key={j} className={`px-4 py-3 ${j === 1 ? "font-mono font-bold text-[#6B21A8]" : "font-mono"}`}>
                     {cell === "✓" ? <Check size={16} weight="bold" className="inline"/> :
                      cell === "✗" ? <X size={16} weight="bold" className="inline text-neutral-400"/> :
                      cell}

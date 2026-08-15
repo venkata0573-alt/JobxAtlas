@@ -7,8 +7,8 @@
 /* Job Atlas-aligned brand tokens */
 :root {
     --brand-navy: #0B1B2B;
-    --brand-gold: #C79A3B;
-    --brand-cream: #FAF9F6;
+    --brand-gold: #6B21A8;
+    --brand-cream: #F5F3FF;
     --brand-ink: #0B1B2B;
     --brand-muted: #6B6B6B;
 
@@ -75,7 +75,7 @@ h1, h2, h3, h4, h5, h6, .font-display {
     transition: background 0.2s, color 0.2s;
     letter-spacing: 0.02em;
 }
-.btn-primary:hover { background: var(--brand-gold); color: var(--brand-navy); border-color: var(--brand-gold); }
+.btn-primary:hover { background: var(--brand-gold); color: #fff; border-color: var(--brand-gold); }
 
 .btn-outline {
     background: transparent; color: var(--brand-navy); padding: 0.85rem 1.6rem;
@@ -85,11 +85,11 @@ h1, h2, h3, h4, h5, h6, .font-display {
 .btn-outline:hover { background: var(--brand-navy); color: #fff; }
 
 .btn-accent {
-    background: var(--brand-gold); color: var(--brand-navy); padding: 0.85rem 1.6rem;
+    background: var(--brand-gold); color: #fff; padding: 0.85rem 1.6rem;
     font-weight: 700; border: 1px solid var(--brand-gold);
     transition: background 0.2s;
 }
-.btn-accent:hover { background: var(--brand-navy); color: var(--brand-gold); border-color: var(--brand-navy); }
+.btn-accent:hover { background: var(--brand-navy); color: #fff; border-color: var(--brand-navy); }
 
 .marquee-track {
     display: inline-flex; gap: 3rem; padding-right: 3rem;
@@ -106,5 +106,5 @@ h1, h2, h3, h4, h5, h6, .font-display {
 
 .ticker-item { font-family: 'Fraunces', serif; font-weight: 500; letter-spacing: 0.15em; font-size: 0.875rem; }
 
-/* Backwards-compat colour keywords used in existing components: map old #002FA7 & #FF0A0A to brand palette */
-[style*="#002FA7"], [style*="#0A0A0A"] { }
+/* Backwards-compat colour keywords used in existing components: map old #6B21A8 & #6B21A8 to brand palette */
+[style*="#6B21A8"], [style*="#0A0A0A"] { }

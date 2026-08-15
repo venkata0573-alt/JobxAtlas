@@ -165,7 +165,7 @@ export default function TalentDashboard() {
     <main className="max-w-7xl mx-auto px-6 md:px-12 py-16">
       <div className="flex items-baseline justify-between mb-10 flex-wrap gap-4">
         <div>
-          <p className="overline text-[#002FA7] mb-3">TALENT DASHBOARD</p>
+          <p className="overline text-[#6B21A8] mb-3">TALENT DASHBOARD</p>
           <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight">Hey {user?.name?.split(" ")[0]}.</h1>
           <p className="text-neutral-600 mt-2">Everything you&apos;re working on — in one grid.</p>
         </div>
@@ -181,9 +181,9 @@ export default function TalentDashboard() {
       {nudge && !nudgeDismissed && (
         <section
           className={`mt-8 hard-border p-6 md:p-7 shadow-brutal flex flex-col md:flex-row md:items-center gap-4
-            ${nudge.direction === "raise" ? "bg-[#FDF6E3] border-[#C79A3B]" : "bg-[#FEF0F0] border-red-300"}`}
+            ${nudge.direction === "raise" ? "bg-[#F5F3FF] border-[#6B21A8]" : "bg-[#FEF0F0] border-red-300"}`}
           data-testid="rate-nudge-banner">
-          <div className="hard-border bg-[#0B1B2B] text-[#C79A3B] w-12 h-12 flex items-center justify-center shrink-0">
+          <div className="hard-border bg-[#0B1B2B] text-[#6B21A8] w-12 h-12 flex items-center justify-center shrink-0">
             <WarningCircle size={22} weight="duotone"/>
           </div>
           <div className="flex-1 min-w-0">
@@ -215,14 +215,14 @@ export default function TalentDashboard() {
       )}
 
       {/* Rate Sanity Check */}
-      <section className="hard-border bg-[#FAF9F6] p-8 shadow-brutal mt-8" data-testid="rate-sanity-card">
+      <section className="hard-border bg-[#F5F3FF] p-8 shadow-brutal mt-8" data-testid="rate-sanity-card">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-start gap-4">
             <div className="hard-border bg-[#0B1B2B] text-white w-12 h-12 flex items-center justify-center shrink-0">
               <Sparkle size={22} weight="duotone"/>
             </div>
             <div>
-              <p className="overline text-[#C79A3B] mb-1">RATE SANITY CHECK</p>
+              <p className="overline text-[#6B21A8] mb-1">RATE SANITY CHECK</p>
               <h2 className="font-display font-extrabold text-2xl tracking-tight">Is your ${currentRate}/hr still market-fresh?</h2>
               <p className="text-sm text-neutral-600 mt-1">
                 Re-run the AI rate suggestion any time you add a new skill or gain a year of experience.
@@ -287,7 +287,7 @@ export default function TalentDashboard() {
         <section className="hard-border bg-white p-8 shadow-brutal mt-8" data-testid="broadcasts-inbox">
           <div className="flex items-baseline justify-between mb-6 gap-4 flex-wrap">
             <div>
-              <p className="overline text-[#C79A3B] mb-1">HIRE-INTENT INBOX</p>
+              <p className="overline text-[#6B21A8] mb-1">HIRE-INTENT INBOX</p>
               <h2 className="font-display font-extrabold text-2xl tracking-tight">
                 {broadcasts.filter((b) => !b.read).length > 0
                   ? `${broadcasts.filter((b) => !b.read).length} employer${broadcasts.filter((b) => !b.read).length === 1 ? " is" : "s are"} ready to hire you.`
@@ -300,12 +300,12 @@ export default function TalentDashboard() {
               <div
                 key={b.id}
                 onClick={() => !b.read && markBroadcastRead(b.id)}
-                style={!b.read ? { borderColor: "#C79A3B", borderWidth: "2px" } : undefined}
-                className={`hard-border p-5 cursor-pointer transition-colors ${b.read ? "bg-[#FAF9F6]" : "bg-white hover:bg-[#FDF6E3]"}`}
+                style={!b.read ? { borderColor: "#6B21A8", borderWidth: "2px" } : undefined}
+                className={`hard-border p-5 cursor-pointer transition-colors ${b.read ? "bg-[#F5F3FF]" : "bg-white hover:bg-[#F5F3FF]"}`}
                 data-testid={`broadcast-${b.id}`}>
                 <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
                   <p className="font-display font-extrabold text-lg tracking-tight inline-flex items-center gap-2">
-                    <Envelope size={16} weight={b.read ? "regular" : "fill"} color={b.read ? "#666" : "#C79A3B"}/>
+                    <Envelope size={16} weight={b.read ? "regular" : "fill"} color={b.read ? "#666" : "#6B21A8"}/>
                     {b.employer_name}
                   </p>
                   <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
@@ -322,7 +322,7 @@ export default function TalentDashboard() {
       <section className="hard-border bg-white p-8 shadow-brutal mt-8" data-testid="companies-hiring">
         <div className="flex items-baseline justify-between mb-6 gap-4 flex-wrap">
           <div>
-            <p className="overline text-[#C79A3B] mb-1">COMPANIES ON JOB ATLAS</p>
+            <p className="overline text-[#6B21A8] mb-1">COMPANIES ON JOB ATLAS</p>
             <h2 className="font-display font-extrabold text-2xl tracking-tight inline-flex items-center gap-2">
               <Buildings size={22} weight="duotone" color="#0B1B2B"/>
               {employers.length} {employers.length === 1 ? "company is" : "companies are"} on the platform
@@ -346,19 +346,19 @@ export default function TalentDashboard() {
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredEmployers.slice(0, 12).map((emp) => (
-              <div key={emp.id} className="hard-border bg-[#FAF9F6] p-5" data-testid={`employer-card-${emp.id}`}>
+              <div key={emp.id} className="hard-border bg-[#F5F3FF] p-5" data-testid={`employer-card-${emp.id}`}>
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="min-w-0">
                     <p className="font-display font-extrabold text-lg tracking-tight truncate inline-flex items-center gap-1">
                       {emp.company_name || emp.name}
                       {emp.is_verified && (
-                        <span title="Verified company" data-testid={`verified-badge-${emp.id}`} className="text-[#C79A3B]">✦</span>
+                        <span title="Verified company" data-testid={`verified-badge-${emp.id}`} className="text-[#6B21A8]">✦</span>
                       )}
                     </p>
                     <p className="text-xs font-mono text-neutral-500 truncate">{emp.company_industry || "—"}</p>
                   </div>
                   {emp.hours_balance > 0 && (
-                    <span className="hard-border bg-[#C79A3B] text-white text-[10px] font-mono px-2 py-1 tracking-widest shrink-0">
+                    <span className="hard-border bg-[#6B21A8] text-white text-[10px] font-mono px-2 py-1 tracking-widest shrink-0">
                       {emp.hours_balance}h READY
                     </span>
                   )}
@@ -392,7 +392,7 @@ export default function TalentDashboard() {
                     data-testid="close-eoi-modal">
               <X size={18}/>
             </button>
-            <p className="overline text-[#C79A3B]">EXPRESSION OF INTEREST</p>
+            <p className="overline text-[#6B21A8]">EXPRESSION OF INTEREST</p>
             <h3 className="font-display font-extrabold text-2xl tracking-tight">
               Reach out to {eoiTarget.company_name || eoiTarget.name}
             </h3>
@@ -402,7 +402,7 @@ export default function TalentDashboard() {
               rows={4}
               value={eoiForm.message}
               onChange={(e) => setEoiForm({...eoiForm, message: e.target.value})}
-              className="hard-border px-3 py-2 bg-[#FAF9F6] text-sm w-full"
+              className="hard-border px-3 py-2 bg-[#F5F3FF] text-sm w-full"
               placeholder="Tell them what you can bring…"
               data-testid="eoi-message"/>
             <div className="grid grid-cols-2 gap-3">
