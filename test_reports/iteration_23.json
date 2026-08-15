@@ -1,0 +1,26 @@
+{
+  "summary": "Iteration 34 (Talent Recovery Playbook + Dispute Fee Collection): 20/20 backend tests passing and frontend recovery banner UX verified. Covered: recovery-status endpoint (clean/penalised/employer 403), under_review lifts after 3 clean approvals, excessive_revisions lifts after 5 (with visibility_score->100 and rate_bias_pct->0), rejection resets streak, dirty (revision_count>0) approvals do NOT increment streak, approve regression on submitted+revision_resubmitted, dispute -> admin ruling notification + deliverable stamping (dispute_grievance_id / dispute_ref / dispute_opened_at) + status transition to dispute_resolved, POST /grievances/{id}/pay-fee (real Stripe test-mode session created with metadata.kind='dispute_fee' & payer_id, amount=$49), 403 for winner/admin/unrelated, 400 for unresolved, 404 for missing, GET /grievances/{id}/fee-status permissions, and Stripe webhook (signed HMAC) marking payment_status=paid idempotently. Frontend Talent Dashboard renders [data-testid=recovery-banner] with '2 more clean approvals' and progress bar width=33% for streak=1/under_review, and hides for a clean talent.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration34_recovery_and_fee.py",
+    "/app/test_reports/pytest/iter34.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 2880+ lines — split into modules (deliverables, engagements, stripe) for maintainability.",
+    "pay-fee: if a session was created earlier and Stripe returns status='expired', the code falls through and creates a new session but does not clean up the old dispute_fee_transactions row (leaves stale 'initiated' rows). Consider marking it 'expired'.",
+    "mark_dispute_fee_paid queries by session_id only; if the same session_id somehow points at a different grievance the payer_id / grievance_id mismatch is not validated. Low risk since Stripe session ids are unique, but a metadata cross-check would be defensive.",
+    "admin_rule_dispute email send is best-effort (try/except pass) which is correct; consider logging.warning so failures are still observable."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration34_recovery_and_fee.py"
+  ],
+  "success_rate": {"backend": "100% (20/20)", "frontend": "100% (banner + no-banner both verified)"},
+  "test_credentials": "Admin: admin@talenthub.io / Admin@2026 ; Talent test acct created for FE: TEST_i34fe_tal_68a986@test.io / Test@2026Aa (forced under_review streak=1)",
+  "seed_data_creation": "Created several TEST_i34_* employer+talent accounts and one FE test talent TEST_i34fe_tal_68a986@test.io whose profile was patched (under_review=true, clean_streak=1) to verify the recovery banner UI.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend suite lives at /app/backend/tests/test_iteration34_recovery_and_fee.py. It relies on direct MongoDB writes via motor to force profile.under_review / excessive_revisions flags, and drives full 5-revision + dispute flows for the fee tests. Stripe webhook is exercised with a real HMAC-signed synthetic checkout.session.completed event using STRIPE_WEBHOOK_SECRET from /app/backend/.env. Real Stripe test-mode API key is active so pay-fee creates a genuine cs_test_* session (checked via stripe.Session.retrieve). Frontend banner test used TalentDashboard.jsx recovery-banner and recovery-progress test-ids.",
+  "rca of the issue": "N/A — all tests green."
+}

@@ -880,7 +880,13 @@ function RevisionsPanel({ scopes }) {
                 </div>
                 {g.status === "resolved" ? (
                   <p className="text-xs mt-3 text-neutral-600">
-                    Ruled for <b>{g.ruling}</b> · Fee status: {g.dispute_fee?.status} · {g.ruling_notes}
+                    Ruled for <b>{g.ruling}</b> · Fee {g.dispute_fee?.status} ·
+                    {" "}<span className={g.dispute_fee?.payment_status === "paid" ? "text-emerald-700" : "text-red-700"}>
+                      {g.dispute_fee?.payment_status === "paid"
+                        ? `Paid ${new Date(g.dispute_fee?.paid_at || Date.now()).toLocaleDateString()}`
+                        : (g.dispute_fee?.payment_status || "unpaid")}
+                    </span>
+                    {" · "}{g.ruling_notes}
                   </p>
                 ) : canRule && (
                   <div className="mt-3 grid md:grid-cols-[auto_1fr_auto] gap-2 items-center">

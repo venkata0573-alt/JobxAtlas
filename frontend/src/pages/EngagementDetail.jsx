@@ -466,6 +466,8 @@ function RevisionThread({ deliverable, user, onChange }) {
   const [saving, setSaving] = useState(false);
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [dReason, setDReason] = useState("");
+  const [fee, setFee] = useState(null);   // { ref, status, ruling, fee:{...} }
+  const [payingFee, setPayingFee] = useState(false);
 
   const load = async () => {
     try {
@@ -475,11 +477,36 @@ function RevisionThread({ deliverable, user, onChange }) {
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [deliverable.id, deliverable.status, deliverable.revision_count]);
 
+  // Once the deliverable is dispute_resolved (or a dispute exists), look up the
+  // fee owner + payment status directly via the stamped grievance_id.
+  useEffect(() => {
+    (async () => {
+      const gid = deliverable.dispute_grievance_id;
+      if (!gid) { setFee(null); return; }
+      try {
+        const s = await api.get(`/grievances/${gid}/fee-status`);
+        setFee({ ...s.data, grievance_id: gid });
+      } catch { /* ignore */ }
+    })();
+    // eslint-disable-next-line
+  }, [deliverable.dispute_grievance_id, deliverable.status, deliverable.dispute_ruling]);
+
   if (!data || data.items.length === 0) return null;
 
   const isTalent = user?.id === deliverable.talent_id;
   const showResubmit = isTalent && deliverable.status === "revision_requested";
-  const showDispute = isTalent && data.dispute_available;
+  const showDispute = isTalent && data.dispute_available && deliverable.status !== "dispute_resolved";
+
+  const payFee = async () => {
+    if (!fee?.grievance_id) return;
+    setPayingFee(true);
+    try {
+      const r = await api.post(`/grievances/${fee.grievance_id}/pay-fee`, { origin_url: window.location.origin });
+      if (r.data.already_paid) { toast.success("Fee already paid."); await load(); return; }
+      window.location.href = r.data.checkout_url;
+    } catch (e) { toast.error(formatErr(e)); }
+    finally { setPayingFee(false); }
+  };
 
   const submitResubmit = async (e) => {
     e.preventDefault();
@@ -519,6 +546,9 @@ function RevisionThread({ deliverable, user, onChange }) {
 
   return (
     <div className="mt-4 hard-border bg-[#F5F3FF] p-3" data-testid={`revision-thread-${deliverable.id}`}>
+      {fee && fee.status === "resolved" && (
+        <FeeCard fee={fee} user={user} onPay={payFee} paying={payingFee}/>
+      )}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <button type="button" onClick={() => setExpanded(!expanded)}
                 data-testid={`revision-toggle-${deliverable.id}`}
@@ -629,3 +659,40 @@ function RevisionThread({ deliverable, user, onChange }) {
     </div>
   );
 }
+
+
+function FeeCard({ fee, user, onPay, paying }) {
+  const f = fee.fee || {};
+  const owedByMe = f.owed_by === user?.id;
+  const paid = f.payment_status === "paid";
+  const winnerLabel = fee.ruling === "talent" ? "Talent" : "Employer";
+  return (
+    <div
+      className={`mb-3 hard-border p-4 ${paid ? "bg-emerald-50 border-emerald-500" : owedByMe ? "bg-red-50 border-red-500" : "bg-white"}`}
+      data-testid={`fee-card-${fee.grievance_id}`}
+    >
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <p className="overline text-[#6B21A8]">Dispute {fee.ref} · Ruled for {winnerLabel}</p>
+          <p className="font-display font-extrabold text-sm mt-1">
+            Arbitration fee <span className="font-black">${f.amount_usd}</span>
+            {paid ? (
+              <span className="ml-2 text-emerald-700">· Paid ✓</span>
+            ) : (
+              <span className="ml-2 text-neutral-500">· {f.payment_status || "unpaid"}</span>
+            )}
+          </p>
+          <p className="text-xs text-neutral-600 mt-1">
+            {paid ? "Fee settled — case closed." : owedByMe ? "You owe this fee. Settle by card to close the case." : "Awaiting the other party to settle."}
+          </p>
+        </div>
+        {!paid && owedByMe && (
+          <button onClick={onPay} disabled={paying} className="btn-primary text-sm" data-testid={`fee-pay-${fee.grievance_id}`}>
+            {paying ? "Redirecting…" : `Pay $${f.amount_usd}`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+

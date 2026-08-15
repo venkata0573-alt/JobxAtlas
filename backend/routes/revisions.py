@@ -19,7 +19,7 @@ The dispute fee is recorded as a payable on the *losing* side once an admin rule
 import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from deps import api, db, new_id, now, get_current_user, has_admin_scope
@@ -33,6 +33,10 @@ VISIBILITY_PENALTY      = int(os.environ.get("REVISION_VISIBILITY_PENALTY", "20"
 RATE_NUDGE_PENALTY_PCT  = float(os.environ.get("REVISION_RATE_NUDGE_PENALTY", "10"))
 EMPLOYER_FLAG_TALENTS   = int(os.environ.get("EMPLOYER_FLAG_UNIQUE_TALENTS", "3"))
 EMPLOYER_FLAG_WINDOW_D  = int(os.environ.get("EMPLOYER_FLAG_WINDOW_DAYS", "60"))
+# Talent recovery playbook: how many clean, revision-free approvals in a row
+# lift each penalty tier. Reject resets the streak to 0.
+RECOVERY_UNDER_REVIEW   = int(os.environ.get("REVISION_RECOVERY_UNDER_REVIEW", "3"))
+RECOVERY_EXCESSIVE      = int(os.environ.get("REVISION_RECOVERY_EXCESSIVE", "5"))
 
 
 # ---- Payloads ---------------------------------------------------------------
@@ -271,6 +275,13 @@ async def raise_dispute(deliverable_id: str, payload: DisputeIn,
         },
     }
     await db.grievances.insert_one(doc)
+    # Stamp grievance id on the deliverable so the UI can look up the fee card
+    # without a broader list endpoint.
+    await db.deliverables.update_one(
+        {"id": deliverable_id},
+        {"$set": {"dispute_grievance_id": doc["id"], "dispute_ref": ref,
+                  "dispute_opened_at": doc["created_at"]}},
+    )
     doc.pop("_id", None)
     return {"grievance": doc, "ref": ref}
 
@@ -322,7 +333,8 @@ async def admin_rule_dispute(grievance_id: str, payload: RuleIn,
                   "ruling_notes": payload.notes,
                   "ruled_by_id": user["id"],
                   "ruled_at": now().isoformat(),
-                  "dispute_fee.status": fee_status}},
+                  "dispute_fee.status": fee_status,
+                  "dispute_fee.payment_status": "unpaid"}},
     )
 
     talent_id = g.get("talent_id")
@@ -337,6 +349,46 @@ async def admin_rule_dispute(grievance_id: str, payload: RuleIn,
                       "dispute_ruling": payload.ruling,
                       "dispute_closed_at": now().isoformat()}},
         )
+
+    # Notify the losing party via email + inbox so they can pay the fee.
+    payer_id = g.get("employer_id") if payload.ruling == "talent" else talent_id
+    try:
+        payer = await db.users.find_one({"id": payer_id}) or {}
+        payer_email = payer.get("email") or ""
+        if payer_email:
+            # Lazy import to avoid a hard mailer dep in this module
+            from mailer import send_email  # noqa: WPS433
+            await send_email(
+                to=payer_email,
+                subject=f"Job Atlas · Arbitration fee due · {g.get('ref')}",
+                html=(
+                    f"<p>Hi {payer.get('name') or ''},</p>"
+                    f"<p>Your revision dispute <b>{g.get('ref')}</b> has been ruled in favour of the "
+                    f"<b>{payload.ruling}</b>. A <b>${DISPUTE_FEE_USD:.0f}</b> arbitration fee is now owed.</p>"
+                    f"<p>You can settle it inside your Job Atlas dashboard under Grievances, or use the "
+                    f"secure Stripe link that will appear on the case card.</p>"
+                    f"<p>Ruling note: <em>{payload.notes}</em></p>"
+                    f"<p>— Job Atlas Trust &amp; Safety</p>"
+                ),
+            )
+    except Exception as _mail_err:
+        # Best-effort — never let a mailer failure block the ruling itself.
+        try:
+            import logging as _lg
+            _lg.getLogger(__name__).warning(
+                "[dispute-fee] email to %s failed: %s", payer_id, _mail_err,
+            )
+        except Exception:
+            pass
+
+    await db.notifications.insert_one({
+        "id": new_id(), "user_id": payer_id,
+        "type": "dispute_fee_due",
+        "grievance_id": grievance_id, "ref": g.get("ref"),
+        "amount_usd": DISPUTE_FEE_USD,
+        "message": f"Dispute {g.get('ref')} was ruled in favour of the {payload.ruling}. ${DISPUTE_FEE_USD:.0f} arbitration fee due.",
+        "created_at": now().isoformat(), "read": False,
+    })
 
     if payload.ruling == "talent":
         # Reverse talent penalty on the disputed deliverable
@@ -383,3 +435,213 @@ async def revision_summary(deliverable_id: str, user: dict = Depends(get_current
         "dispute_fee_usd": DISPUTE_FEE_USD,
         "latest_revision_id": d.get("latest_revision_id"),
     }
+
+
+# ---- Talent Recovery Playbook ------------------------------------------------
+async def _record_clean_approval(talent_id: str) -> None:
+    """Called from _act_deliverable on APPROVE (revision_count==0). Increments
+    the talent's clean-streak; auto-lifts under_review at RECOVERY_UNDER_REVIEW
+    and excessive_revisions at RECOVERY_EXCESSIVE. Never touches active
+    revision_flags entries — those stay in the audit log."""
+    talent = await db.users.find_one({"id": talent_id}) or {}
+    prof = talent.get("profile") or {}
+    streak = int(prof.get("clean_streak") or 0) + 1
+    updates: dict = {"profile.clean_streak": streak,
+                     "profile.last_clean_approval_at": now().isoformat()}
+    if prof.get("excessive_revisions") and streak >= RECOVERY_EXCESSIVE:
+        updates["profile.excessive_revisions"] = False
+        updates["profile.visibility_score"] = 100
+        updates["profile.rate_bias_pct"] = 0
+        updates["profile.recovery_cleared_at"] = now().isoformat()
+        streak = 0
+        updates["profile.clean_streak"] = 0
+    elif prof.get("under_review") and not prof.get("excessive_revisions") and streak >= RECOVERY_UNDER_REVIEW:
+        updates["profile.under_review"] = False
+        updates["profile.recovery_cleared_at"] = now().isoformat()
+        streak = 0
+        updates["profile.clean_streak"] = 0
+    await db.users.update_one({"id": talent_id}, {"$set": updates})
+
+
+async def _reset_clean_streak(talent_id: str) -> None:
+    await db.users.update_one({"id": talent_id},
+                               {"$set": {"profile.clean_streak": 0,
+                                         "profile.last_streak_reset_at": now().isoformat()}})
+
+
+@api.get("/talent/me/recovery-status")
+async def my_recovery_status(user: dict = Depends(get_current_user)):
+    """Talent-facing progress card: how many clean approvals until their
+    penalty is lifted, plus the raw flags."""
+    if user.get("role") != "talent":
+        raise HTTPException(403, "Talent only")
+    prof = (user.get("profile") or {})
+    streak = int(prof.get("clean_streak") or 0)
+    if prof.get("excessive_revisions"):
+        need = RECOVERY_EXCESSIVE
+        target = "excessive_revisions"
+    elif prof.get("under_review"):
+        need = RECOVERY_UNDER_REVIEW
+        target = "under_review"
+    else:
+        return {"has_penalty": False, "clean_streak": streak,
+                "target": None, "needed": 0, "progress_pct": 0}
+    return {
+        "has_penalty": True,
+        "target": target,
+        "clean_streak": streak,
+        "needed": need,
+        "remaining": max(need - streak, 0),
+        "progress_pct": min(int(streak / need * 100), 100),
+        "visibility_score": int(prof.get("visibility_score") or 100),
+        "rate_bias_pct": float(prof.get("rate_bias_pct") or 0),
+    }
+
+
+# ---- Fee Collection Flow (Stripe checkout for the losing party) -------------
+class FeePayIn(BaseModel):
+    origin_url: str = Field(default="")
+
+
+def _fee_recipient(g: dict) -> Optional[str]:
+    """Return the user_id that owes the fee based on grievance state."""
+    status = (g.get("dispute_fee") or {}).get("status") or ""
+    if status == "owed_by_talent":
+        return g.get("talent_id")
+    if status == "owed_by_employer":
+        return g.get("employer_id")
+    return None
+
+
+@api.post("/grievances/{grievance_id}/pay-fee")
+async def pay_dispute_fee(grievance_id: str, payload: FeePayIn,
+                           request: Request,
+                           user: dict = Depends(get_current_user)):
+    """The losing party creates a Stripe Checkout Session to settle the
+    $DISPUTE_FEE_USD arbitration fee. Idempotent — reuses the existing session
+    while payment is pending."""
+    import stripe as _stripe
+    _stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+    if not _stripe.api_key:
+        raise HTTPException(500, "Stripe not configured")
+
+    g = await db.grievances.find_one({"id": grievance_id, "kind": "revision_dispute"})
+    if not g:
+        raise HTTPException(404, "Dispute not found")
+    if g.get("status") != "resolved":
+        raise HTTPException(400, "Dispute is not resolved yet")
+
+    payer_id = _fee_recipient(g)
+    if not payer_id:
+        raise HTTPException(400, "Fee has no owner (waived?)")
+    if payer_id != user["id"]:
+        raise HTTPException(403, "Only the losing party can pay this fee")
+
+    fee = g.get("dispute_fee") or {}
+    if fee.get("payment_status") == "paid":
+        return {"already_paid": True, "amount_usd": fee.get("amount_usd", DISPUTE_FEE_USD)}
+
+    # Reuse an open session if present
+    existing_session_id = fee.get("stripe_session_id")
+    if existing_session_id:
+        try:
+            s = _stripe.checkout.Session.retrieve(existing_session_id)
+            status = s.get("status") if isinstance(s, dict) else getattr(s, "status", None)
+            if status not in ("complete", "expired"):
+                return {"checkout_url": s.url, "session_id": s.id}
+            if status == "expired":
+                # Clean up the stale row so the sync log is accurate.
+                await db.dispute_fee_transactions.update_one(
+                    {"session_id": existing_session_id, "payment_status": {"$ne": "paid"}},
+                    {"$set": {"status": "expired", "payment_status": "expired",
+                              "expired_at": now().isoformat()}},
+                )
+        except Exception:
+            pass  # fall through and create a fresh session
+
+    origin = (payload.origin_url or "").rstrip("/") or _origin_from_request(request)
+    amount_cents = int(round(float(fee.get("amount_usd") or DISPUTE_FEE_USD) * 100))
+
+    session = _stripe.checkout.Session.create(
+        line_items=[{
+            "price_data": {
+                "currency": "usd",
+                "product_data": {"name": f"Job Atlas · Dispute arbitration fee · {g.get('ref')}"},
+                "unit_amount": amount_cents,
+            },
+            "quantity": 1,
+        }],
+        mode="payment",
+        success_url=f"{origin}/grievance/{grievance_id}?fee=paid&session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{origin}/grievance/{grievance_id}?fee=cancelled",
+        customer_email=user.get("email"),
+        metadata={"kind": "dispute_fee", "grievance_id": grievance_id,
+                  "payer_id": user["id"], "grievance_ref": g.get("ref", "")},
+    )
+
+    await db.grievances.update_one(
+        {"id": grievance_id},
+        {"$set": {"dispute_fee.stripe_session_id": session.id,
+                  "dispute_fee.payment_status": "pending",
+                  "dispute_fee.session_created_at": now().isoformat()}},
+    )
+    await db.dispute_fee_transactions.insert_one({
+        "id": new_id(), "grievance_id": grievance_id, "session_id": session.id,
+        "payer_id": user["id"], "amount_cents": amount_cents,
+        "status": "initiated", "payment_status": "pending",
+        "created_at": now().isoformat(),
+    })
+    return {"checkout_url": session.url, "session_id": session.id,
+            "amount_usd": amount_cents / 100.0}
+
+
+@api.get("/grievances/{grievance_id}/fee-status")
+async def dispute_fee_status(grievance_id: str, user: dict = Depends(get_current_user)):
+    g = await db.grievances.find_one(
+        {"id": grievance_id, "kind": "revision_dispute"},
+        {"_id": 0, "dispute_fee": 1, "talent_id": 1, "employer_id": 1,
+         "status": 1, "ruling": 1, "ref": 1},
+    )
+    if not g:
+        raise HTTPException(404, "Not found")
+    # Parties + admin can see
+    if user["id"] not in (g.get("talent_id"), g.get("employer_id")) and not has_admin_scope(user, "moderation"):
+        raise HTTPException(403, "Not authorised")
+    fee = g.get("dispute_fee") or {}
+    return {
+        "ref": g.get("ref"),
+        "status": g.get("status"),
+        "ruling": g.get("ruling"),
+        "fee": {
+            "amount_usd": fee.get("amount_usd", DISPUTE_FEE_USD),
+            "status": fee.get("status"),
+            "payment_status": fee.get("payment_status", "unpaid"),
+            "paid_at": fee.get("paid_at"),
+            "owed_by": _fee_recipient(g),
+        },
+    }
+
+
+def _origin_from_request(request: Request) -> str:
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+    return f"{proto}://{host}" if host else ""
+
+
+async def mark_dispute_fee_paid(session_id: str) -> None:
+    """Stripe webhook helper — called from server.py when checkout.session.completed
+    fires with metadata.kind='dispute_fee'."""
+    tx = await db.dispute_fee_transactions.find_one({"session_id": session_id})
+    if not tx or tx.get("payment_status") == "paid":
+        return
+    now_iso = now().isoformat()
+    await db.dispute_fee_transactions.update_one(
+        {"session_id": session_id, "payment_status": {"$ne": "paid"}},
+        {"$set": {"status": "completed", "payment_status": "paid", "paid_at": now_iso}},
+    )
+    await db.grievances.update_one(
+        {"id": tx["grievance_id"]},
+        {"$set": {"dispute_fee.payment_status": "paid",
+                  "dispute_fee.paid_at": now_iso,
+                  "dispute_fee.paid_by_id": tx["payer_id"]}},
+    )

@@ -552,6 +552,14 @@ async def stripe_webhook(request: Request):
     obj, t = event["data"]["object"], event["type"]
     if t == "checkout.session.completed":
         meta = obj.get("metadata") or {}
+        # Dispute arbitration fee path
+        if meta.get("kind") == "dispute_fee":
+            try:
+                from routes.revisions import mark_dispute_fee_paid  # noqa: WPS433
+                await mark_dispute_fee_paid(obj["id"])
+            except Exception as _e:
+                logger.exception(f"[webhook] dispute_fee mark failed: {_e}")
+            return {"ok": True}
         # Milestone payment path
         if meta.get("kind") == "milestone":
             rec = await db.payment_transactions.find_one({"session_id": obj["id"], "kind": "milestone"})
@@ -679,10 +687,29 @@ async def _act_deliverable(deliverable_id: str, user: dict, status: str, feedbac
         raise HTTPException(404, "Deliverable not found")
     if user["id"] != d.get("employer_id"):
         raise HTTPException(403, "Only the engaging employer can review deliverables")
-    if d.get("status") != "submitted":
+    if d.get("status") not in ("submitted", "revision_resubmitted"):
         raise HTTPException(400, "Deliverable already reviewed")
     upd = {"status": status, "feedback": feedback or "", "reviewed_at": now().isoformat()}
     await db.deliverables.update_one({"id": deliverable_id}, {"$set": upd})
+
+    # ---- Talent recovery streak (offsets the revision-workflow penalties) ----
+    # Approvals on a clean deliverable count toward clearing an existing
+    # under_review / excessive_revisions flag. A rejection resets the streak.
+    talent = await db.users.find_one({"id": d.get("talent_id")}) or {}
+    profile_before = talent.get("profile") or {}
+    if status == "approved" and d.get("revision_count", 0) == 0:
+        try:
+            from routes.revisions import _record_clean_approval  # noqa: WPS433
+            await _record_clean_approval(d["talent_id"])
+        except Exception as _re:  # pragma: no cover
+            logger.exception(f"[recovery] clean approval hook failed: {_re}")
+    elif status == "rejected":
+        try:
+            from routes.revisions import _reset_clean_streak  # noqa: WPS433
+            await _reset_clean_streak(d["talent_id"])
+        except Exception:
+            pass
+
     if status == "approved" and d.get("hours_claimed"):
         hours = float(d["hours_claimed"])
         await db.engagements.update_one({"id": d["engagement_id"]}, {"$inc": {"hours_used": hours}})

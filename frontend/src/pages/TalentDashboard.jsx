@@ -4,7 +4,7 @@ import api, { formatErr } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { TID } from "@/constants/testIds";
-import { Sparkle, ArrowsClockwise, WarningCircle, X, Envelope, Buildings, PaperPlaneTilt } from "@phosphor-icons/react";
+import { Sparkle, ArrowsClockwise, WarningCircle, X, Envelope, Buildings, PaperPlaneTilt, SealCheck, TrendUp } from "@phosphor-icons/react";
 import DashboardMetrics from "@/components/DashboardMetrics";
 
 export default function TalentDashboard() {
@@ -22,6 +22,7 @@ export default function TalentDashboard() {
   const [eoiTarget, setEoiTarget] = useState(null);  // employer obj or null
   const [eoiForm, setEoiForm] = useState({ message: "", proposed_hours_per_week: 10, start_date: "" });
   const [eoiSending, setEoiSending] = useState(false);
+  const [recovery, setRecovery] = useState(null);
 
   const profile = user?.profile || {};
   const currentRate = Number(profile.hourly_rate || 0);
@@ -31,16 +32,18 @@ export default function TalentDashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const [a, m, n, b, e] = await Promise.all([
+        const [a, m, n, b, e, r] = await Promise.all([
           api.get("/engagements"),
           api.get("/dashboard/metrics"),
           api.get("/talent/me/rate-nudge").catch(() => ({ data: { nudge: null } })),
           api.get("/talent/me/broadcasts").catch(() => ({ data: { items: [] } })),
           api.get("/employers").catch(() => ({ data: { items: [] } })),
+          api.get("/talent/me/recovery-status").catch(() => ({ data: null })),
         ]);
         setEngs(a.data); setMetrics(m.data); setNudge(n.data?.nudge || null);
         setBroadcasts(b.data?.items || []);
         setEmployers(e.data?.items || []);
+        setRecovery(r.data);
       } catch (e) { toast.error(formatErr(e)); }
     })();
   }, []);
@@ -176,6 +179,35 @@ export default function TalentDashboard() {
       </div>
 
       <DashboardMetrics metrics={metrics} role="talent"/>
+
+      {/* Recovery banner — visible while a revision penalty is active */}
+      {recovery?.has_penalty && (
+        <section className="mt-8 hard-border p-6 md:p-7 shadow-brutal bg-[#FEF9C3] border-yellow-500 flex flex-col md:flex-row md:items-center gap-4"
+                 data-testid="recovery-banner">
+          <div className="hard-border bg-[#0B1B2B] text-[#A78BFA] w-12 h-12 flex items-center justify-center shrink-0">
+            <SealCheck size={22} weight="duotone"/>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="overline text-[#854D0E] mb-1">RECOVERY IN PROGRESS</p>
+            <p className="font-display font-extrabold text-lg md:text-xl tracking-tight leading-snug">
+              {recovery.remaining} more clean approval{recovery.remaining === 1 ? "" : "s"} and your
+              <span className="capitalize"> {recovery.target.replace(/_/g, " ")}</span> flag lifts automatically.
+            </p>
+            <p className="text-xs text-neutral-700 mt-1">
+              A clean approval = a deliverable approved with zero revision requests. A rejection resets the streak.
+              Visibility score today: <b>{recovery.visibility_score}</b>{" · "}Rate bias: <b>{recovery.rate_bias_pct}%</b>
+            </p>
+            <div className="mt-3 hard-border bg-white h-3 relative overflow-hidden" data-testid="recovery-progress">
+              <div className="absolute inset-y-0 left-0 bg-[#6B21A8] transition-all"
+                   style={{ width: `${recovery.progress_pct}%` }}/>
+            </div>
+            <p className="text-[10px] font-mono uppercase tracking-widest text-[#6B21A8] mt-2">
+              {recovery.clean_streak} / {recovery.needed} clean approvals · {recovery.progress_pct}%
+            </p>
+          </div>
+          <TrendUp size={26} className="text-[#6B21A8] shrink-0"/>
+        </section>
+      )}
 
       {/* Rate Nudge banner — appears when the last monthly scan found >±15% drift */}
       {nudge && !nudgeDismissed && (
