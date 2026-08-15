@@ -1,7 +1,7 @@
 """Auth + Profile routes: /auth/register, /auth/login, /auth/logout, /auth/me,
 PUT /profile, POST /profile/suggest-rate."""
 import os, secrets
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import Depends, HTTPException, Response
 from pydantic import BaseModel, EmailStr
 
@@ -54,6 +54,31 @@ class RegisterIn(BaseModel):
     name: str
     role: str  # 'talent' | 'employer'
     company_industry: Optional[str] = ""
+    turnstile_token: Optional[str] = ""
+
+
+async def _verify_turnstile(token: str, remote_ip: str = "") -> bool:
+    """Verify Cloudflare Turnstile token server-side. If TURNSTILE_SECRET is
+    unset, treat as pass so dev + tests can proceed."""
+    secret = os.environ.get("TURNSTILE_SECRET_KEY")
+    if not secret:
+        return True
+    if not token:
+        return False
+    try:
+        import asyncio, urllib.request, urllib.parse, json as _json
+        def _post():
+            data = urllib.parse.urlencode({
+                "secret": secret, "response": token, "remoteip": remote_ip or "",
+            }).encode()
+            with urllib.request.urlopen(
+                "https://challenges.cloudflare.com/turnstile/v0/siteverify", data, timeout=6,
+            ) as r:
+                return _json.loads(r.read().decode())
+        result = await asyncio.to_thread(_post)
+        return bool(result.get("success"))
+    except Exception:
+        return False
 
 
 class LoginIn(BaseModel):
@@ -91,6 +116,8 @@ async def register(payload: RegisterIn, response: Response):
     email = payload.email.lower()
     if payload.role not in ("talent", "employer"):
         raise HTTPException(400, "role must be talent or employer")
+    if not await _verify_turnstile(payload.turnstile_token or ""):
+        raise HTTPException(400, "Captcha verification failed. Please try again.")
     existing = await db.users.find_one({"email": email})
     if existing:
         raise HTTPException(400, "Email already registered")
@@ -361,7 +388,56 @@ async def reference_check_post(token: str, payload: ReferenceCheckResponseIn):
                   "status": "answered",
                   "answered_at": now().isoformat()}},
     )
+    # ---- BGV auto-approve rule ----
+    # If the talent has ≥2 YES answers, 0 NO answers, and email is verified → auto-approve.
+    talent_id = doc["talent_id"]
+    all_refs = await db.reference_checks.find({"talent_id": talent_id}).to_list(50)
+    yes_count = sum(1 for r in all_refs if r.get("response") == "yes")
+    no_count  = sum(1 for r in all_refs if r.get("response") == "no")
+    talent = await db.users.find_one({"id": talent_id}, {"_id": 0})
+    if (talent and talent.get("role") == "talent"
+        and talent.get("email_verified")
+        and talent.get("verification_status") == "pending"
+        and yes_count >= 2 and no_count == 0):
+        await db.users.update_one(
+            {"id": talent_id},
+            {"$set": {"verification_status": "verified",
+                      "verified_at": now().isoformat(),
+                      "verified_by": "auto-bgv-rule",
+                      "verification_notes": f"Auto-approved: {yes_count} YES, 0 NO, email verified."}},
+        )
     return {"ok": True, "response": payload.response}
+
+
+# ---------- Public trust page counts ----------
+@api.get("/trust/stats")
+async def public_trust_stats():
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    month_ago = (_dt.now(_tz.utc) - _td(days=30)).isoformat()
+    verified_companies = await db.users.count_documents(
+        {"role": "employer", "verification_status": "verified"}
+    )
+    verified_talents = await db.users.count_documents(
+        {"role": "talent", "verification_status": "verified"}
+    )
+    refs_month = await db.reference_checks.count_documents(
+        {"status": "answered", "answered_at": {"$gte": month_ago}}
+    )
+    refs_all = await db.reference_checks.count_documents({"status": "answered"})
+    engagements_month = await db.engagements.count_documents(
+        {"status": {"$in": ["contract_signed", "active", "completed"]},
+         "created_at": {"$gte": month_ago}}
+    )
+    total_engagements = await db.engagements.count_documents({})
+    return {
+        "verified_companies": verified_companies,
+        "verified_talents": verified_talents,
+        "references_validated_last_30d": refs_month,
+        "references_validated_total": refs_all,
+        "engagements_last_30d": engagements_month,
+        "engagements_total": total_engagements,
+        "as_of": _dt.now(_tz.utc).isoformat(),
+    }
 
 
 @api.get("/admin/reference-checks/{talent_id}")
@@ -391,3 +467,157 @@ async def my_verification_state(user: dict = Depends(get_current_user)):
         "verification_notes": u.get("verification_notes"),
         "profile": u.get("profile") or {},
     }
+
+
+# ---------- CRM Integrations (connect-via-token) ----------
+class CrmConnectIn(BaseModel):
+    provider: str      # 'hubspot' | 'salesforce' | 'sharepoint' | 'slack'
+    access_token: str
+    instance_url: Optional[str] = ""    # required for Salesforce (e.g. https://myorg.my.salesforce.com)
+
+
+async def _validate_crm_token(provider: str, token: str, instance_url: str = "") -> Dict[str, Any]:
+    """Hit the provider's own API with the token to validate it. Returns
+    a small dict with account metadata on success. Fails fast on any error."""
+    import asyncio, urllib.request, urllib.error, json as _json
+    def _get(url: str, headers: Dict[str, str]) -> Dict[str, Any]:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=8) as r:
+            return _json.loads(r.read().decode())
+    try:
+        if provider == "hubspot":
+            info = await asyncio.to_thread(
+                _get,
+                "https://api.hubapi.com/oauth/v1/access-tokens/" + urllib.parse.quote(token),
+                {},
+            )
+            return {"ok": True, "account_id": info.get("hub_id"), "user": info.get("user"),
+                    "scopes": info.get("scopes")}
+        if provider == "salesforce":
+            if not instance_url:
+                return {"ok": False, "error": "instance_url required"}
+            info = await asyncio.to_thread(
+                _get,
+                instance_url.rstrip("/") + "/services/oauth2/userinfo",
+                {"Authorization": f"Bearer {token}"},
+            )
+            return {"ok": True, "account_id": info.get("organization_id"),
+                    "user": info.get("email"), "instance_url": instance_url}
+        if provider == "slack":
+            info = await asyncio.to_thread(
+                _get, "https://slack.com/api/auth.test",
+                {"Authorization": f"Bearer {token}"},
+            )
+            if not info.get("ok"):
+                return {"ok": False, "error": info.get("error", "invalid")}
+            return {"ok": True, "account_id": info.get("team_id"), "user": info.get("user")}
+        if provider == "sharepoint":
+            # SharePoint via Microsoft Graph — token is a Graph access token
+            info = await asyncio.to_thread(
+                _get, "https://graph.microsoft.com/v1.0/me",
+                {"Authorization": f"Bearer {token}"},
+            )
+            return {"ok": True, "account_id": info.get("id"), "user": info.get("mail") or info.get("userPrincipalName")}
+    except urllib.error.HTTPError as e:
+        return {"ok": False, "error": f"HTTP {e.code}"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:200]}
+    return {"ok": False, "error": "Unknown provider"}
+
+
+import urllib.parse  # noqa: E402  (used by _validate_crm_token)
+
+
+@api.post("/integrations/crm/connect")
+async def connect_crm(payload: CrmConnectIn, user: dict = Depends(get_current_user)):
+    if user.get("role") not in ("employer", "admin"):
+        raise HTTPException(403, "Employers only")
+    if payload.provider not in ("hubspot", "salesforce", "sharepoint", "slack"):
+        raise HTTPException(400, "Unknown provider")
+    v = await _validate_crm_token(payload.provider, payload.access_token, payload.instance_url or "")
+    if not v.get("ok"):
+        raise HTTPException(400, f"Could not verify {payload.provider} token: {v.get('error')}")
+    doc = {
+        "id": new_id(), "user_id": user["id"], "provider": payload.provider,
+        "access_token": payload.access_token,   # NOTE: consider KMS in prod
+        "instance_url": payload.instance_url or "",
+        "account_id": v.get("account_id"),
+        "connected_user": v.get("user"),
+        "scopes": v.get("scopes") or [],
+        "connected_at": now().isoformat(),
+    }
+    await db.crm_integrations.update_one(
+        {"user_id": user["id"], "provider": payload.provider},
+        {"$set": doc}, upsert=True,
+    )
+    return {"ok": True, "provider": payload.provider,
+            "account_id": v.get("account_id"), "connected_user": v.get("user")}
+
+
+@api.get("/integrations/crm")
+async def list_crm(user: dict = Depends(get_current_user)):
+    items = await db.crm_integrations.find(
+        {"user_id": user["id"]}, {"_id": 0, "access_token": 0},
+    ).to_list(20)
+    return {"items": items}
+
+
+@api.delete("/integrations/crm/{provider}")
+async def disconnect_crm(provider: str, user: dict = Depends(get_current_user)):
+    r = await db.crm_integrations.delete_one({"user_id": user["id"], "provider": provider})
+    return {"ok": True, "deleted": r.deleted_count}
+
+
+class CrmPushLeadIn(BaseModel):
+    provider: str
+    talent_id: Optional[str] = ""
+    talent_name: Optional[str] = ""
+    email: Optional[str] = ""
+    note: Optional[str] = ""
+
+
+@api.post("/integrations/crm/push-lead")
+async def push_lead_to_crm(payload: CrmPushLeadIn, user: dict = Depends(get_current_user)):
+    """Push a shortlisted talent as a Contact/Lead into the connected CRM."""
+    import asyncio, urllib.request, json as _json
+    intg = await db.crm_integrations.find_one({"user_id": user["id"], "provider": payload.provider})
+    if not intg:
+        raise HTTPException(400, f"{payload.provider} is not connected")
+    token = intg["access_token"]
+    def _post(url, body, headers):
+        req = urllib.request.Request(
+            url, data=_json.dumps(body).encode(),
+            headers={"Content-Type": "application/json", **headers},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return _json.loads(r.read().decode() or "{}")
+    try:
+        if payload.provider == "hubspot":
+            body = {"properties": {
+                "email": payload.email or "no-email@jobatlas.io",
+                "firstname": (payload.talent_name or "").split(" ")[0],
+                "lastname": " ".join((payload.talent_name or "").split(" ")[1:]) or "Prospect",
+                "hs_lead_status": "NEW",
+                "message": payload.note or f"Shortlisted from Job Atlas · talent id {payload.talent_id}",
+            }}
+            r = await asyncio.to_thread(_post, "https://api.hubapi.com/crm/v3/objects/contacts",
+                                         body, {"Authorization": f"Bearer {token}"})
+            return {"ok": True, "external_id": r.get("id")}
+        if payload.provider == "salesforce":
+            url = intg["instance_url"].rstrip("/") + "/services/data/v58.0/sobjects/Lead/"
+            first, *rest = (payload.talent_name or "Prospect").split(" ")
+            body = {
+                "FirstName": first, "LastName": " ".join(rest) or "Prospect",
+                "Email": payload.email or "no-email@jobatlas.io",
+                "Company": "Job Atlas Shortlist",
+                "Description": payload.note or f"talent {payload.talent_id}",
+            }
+            r = await asyncio.to_thread(_post, url, body, {"Authorization": f"Bearer {token}"})
+            return {"ok": True, "external_id": r.get("id")}
+        raise HTTPException(400, f"Push not supported for {payload.provider}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, f"Push failed: {str(e)[:200]}")
+

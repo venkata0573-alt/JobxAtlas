@@ -268,6 +268,7 @@ async def list_talent(q: Optional[str] = None, skill: Optional[str] = None,
     # Compute Trusted Partner status: >=5 completed engagements at avg rating >=4.5.
     talent_ids = [u["id"] for u in items]
     completed_map: Dict[str, int] = {}
+    rating_map: Dict[str, Dict[str, float]] = {}
     if talent_ids:
         pipeline = [
             {"$match": {"talent_id": {"$in": talent_ids}, "status": "completed"}},
@@ -275,14 +276,12 @@ async def list_talent(q: Optional[str] = None, skill: Optional[str] = None,
         ]
         async for row in db.engagements.aggregate(pipeline):
             completed_map[row["_id"]] = int(row["n"])
-        rating_map: Dict[str, Dict[str, float]] = {}
         pipeline2 = [
             {"$match": {"reviewee_id": {"$in": talent_ids}, "status": "approved"}},
             {"$group": {"_id": "$reviewee_id", "avg": {"$avg": "$rating"}, "n": {"$sum": 1}}},
         ]
         async for row in db.reviews.aggregate(pipeline2):
             rating_map[row["_id"]] = {"avg": float(row["avg"] or 0), "n": int(row["n"])}
-    # Add employer-facing sell rate + tier margin + trust badges to every card
     from pricing import sell_rate, margin_pct
     for u in items:
         profile = u.get("profile") or {}
@@ -298,6 +297,12 @@ async def list_talent(q: Optional[str] = None, skill: Optional[str] = None,
         u["completed_engagements"] = completed
         u["avg_rating"] = round(avg_rating, 2)
         u["is_trusted_partner"] = completed >= 5 and avg_rating >= 4.5
+    # Default sort: Trusted Partners first, then verified, then by years experience desc.
+    items.sort(key=lambda x: (
+        not x.get("is_trusted_partner"),
+        not x.get("is_verified"),
+        -int((x.get("profile") or {}).get("years_experience") or 0),
+    ))
     return items
 
 

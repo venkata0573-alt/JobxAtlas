@@ -122,12 +122,12 @@ export default function Landing() {
 
       <Marquee />
 
-      {/* Vetted talent voices — under hero for social proof */}
+      {/* Vetted professionals voices — under hero for social proof */}
       <section className="bg-white border-b border-black/10">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-20">
-          <p className="overline text-[#C79A3B] mb-3">VETTED TALENT · IN THEIR OWN WORDS</p>
+          <p className="overline text-[#6B21A8] mb-3">VETTED PROFESSIONALS · IN THEIR OWN WORDS</p>
           <h2 className="font-display font-extrabold text-3xl md:text-4xl tracking-tight max-w-2xl mb-12">
-            The freelancers you&apos;re one signature away from hiring.
+            The professionals you&apos;re one signature away from working with.
           </h2>
           <div className="grid md:grid-cols-3 gap-6">
             {TESTIMONIALS.map((t, i) => (
@@ -261,20 +261,20 @@ export default function Landing() {
 
       <DemoTabs />
 
-      {/* Exclusivity + Work tracking */}
+      {/* Two engagement models + Work tracking */}
       <section className="max-w-7xl mx-auto px-6 md:px-12 py-24 grid md:grid-cols-2 gap-6">
         <div className="hard-border bg-[#FDFCF0] p-10 md:p-14 shadow-brutal">
-          <div className="hard-border bg-[#FF0A0A] text-white w-12 h-12 flex items-center justify-center mb-6">
+          <div className="hard-border bg-[#6B21A8] text-white w-12 h-12 flex items-center justify-center mb-6">
             <ShieldCheck size={22} weight="duotone" />
           </div>
-          <p className="overline text-[#FF0A0A] mb-3">12-Month Exclusivity</p>
+          <p className="overline text-[#6B21A8] mb-3">HIRE BY THE HOUR · OPERATIONAL WORK</p>
           <h3 className="font-display font-extrabold text-3xl tracking-tight mb-4">
-            No side-doors. Ever.
+            Pay only for the hours you actually need.
           </h3>
           <p className="text-neutral-700 leading-relaxed">
-            Employers cannot directly hire talent introduced via Job Atlas, and talent cannot work directly for
-            introduced employers — for 12 months. Contact details stay hidden until hours are purchased and a
-            contract is signed by both parties.
+            For anything operational — back-office ops, migration work, customer support ramps,
+            sprint capacity, specialist skills for a short burst — buy hours in bulk and burn them
+            across as many professionals as fits the job. No monthly retainer, no minimum headcount.
           </p>
         </div>
         <div className="hard-border bg-white p-10 md:p-14 shadow-brutal">
@@ -331,21 +331,30 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Founder note — personal welcome */}
+      {/* Leadership team note */}
       <section className="border-t border-black/10 bg-[#FAF9F6]">
         <div className="max-w-4xl mx-auto px-6 md:px-12 py-20 text-center">
-          <p className="overline text-[#C79A3B] mb-6">A NOTE FROM THE FOUNDER</p>
+          <p className="overline text-[#6B21A8] mb-6">A NOTE FROM THE LEADERSHIP TEAM</p>
           <p className="font-display text-xl md:text-2xl leading-relaxed text-[#0B1B2B] max-w-2xl mx-auto">
-            &ldquo;I built Job Atlas because hiring hourly experts should feel like walking into a
+            &ldquo;We built Job Atlas because engaging expert professionals should feel like walking into a
             trusted room — not shouting into a bidding pit. Every profile here is vetted, every
             engagement is contracted, and every payout is triggered the moment work is accepted.
             If you&apos;re a company that values structure — or an independent professional tired of
             chasing invoices — you&apos;re in the right place.&rdquo;
           </p>
-          <div className="mt-10 inline-flex flex-col items-center">
-            <p className="font-signature text-5xl text-[#0B1B2B] leading-none">Naveed Hasan</p>
-            <div className="w-24 h-px bg-[#C79A3B] mt-3 mb-2"/>
-            <p className="text-xs font-mono text-neutral-500 uppercase tracking-[0.25em]">Founder · Job Atlas</p>
+          <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto">
+            {[
+              { name: "S. Taruni",    role: "Co-founder" },
+              { name: "V. Chaitanya", role: "Co-founder" },
+              { name: "V. Lokesh",    role: "Co-founder" },
+              { name: "N. Hasan",     role: "Co-founder" },
+            ].map((p) => (
+              <div key={p.name} className="hard-border bg-white p-4">
+                <p className="font-signature text-2xl text-[#0B1B2B] leading-none">{p.name}</p>
+                <div className="w-16 h-px bg-[#6B21A8] mt-2 mb-2 mx-auto"/>
+                <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-[0.2em]">{p.role} · Job Atlas</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>

@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 29 backend+frontend testing. Backend 8/8 pytest pass: /trust/stats shape, trusted-partner sort, captcha bypass when TURNSTILE_SECRET_KEY unset, BGV auto-approve (2 YES + 0 NO + email_verified -> verified_by='auto-bgv-rule'), negative-path (1 NO stays pending), CRM hubspot bogus 400, salesforce missing instance_url 400, list+delete. Frontend flows all verified except one incomplete scrub on landing: '12-MONTH EXCLUSIVITY' still appears via the Marquee component (Marquee.jsx default prop) and DemoTabs.jsx copy on '/' — the landing block was removed from Landing.jsx but two child components still surface the phrase.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Marquee (used on Landing '/')", "issue": "Default marquee prop text = '12-MONTH EXCLUSIVITY GUARANTEED · PREMIUM VETTED TALENT · MIX & MATCH HOURS · CONTRACTS SIGNED BOTH WAYS ·'. Review requires the landing to render WITHOUT any '12-Month Exclusivity' block — this strap-line still surfaces the phrase.", "selector": "src/components/Marquee.jsx:3", "priority": "MEDIUM"},
+      {"component": "DemoTabs (used on Landing '/')", "issue": "One of the demo cards still contains 'a 12-month exclusivity clause and clear on-site health & safety terms.'", "selector": "src/components/DemoTabs.jsx:37", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/trust", "issues": ["6 stat cards do not have data-testid attributes on individual cards (only trust-page wrapper); minor testability nit — cards render correctly via .hard-border.bg-white.p-8 selector and all 6 numeric values populated from live API."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration29_trust_bgv_crm.py",
+    "/app/test_reports/pytest/iter29.xml"
+  ],
+  "action_items": [
+    "Landing scrub incomplete: override <Marquee text=...> on Landing.jsx (or change the default in Marquee.jsx) to remove the '12-MONTH EXCLUSIVITY GUARANTEED' phrase.",
+    "Update DemoTabs.jsx line 37 to remove '12-month exclusivity clause' wording OR gate the DemoTabs block if it isn't needed on landing.",
+    "(Optional) Add data-testid=trust-stat-<slug> on each of the 6 stat cards in Trust.jsx for future automated coverage."
+  ],
+  "critical_code_review_comments": [
+    "auth.py POST /reference-check auto-approve rule correctly gated on role=talent + email_verified + verification_status=='pending' + yes_count>=2 + no_count==0. Verified live: 1 YES keeps pending, 2 YES flips to verified with verified_by='auto-bgv-rule'. 1 NO + 2 YES keeps pending (rule short-circuits on any NO). Good.",
+    "auth.py /trust/stats returns raw counts including a full ISO 'as_of' timestamp; no PII leak; unauth accessible. Note: 'engagements_last_30d' uses created_at >= month_ago (string ISO compare relies on lex order — safe because all inserts are ISO-8601 UTC).",
+    "server.py list_talent Trusted Partner sort uses tuple key (not is_trusted_partner, not is_verified, -years_experience) — correct three-tier ordering. On current seed 0 talents qualify as trusted_partner, so items[0] is_verified=True (verified fallback works).",
+    "auth.py _verify_turnstile returns True when TURNSTILE_SECRET_KEY unset — correct bypass path. Verified via a fresh /auth/register without turnstile_token succeeding 200.",
+    "auth.py CRM connect: validates via each provider's own /me or oauth token-info endpoint synchronously via asyncio.to_thread(urllib.request.urlopen) with 8s timeout. Bogus hubspot token -> HTTP 401 -> normalized to 400 'Could not verify hubspot token: HTTP 401'. Salesforce missing instance_url -> deterministic 400 without a network call. Access token stored in db.crm_integrations plaintext — the code comment already flags 'consider KMS in prod', worth revisiting before GA.",
+    "Frontend Projects.jsx pricing gate uses `useAuth().user` correctly: unauth branch renders live-monthly-cost with 'Custom quote / Sign in to reveal' + pricing-signin-nudge card; authed branch renders numeric $XXk + price-transparency band. Verified live for both states.",
+    "Frontend Landing scrub is only partial — Landing.jsx no longer contains 'freelancers' or '12-month exclusivity', but embedded <Marquee /> and <DemoTabs /> children re-introduce the phrase. Recommend either passing an override text prop to Marquee or updating defaults."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration29_trust_bgv_crm.py", "/app/test_reports/iteration_18.json"],
+  "success_rate": {"backend": "100%", "frontend": "~85% (landing scrub incomplete)"},
+  "test_credentials": "admin@talenthub.io/Admin@2026, emp-series-b-fintechs@test.io/Employer@2026. Test creates: bgv-auto@test.io/Test@2026 + bgvno_<hex>@test.io + cap_<hex>@test.io (fresh talents).",
+  "seed_data_creation": "Each backend run inserts: 1 talent bgv-auto@test.io + 3 reference_checks (2 answered yes -> verification_status=verified via auto-rule), 1 talent bgvno_<hex> + 3 reference_checks (1 no + 2 yes -> stays pending), 1 talent cap_<hex> (captcha bypass check). Cleanup selector: db.users.delete_many({'email':{'$in':['bgv-auto@test.io']}}) or {'$regex':'^(bgvno_|cap_)'}; db.reference_checks.delete_many({'talent_id':{'$in':[<uids>]}}).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest at /app/backend/tests/test_iteration29_trust_bgv_crm.py runs 8 cases in <5s via pymongo direct read for email_verification_token + reference_checks.token — this pattern is required because /admin/reference-checks/{talent_id} strips 'token' from responses. When re-running, drop the previous bgv-auto@test.io first (the test does this in a fixture). Landing lives at '/', not '/landing' (App.js:48). To fix the landing scrub, either pass Marquee text='' or a scrubbed string on Landing.jsx line 123, and edit DemoTabs.jsx:37.",
+  "rca of the issue": "Landing scrub was applied to Landing.jsx directly but Marquee.jsx has the phrase '12-MONTH EXCLUSIVITY GUARANTEED' baked into its default `text` prop, and Landing renders <Marquee /> without overriding text. DemoTabs.jsx also carries a demo card copy line with the same phrase. Both surfaces render on '/', so a body-text substring check finds '12-month exclusivity' even though the dedicated block is gone. Mitigation: (a) pass a scrubbed text prop or drop <Marquee /> from Landing, (b) update DemoTabs demo copy."
+}

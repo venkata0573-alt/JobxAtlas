@@ -18,6 +18,7 @@ export default function Header() {
       <Link to="/browse" className={linkCls} onClick={() => setOpen(false)} data-testid={TID.navBrowse}>Browse Talent</Link>
       <Link to="/projects" className={linkCls} onClick={() => setOpen(false)} data-testid="nav-projects">Projects</Link>
       <Link to="/pricing" className={linkCls} onClick={() => setOpen(false)} data-testid={TID.navPricing}>Pricing</Link>
+      <Link to="/trust" className={linkCls} onClick={() => setOpen(false)} data-testid="nav-trust">Trust</Link>
     </>
   );
 
@@ -30,6 +31,7 @@ export default function Header() {
       <Link to="/integrations" className={linkCls} onClick={() => setOpen(false)} data-testid={TID.navIntegrations}>Work tools</Link>
       <Link to="/accounts" className={linkCls} onClick={() => setOpen(false)}>Accounts</Link>
       <Link to="/pricing" className={linkCls} onClick={() => setOpen(false)} data-testid={TID.navPricing}>Pricing</Link>
+      <Link to="/trust" className={linkCls} onClick={() => setOpen(false)} data-testid="nav-trust">Trust</Link>
       {user.role === "admin" && (
         <Link to="/admin" className={linkCls} onClick={() => setOpen(false)} data-testid="nav-admin">Admin</Link>
       )}

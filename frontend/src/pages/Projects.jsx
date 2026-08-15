@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { ArrowRight, X, Users, Clock, Certificate, ArrowsClockwise, LockSimple, LockSimpleOpen, Sparkle } from "@phosphor-icons/react";
 
 export default function Projects() {
+  const { user } = useAuth();
   const [templates, setTemplates] = useState([]);
   const [phases, setPhases] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -247,18 +249,36 @@ export default function Projects() {
                     <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest mt-1">Seats</p>
                   </div>
                   <div className="hard-border bg-[#0B1B2B] text-white p-3 text-center" data-testid="live-monthly-cost">
-                    <p className="font-display font-black text-xl">${(costs.monthly / 1000).toFixed(1)}k</p>
-                    <p className="text-[10px] font-mono text-[#C79A3B] uppercase tracking-widest mt-1">You pay / mo</p>
+                    {user ? (
+                      <>
+                        <p className="font-display font-black text-xl">${(costs.monthly / 1000).toFixed(1)}k</p>
+                        <p className="text-[10px] font-mono text-[#F0C260] uppercase tracking-widest mt-1">You pay / mo</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-display font-black text-lg">Custom quote</p>
+                        <p className="text-[10px] font-mono text-[#F0C260] uppercase tracking-widest mt-1">Sign in to reveal</p>
+                      </>
+                    )}
                   </div>
                 </div>
 
-                <div className="hard-border bg-[#FDF6E3] px-3 py-2 mb-4 text-xs font-mono flex items-center justify-between gap-2 flex-wrap" data-testid="price-transparency">
-                  <span>Team cost <span className="font-bold">${(costs.talent_monthly / 1000).toFixed(1)}k/mo</span></span>
-                  <span>·</span>
-                  <span>Job Atlas margin <span className="font-bold">{costs.margin_pct}%</span></span>
-                  <span>·</span>
-                  <span>Total {detail.duration_months}mo: <span className="font-bold">${(costs.total / 1000).toFixed(0)}k</span></span>
-                </div>
+                {user ? (
+                  <div className="hard-border bg-[#F5EEF9] px-3 py-2 mb-4 text-xs font-mono flex items-center justify-between gap-2 flex-wrap" data-testid="price-transparency">
+                    <span>Team cost <span className="font-bold">${(costs.talent_monthly / 1000).toFixed(1)}k/mo</span></span>
+                    <span>·</span>
+                    <span>Job Atlas margin <span className="font-bold">{costs.margin_pct}%</span></span>
+                    <span>·</span>
+                    <span>Total {detail.duration_months}mo: <span className="font-bold">${(costs.total / 1000).toFixed(0)}k</span></span>
+                  </div>
+                ) : (
+                  <div className="hard-border bg-[#F5EEF9] px-3 py-3 mb-4 text-xs flex items-center justify-between gap-2 flex-wrap" data-testid="pricing-signin-nudge">
+                    <span className="font-mono">
+                      <b>{seats.length} seats · {detail.duration_months} months</b> — full quote unlocks after sign-in. No card, no obligation.
+                    </span>
+                    <Link to="/register" className="btn-primary text-xs">Sign in to see quote →</Link>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between mb-3">
                   <p className="overline text-neutral-500">Assemble the team · auto-matched from our vetted bench</p>
