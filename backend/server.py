@@ -226,18 +226,39 @@ import routes.admin  # noqa: E402,F401  (registers /admin/* endpoints)
 
 # ---------- Browse Talent (public listing but contact hidden) ----------
 @api.get("/talent")
-async def list_talent(q: Optional[str] = None, skill: Optional[str] = None, min_exp: int = 0):
+async def list_talent(q: Optional[str] = None, skill: Optional[str] = None,
+                      industry: Optional[str] = None, min_exp: int = 0):
     query = {"role": "talent"}
     if q:
         query["$or"] = [{"name": {"$regex": q, "$options": "i"}},
                         {"profile.headline": {"$regex": q, "$options": "i"}}]
     if skill:
         query["profile.skills"] = {"$regex": skill, "$options": "i"}
+    if industry:
+        # Match talents who have self-tagged this industry, OR who have delivered
+        # engagements to an employer in this industry (past-work signal).
+        past_work_employer_ids = await db.engagements.distinct(
+            "employer_id",
+            {"status": {"$in": ["contract_signed", "active", "completed"]}},
+        )
+        employers_in_industry = await db.users.distinct(
+            "id",
+            {"role": "employer", "id": {"$in": past_work_employer_ids},
+             "profile.company_industry": industry},
+        )
+        talent_ids_via_engagements = await db.engagements.distinct(
+            "talent_id",
+            {"employer_id": {"$in": employers_in_industry},
+             "status": {"$in": ["contract_signed", "active", "completed"]}},
+        )
+        query["$or"] = (query.get("$or", [])) + [
+            {"profile.industries": industry},
+            {"id": {"$in": talent_ids_via_engagements}},
+        ]
     if min_exp:
         query["profile.years_experience"] = {"$gte": int(min_exp)}
     cursor = db.users.find(query, {"_id": 0, "password_hash": 0, "email": 0, "integrations": 0})
     items = await cursor.to_list(200)
-    # Hide sensitive contact until purchased (email removed; keep name display)
     return items
 
 
@@ -1598,6 +1619,157 @@ def _broadcast_email_html(*, employer_name: str, talent_name: str,
     </td></tr>
   </table>
 </body></html>"""
+
+
+# ---------- Project Delivery workflow (PMI-based, longer engagements) ----------
+PROJECT_TEMPLATES = [
+    {"id": "fintech-kyc-aml", "industry": "Financial Services & Fintech",
+     "title": "KYC / AML Platform Build", "duration_months": 6,
+     "summary": "Compliance-grade identity verification & transaction monitoring for a regulated fintech.",
+     "team": [
+        {"role": "Program Manager", "count": 1, "rate_range": [140, 180]},
+        {"role": "Solutions Architect", "count": 1, "rate_range": [130, 170]},
+        {"role": "Senior Backend Engineer", "count": 2, "rate_range": [100, 145]},
+        {"role": "Compliance Specialist", "count": 1, "rate_range": [95, 140]},
+        {"role": "QA Automation Lead", "count": 1, "rate_range": [80, 120]},
+     ]},
+    {"id": "fintech-payments-integration", "industry": "Financial Services & Fintech",
+     "title": "Payment Gateway Integration", "duration_months": 3,
+     "summary": "Stripe / Adyen / regional PSP integration with reconciliation and dispute tooling.",
+     "team": [
+        {"role": "Tech Lead", "count": 1, "rate_range": [120, 160]},
+        {"role": "Senior Backend Engineer", "count": 2, "rate_range": [100, 140]},
+        {"role": "Frontend Engineer", "count": 1, "rate_range": [80, 120]},
+     ]},
+    {"id": "healthcare-fhir-ehr", "industry": "Healthcare & Life Sciences",
+     "title": "FHIR / HL7 EHR Integration", "duration_months": 9,
+     "summary": "Interoperability layer for a hospital network — FHIR-first, HIPAA-compliant.",
+     "team": [
+        {"role": "Program Manager", "count": 1, "rate_range": [140, 180]},
+        {"role": "HL7/FHIR Architect", "count": 1, "rate_range": [140, 190]},
+        {"role": "Senior Integration Engineer", "count": 2, "rate_range": [110, 150]},
+        {"role": "Security & Compliance Lead", "count": 1, "rate_range": [120, 165]},
+     ]},
+    {"id": "healthcare-telehealth-mvp", "industry": "Healthcare & Life Sciences",
+     "title": "Telehealth MVP", "duration_months": 4,
+     "summary": "Video visits, e-prescriptions, patient portal — launch-ready in a quarter.",
+     "team": [
+        {"role": "Product Manager", "count": 1, "rate_range": [110, 150]},
+        {"role": "Mobile Engineer", "count": 2, "rate_range": [95, 140]},
+        {"role": "Backend Engineer", "count": 1, "rate_range": [100, 140]},
+        {"role": "UX Designer", "count": 1, "rate_range": [85, 125]},
+     ]},
+    {"id": "saas-onboarding-revamp", "industry": "SaaS & Enterprise Software",
+     "title": "B2B Onboarding Revamp", "duration_months": 3,
+     "summary": "Cut activation friction — new sign-up, empty states, in-app education, and analytics.",
+     "team": [
+        {"role": "Product Manager", "count": 1, "rate_range": [110, 150]},
+        {"role": "Senior Product Designer", "count": 1, "rate_range": [95, 140]},
+        {"role": "Full-stack Engineer", "count": 2, "rate_range": [90, 130]},
+     ]},
+    {"id": "saas-analytics-dashboard", "industry": "SaaS & Enterprise Software",
+     "title": "Analytics Dashboard Build", "duration_months": 4,
+     "summary": "Self-serve reporting with drill-through and exportable data models.",
+     "team": [
+        {"role": "Data Engineer", "count": 1, "rate_range": [110, 150]},
+        {"role": "Full-stack Engineer", "count": 2, "rate_range": [95, 135]},
+        {"role": "Product Designer", "count": 1, "rate_range": [85, 125]},
+     ]},
+    {"id": "ecomm-storefront-rebuild", "industry": "E-commerce & Retail",
+     "title": "Storefront Rebuild (Headless)", "duration_months": 6,
+     "summary": "Move from monolithic to Shopify Hydrogen / Next.js headless with a 40% Core Web Vitals lift.",
+     "team": [
+        {"role": "Tech Lead", "count": 1, "rate_range": [120, 160]},
+        {"role": "Senior Frontend Engineer", "count": 2, "rate_range": [95, 135]},
+        {"role": "Commerce Solutions Engineer", "count": 1, "rate_range": [100, 140]},
+        {"role": "UX Designer", "count": 1, "rate_range": [85, 125]},
+     ]},
+    {"id": "ai-llm-copilot", "industry": "AI & Data Platforms",
+     "title": "Domain LLM Copilot", "duration_months": 5,
+     "summary": "RAG-based domain assistant with evaluation harness, guardrails, and observability.",
+     "team": [
+        {"role": "ML Lead", "count": 1, "rate_range": [140, 185]},
+        {"role": "Senior ML Engineer", "count": 2, "rate_range": [120, 160]},
+        {"role": "Data Engineer", "count": 1, "rate_range": [110, 150]},
+        {"role": "MLOps Engineer", "count": 1, "rate_range": [115, 155]},
+     ]},
+]
+
+# PMI-based lifecycle: 5 process groups, each with typical deliverables/gates
+PROJECT_PHASES = [
+    {"id": "initiate", "name": "Initiate",
+     "gate": "Project Charter signed by sponsor",
+     "deliverables": ["Project charter", "Stakeholder register", "High-level scope"]},
+    {"id": "plan", "name": "Plan",
+     "gate": "Baselines approved (Scope, Schedule, Cost)",
+     "deliverables": ["Scope statement + WBS", "Schedule / Gantt", "Cost baseline",
+                       "Risk register", "Communications plan", "Quality & procurement plans", "RACI"]},
+    {"id": "execute", "name": "Execute",
+     "gate": "First milestone accepted",
+     "deliverables": ["Team assembled & onboarded", "Sprint / iteration cadence", "Change requests logged",
+                       "Milestone deliverables shipped"]},
+    {"id": "monitor", "name": "Monitor & Control",
+     "gate": "Weekly status + variance report",
+     "deliverables": ["EVM report", "Risk burn-down", "Change control", "Quality audits"]},
+    {"id": "close", "name": "Close",
+     "gate": "Sponsor sign-off + lessons learned",
+     "deliverables": ["Formal acceptance", "Handover pack", "Lessons learned",
+                       "Post-implementation review"]},
+]
+
+
+@api.get("/projects/templates")
+async def list_project_templates(industry: Optional[str] = None):
+    items = PROJECT_TEMPLATES
+    if industry:
+        items = [t for t in items if t["industry"] == industry]
+    return {"templates": items, "count": len(items), "phases": PROJECT_PHASES}
+
+
+@api.get("/projects/templates/{template_id}")
+async def get_project_template(template_id: str):
+    for t in PROJECT_TEMPLATES:
+        if t["id"] == template_id:
+            avg_rate = sum(sum(s["rate_range"]) / 2 * s["count"] for s in t["team"]) / max(1, sum(s["count"] for s in t["team"]))
+            monthly_headcount = sum(s["count"] for s in t["team"])
+            est_monthly = int(monthly_headcount * avg_rate * 160)  # 160 hrs/month
+            return {**t, "phases": PROJECT_PHASES, "monthly_headcount": monthly_headcount,
+                    "estimated_monthly_cost": est_monthly,
+                    "estimated_total_cost": est_monthly * t["duration_months"]}
+    raise HTTPException(404, "Template not found")
+
+
+class ProjectLeadIn(BaseModel):
+    template_id: str
+    company_name: str
+    contact_name: str
+    contact_email: EmailStr
+    duration_months: int
+    notes: Optional[str] = ""
+
+
+@api.post("/projects/lead")
+async def submit_project_lead(payload: ProjectLeadIn):
+    """Employer submits a scoping request against a template. Creates a lead
+    doc for the Job Atlas ops team to follow up on."""
+    template = next((t for t in PROJECT_TEMPLATES if t["id"] == payload.template_id), None)
+    if not template:
+        raise HTTPException(400, "Unknown template_id")
+    doc = {
+        "id": new_id(),
+        "template_id": payload.template_id,
+        "template_title": template["title"],
+        "industry": template["industry"],
+        "company_name": payload.company_name,
+        "contact_name": payload.contact_name,
+        "contact_email": payload.contact_email.lower(),
+        "duration_months": int(payload.duration_months),
+        "notes": (payload.notes or "")[:1000],
+        "status": "new",
+        "created_at": now().isoformat(),
+    }
+    await db.project_leads.insert_one(doc)
+    return {"ok": True, "id": doc["id"], "message": "Thanks — our scoping team will reach out within 1 business day."}
 
 
 @api.get("/auth/sse-token")

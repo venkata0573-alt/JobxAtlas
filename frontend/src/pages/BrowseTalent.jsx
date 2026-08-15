@@ -16,12 +16,14 @@ export default function BrowseTalent() {
   const load = async () => {
     setLoading(true);
     try {
-      const r = await api.get("/talent", { params: { q, skill } });
+      const params = { q, skill };
+      if (industryFilter) params.industry = industryFilter;
+      const r = await api.get("/talent", { params });
       setItems(r.data);
     } catch (e) { toast.error(formatErr(e)); }
     finally { setLoading(false); }
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [industryFilter]);
 
   const clearIndustry = () => {
     const next = new URLSearchParams(searchParams);
@@ -49,7 +51,7 @@ export default function BrowseTalent() {
               <span className="overline text-[#C79A3B] mr-2">FILTERED BY INDUSTRY</span>
               <span className="font-display font-extrabold">{industryFilter}</span>
               <span className="hidden md:inline text-neutral-400 ml-3 text-xs">
-                · Showing all vetted talent — apply skill / search filters below to narrow further
+                · Showing talents self-tagged with this industry <em>or</em> who&apos;ve delivered past engagements to buyers in it
               </span>
             </p>
           </div>

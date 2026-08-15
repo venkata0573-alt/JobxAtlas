@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 9 — Project Delivery workflow (NEW) tested end-to-end. All 8 new backend tests pass (list, industry filter, detail w/ cost calc, 404, lead POST success, 400 invalid template_id, 422 missing fields, plus a marketplace regression smoke). Frontend /projects page renders all 5 PMI phase cards, all 8 template cards, industry filter chips (fintech filter narrows to 2), modal opens with all data-testids present, lead form submit succeeds and shows success toast, both close-button and overlay click dismiss the modal, and header 'Projects' nav (data-testid=nav-projects) navigates to /projects. Landing hero trust bullets are the new 3 (Structured engagements / milestone-linked pricing / same-day payment) with no dual-party/8% platform fee/12-month exclusivity phrases in the hero region. However, the STATS bento and FAQ #1 on Landing still surface the removed contractual language (see marketing_gaps below) — flagging for main agent to decide.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "marketing_gaps": [
+      {"screen": "Landing STATS bento (Landing.jsx lines 233-245)", "issue": "Still displays big-number stats: '12 · Months of exclusivity' and '8% · Platform fee'. Per marketing revision request these contractual/pricing terms should not appear on the website."},
+      {"screen": "Landing FAQ #1 (Landing.jsx line 34)", "issue": "FAQ answer still reads: \"Both sides sign a contract. Talent is bound by a 12-month exclusivity clause so no side-door hiring. Our platform fee is 8% (vs 20%).\" — contradicts the marketing revision."},
+      {"screen": "Landing TESTIMONIAL (Landing.jsx line 29)", "issue": "Testimonial quote by Marcus O. mentions \"the contract, the hours, the exclusivity\" — same theme."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration9_projects.py",
+    "/app/test_reports/pytest/iteration9.xml"
+  ],
+  "action_items": [
+    "Decide whether STATS bento (12/exclusivity, 8%/platform fee), FAQ #1 answer, and Marcus O. testimonial on Landing should be rewritten to match the new marketing tone — hero bullets already done, but these three spots still surface the terms.",
+    "No functional bugs to fix in Projects workflow — ship as-is."
+  ],
+  "critical_code_review_comments": [
+    "Projects.jsx modal uses `absolute top-6 right-6` for close button but the parent modal container is not `relative`; the close X is still clickable/visible in practice but visually may drift depending on scroll. Minor.",
+    "Projects.jsx line 79-92 phase cards are inside md:grid-cols-5 — deliverables lists can be long; on tablet widths they cram. Consider md:grid-cols-2 lg:grid-cols-5.",
+    "Backend template detail cost math weights average by count (line 1733). Result is correct but the formula string is dense; add a brief comment for maintainers."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration9_projects.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Two TEST_-prefixed docs inserted into db.project_leads via lead POST tests (one via pytest, one via UI test). Safe to leave — non-sensitive scoping requests.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Projects page + endpoints fully green. Only outstanding item is the marketing-copy scrub on non-hero regions (STATS bento + FAQ + one testimonial) — verify those if main agent updates them. Regression on prior iterations was not re-executed here; existing pytest modules /app/backend/tests/test_iteration{5..8}*.py can be re-run if broader regression is needed."
+}

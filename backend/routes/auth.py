@@ -29,6 +29,7 @@ class ProfileIn(BaseModel):
     headline: Optional[str] = ""
     bio: Optional[str] = ""
     skills: List[str] = []
+    industries: List[str] = []
     years_experience: Optional[int] = 0
     hourly_rate: Optional[float] = 0.0
     location: Optional[str] = ""

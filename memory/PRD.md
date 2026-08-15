@@ -32,6 +32,16 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
+## Implemented (2026-02-09, iteration 20 — Project Delivery workflow + marketing scrub)
+- **New `/projects` page + backend workflow**: second product offering alongside "Hire by the hour". Hero presents both models side-by-side. PMI section shows 5 phase cards (Initiate → Plan → Execute → Monitor & Control → Close), each with a gate + deliverables list. Template gallery shows 8 pre-loaded blueprints across 5 industries (Fintech KYC/AML, Payments; Healthcare FHIR/EHR, Telehealth MVP; SaaS Onboarding, Analytics; E-comm Storefront Rebuild; AI Domain LLM Copilot). Industry filter chips narrow the gallery. Clicking a template opens a modal with team blueprint, cost estimate ($X/mo, $Y total), and a "Request scoping — no commitment" lead form.
+- **Backend**: `PROJECT_TEMPLATES` list (8 blueprints, each with industry/duration/team roles + rate ranges), `PROJECT_PHASES` list (5 PMI phases with gates + deliverables), `ProjectLeadIn` model. New endpoints:
+  - `GET /api/projects/templates?industry=...` → 8 templates + 5 phases
+  - `GET /api/projects/templates/{id}` → detail + monthly_headcount + estimated_monthly_cost + estimated_total_cost
+  - `POST /api/projects/lead` → inserts scoping request into `db.project_leads`
+- **Navigation**: added "Projects" link (data-testid="nav-projects") in Header between "Browse Talent" and "Pricing".
+- **Marketing scrub**: removed all contractual language from public pages — hero trust bullets updated ("Structured engagements from day one", "Transparent, milestone-linked pricing", "Same-day payment on accepted work"), STATS bento swapped ("12 months exclusivity" → "9 global cities served", "8% platform fee" → "24h talent onboarding"), FAQ #1 rewritten to describe the two workflows without exclusivity/fee mentions, testimonial reworded. Contractual terms now live only inside the signed engagement contract.
+- Verified via `testing_agent` iteration_9.json: 100% backend + 100% frontend on the new workflow. All 3 flagged marketing-copy leaks fixed after the report.
+
 ## Implemented (2026-02-09, iteration 19 — trust-bar filter + hero verb rotator)
 - **Public Trust Bar Filter**: every industry chip on Landing is now a `<Link>` to `/browse?industry=<label>`. Chip UI shows a `→` arrow when there are no employers yet (invites click) or `×N` when employers exist. `BrowseTalent.jsx` reads `useSearchParams` and renders a dark-navy `data-testid="industry-filter-banner"` at the top ("FILTERED BY INDUSTRY · <label>") with a `data-testid="clear-industry-filter"` button that removes the query param. Talent grid is not filtered yet (talents don't carry an industry tag today) — the banner is the entry point for that future work.
 - **Hero Verb Rotator**: the red-highlighted verb in the hero headline cycles through **Grow → Ship → Scale → Build → …** every 3.2s with a 260ms fade-and-lift transition. `data-testid="hero-verb-rotator"` for testability. Honours `(prefers-reduced-motion: reduce)` — the interval is not started for users who prefer no motion.

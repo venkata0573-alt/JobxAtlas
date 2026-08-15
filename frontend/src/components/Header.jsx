@@ -16,6 +16,7 @@ export default function Header() {
   const guestLinks = (
     <>
       <Link to="/browse" className={linkCls} onClick={() => setOpen(false)} data-testid={TID.navBrowse}>Browse Talent</Link>
+      <Link to="/projects" className={linkCls} onClick={() => setOpen(false)} data-testid="nav-projects">Projects</Link>
       <Link to="/pricing" className={linkCls} onClick={() => setOpen(false)} data-testid={TID.navPricing}>Pricing</Link>
     </>
   );

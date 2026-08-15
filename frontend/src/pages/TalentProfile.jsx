@@ -8,10 +8,11 @@ import { Sparkle } from "@phosphor-icons/react";
 export default function TalentProfile() {
   const { user, refresh } = useAuth();
   const [p, setP] = useState({
-    headline: "", bio: "", skills: [], years_experience: 0,
+    headline: "", bio: "", skills: [], industries: [], years_experience: 0,
     hourly_rate: 0, location: "", portfolio_url: "", avatar_url: "", company: "",
   });
   const [skillsInput, setSkillsInput] = useState("");
+  const [industryList, setIndustryList] = useState([]);
   const [suggest, setSuggest] = useState(null);
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
@@ -33,11 +34,23 @@ export default function TalentProfile() {
 
   useEffect(() => {
     if (user && user.profile) {
-      setP({ ...p, ...user.profile });
+      setP({ ...p, ...user.profile, industries: user.profile.industries || [] });
       setSkillsInput((user.profile.skills || []).join(", "));
     }
     // eslint-disable-next-line
   }, [user]);
+
+  useEffect(() => {
+    api.get("/marketplace/industries").then((r) => setIndustryList(r.data.industries || [])).catch(() => {});
+  }, []);
+
+  const toggleIndustry = (label) => {
+    setP((prev) => {
+      const current = new Set(prev.industries || []);
+      if (current.has(label)) current.delete(label); else current.add(label);
+      return { ...prev, industries: Array.from(current) };
+    });
+  };
 
   const doSuggest = async () => {
     const skills = skillsInput.split(",").map((s) => s.trim()).filter(Boolean);
@@ -58,7 +71,7 @@ export default function TalentProfile() {
     setSaving(true);
     try {
       const skills = skillsInput.split(",").map((s) => s.trim()).filter(Boolean);
-      await api.put("/profile", { ...p, skills, years_experience: Number(p.years_experience || 0), hourly_rate: Number(p.hourly_rate || 0) });
+      await api.put("/profile", { ...p, skills, industries: p.industries || [], years_experience: Number(p.years_experience || 0), hourly_rate: Number(p.hourly_rate || 0) });
       await refresh();
       toast.success("Profile saved");
     } catch (e) { toast.error(formatErr(e)); }
@@ -117,6 +130,34 @@ export default function TalentProfile() {
               <input data-testid={TID.profileSkills} value={skillsInput} onChange={(e) => setSkillsInput(e.target.value)}
                      placeholder="React, TypeScript, Node.js, Figma"
                      className="w-full hard-border px-3 py-3 focus:outline-none focus:border-[#002FA7]"/>
+            </div>
+
+            <div data-testid="talent-industry-picker">
+              <label className="overline block mb-2">Industries you serve (pick all that apply)</label>
+              {industryList.length === 0 ? (
+                <p className="text-xs text-neutral-500 font-mono">Loading industries…</p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {industryList.map((i) => {
+                    const active = (p.industries || []).includes(i.label);
+                    return (
+                      <button
+                        key={i.label}
+                        type="button"
+                        onClick={() => toggleIndustry(i.label)}
+                        data-testid={`talent-industry-${i.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`}
+                        className={`hard-border px-3 py-2 text-left text-xs transition-colors ${
+                          active ? "bg-[#0B1B2B] text-white border-[#0B1B2B]" : "bg-white hover:bg-[#FAF9F6]"
+                        }`}>
+                        <span className="font-display font-bold leading-tight block">{i.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <p className="text-xs text-neutral-500 mt-2">
+                Employers searching by industry on <code className="font-mono">/browse?industry=…</code> will see your profile in matching results.
+              </p>
             </div>
             <div className="grid md:grid-cols-2 gap-6">
               <div>

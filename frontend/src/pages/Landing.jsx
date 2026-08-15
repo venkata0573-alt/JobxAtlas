@@ -9,7 +9,7 @@ import {
   Clock, Globe, Certificate, ChartLineUp, Star, Quotes,
 } from "@phosphor-icons/react";
 
-const HERO = "/hero-atlas.svg";
+const HERO = "/hero-atlas.svg?v=2";
 
 const Feature = ({ Icon, title, desc }) => (
   <div className="hard-border bg-white p-8">
@@ -26,12 +26,12 @@ const TRUST_LOGOS = ["Jira", "Asana", "Confluence", "Monday", "Wrike", "ServiceN
 const TESTIMONIALS = [
   { name: "Devon P.",   role: "Senior React Engineer · London",        rate: "$95/hr", quote: "AI suggested my rate, and it stuck. I now work across three companies without a single email chain about invoices." },
   { name: "Priya S.",   role: "Product Designer · Berlin",             rate: "$78/hr", quote: "Every deliverable I ship gets moderated review, and the payout hits my bank the day it's approved. Freelance finally feels like a real profession." },
-  { name: "Marcus O.",  role: "Data Scientist · Remote (Toronto)",     rate: "$110/hr", quote: "I quit chasing invoices. Job Atlas handles the contract, the hours, the exclusivity — I just do the work I signed up for." },
+  { name: "Marcus O.",  role: "Data Scientist · Remote (Toronto)",     rate: "$110/hr", quote: "I quit chasing invoices. Job Atlas handles the structure so I just do the work I signed up for." },
 ];
 
 const FAQ = [
   { q: "How is Job Atlas different from Upwork or Fiverr?",
-    a: "We're structured. Employers buy hours in bulk and allocate them. Both sides sign a contract. Talent is bound by a 12-month exclusivity clause so no side-door hiring. Our platform fee is 8% (vs 20%)." },
+    a: "We're structured. Employers buy hours in bulk and allocate them across a vetted talent bench, or scope a full project from a pre-loaded team blueprint. Every engagement is contracted, every deliverable is reviewed, and pricing stays transparent." },
   { q: "Can I hire multiple people from one hour-package?",
     a: "Yes — that's the whole point. Purchase once, mix & match hours across as many talent as you like." },
   { q: "How does the AI hourly rate suggestion work?",
@@ -113,9 +113,9 @@ export default function Landing() {
           </div>
           <div className="mt-14 flex flex-wrap gap-x-8 gap-y-3 text-sm text-neutral-400 font-mono">
             <span className="inline-flex items-center gap-2"><Star weight="fill" color="#FF0A0A" size={14}/> Vetted global talent pool</span>
-            <span className="inline-flex items-center gap-2"><ShieldCheck weight="fill" color="#FF0A0A" size={14}/> Signed dual-party contracts</span>
-            <span className="inline-flex items-center gap-2"><Certificate weight="fill" color="#FF0A0A" size={14}/> 8% platform fee — half of the market</span>
-            <span className="inline-flex items-center gap-2"><ChartLineUp weight="fill" color="#C79A3B" size={14}/> Same-day payouts on deliverable approval</span>
+            <span className="inline-flex items-center gap-2"><ShieldCheck weight="fill" color="#FF0A0A" size={14}/> Structured engagements from day one</span>
+            <span className="inline-flex items-center gap-2"><Certificate weight="fill" color="#FF0A0A" size={14}/> Transparent, milestone-linked pricing</span>
+            <span className="inline-flex items-center gap-2"><ChartLineUp weight="fill" color="#C79A3B" size={14}/> Same-day payment on accepted work</span>
           </div>
         </div>
       </section>
@@ -232,9 +232,9 @@ export default function Landing() {
       {/* STATS bento */}
       <section className="max-w-7xl mx-auto px-6 md:px-12 py-24 grid grid-cols-2 md:grid-cols-4 gap-0 border-l border-t border-black/10">
         {[
-          {k:"12", label:"Months of exclusivity"},
+          {k:"9", label:"Global cities served"},
           {k:"AI", label:"Rate suggestions"},
-          {k:"8%", label:"Platform fee"},
+          {k:"24h", label:"Talent onboarding"},
           {k:"11+", label:"Native integrations"},
         ].map((s, i) => (
           <div key={i} className="p-10 border-r border-b border-black/10">
