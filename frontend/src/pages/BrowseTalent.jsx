@@ -103,8 +103,15 @@ export default function BrowseTalent() {
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {items.map((t, i) => (
-              <div key={t.id} className={`hard-border bg-white p-7 shadow-brutal-hover ${i % 3 === 1 ? "md:translate-y-6" : ""}`}
+              <div key={t.id} className={`hard-border bg-white p-7 shadow-brutal-hover relative ${i % 3 === 1 ? "md:translate-y-6" : ""}`}
                    data-testid={TID.browseTalentCard(t.id)}>
+                {t.is_trusted_partner && (
+                  <div className="absolute -top-3 left-4 bg-[#C79A3B] text-white px-3 py-1 hard-border text-[10px] font-mono tracking-widest z-10"
+                       data-testid={`trusted-partner-${t.id}`}
+                       title={`${t.completed_engagements} completed engagements · ${t.avg_rating}★ avg`}>
+                    ★ TRUSTED PARTNER
+                  </div>
+                )}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-start gap-3 min-w-0">
                     {t.profile?.avatar_url ? (

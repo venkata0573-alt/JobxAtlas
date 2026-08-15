@@ -5,13 +5,14 @@ import { toast } from "sonner";
 import {
   CheckCircle, X, Star, Bank, ChatCircleText, CurrencyDollar, Play,
   UsersThree, ShieldCheck, PaintBrush, MagnifyingGlass, Plus, Trash,
-  Briefcase, ArrowRight,
+  Briefcase, ArrowRight, SealCheck,
 } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
 
 const TAB_CATALOG = [
   { id: "support",       label: "Support",         Icon: UsersThree,     scope: "support" },
   { id: "leads",         label: "Project Leads",   Icon: Briefcase,      scopes: ["support", "superadmin"] },
+  { id: "verifications", label: "Verifications",   Icon: SealCheck,      scopes: ["moderation", "support"] },
   { id: "bank",          label: "Bank Transfers",  Icon: Bank,           scope: "finance" },
   { id: "payouts",       label: "Payouts",         Icon: CurrencyDollar, scope: "finance" },
   { id: "reviews",       label: "Reviews",         Icon: Star,           scope: "moderation" },
@@ -137,6 +138,7 @@ export default function Admin() {
 
           {tab === "support"       && <SupportPanel/>}
           {tab === "leads"         && <ProjectLeadsPanel scopes={me.effective_scopes}/>}
+          {tab === "verifications" && <VerificationsPanel scopes={me.effective_scopes}/>}
           {tab === "staff"         && <StaffPanel selfId={me.id} scopes={me.scopes_catalog}/>}
           {tab === "customization" && <CustomizationPanel/>}
 
@@ -700,6 +702,112 @@ function ProjectLeadsPanel({ scopes }) {
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+
+
+// ---------- Verifications panel ----------
+function VerificationsPanel({ scopes }) {
+  const [items, setItems] = useState([]);
+  const [status, setStatus] = useState("pending");
+  const canDecide = (scopes || []).includes("moderation") || (scopes || []).includes("superadmin");
+
+  const load = async () => {
+    try {
+      const r = await api.get(`/admin/verifications-with-refs?status=${status}`);
+      setItems(r.data.items || []);
+    } catch (e) { toast.error(formatErr(e)); }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [status]);
+
+  const decide = async (uid, action) => {
+    const notes = action === "reject"
+      ? window.prompt("Rejection reason (visible to the user):")
+      : window.prompt("Approval notes (optional):") || "";
+    if (action === "reject" && !notes) return;
+    try {
+      const r = await api.post(`/admin/verifications/${uid}/${action}`, { notes });
+      if (r.data.perks_granted?.hours_credited) {
+        toast.success(`Approved — 10 discovery hours credited + hero placement enabled`);
+      } else {
+        toast.success(action === "approve" ? "Approved" : "Rejected");
+      }
+      load();
+    } catch (e) { toast.error(formatErr(e)); }
+  };
+
+  const chipColor = (kind) => ({
+    yes:     "bg-emerald-100 text-emerald-800 border-emerald-400",
+    partial: "bg-amber-100 text-amber-800 border-amber-400",
+    no:      "bg-red-100 text-red-800 border-red-400",
+    pending: "bg-neutral-100 text-neutral-600 border-neutral-300",
+  }[kind]);
+
+  return (
+    <div className="space-y-4" data-testid="verifications-panel">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <p className="overline text-[#C79A3B]">TRUST & SAFETY</p>
+          <h2 className="font-display font-extrabold text-2xl">{items.length} · {status}</h2>
+        </div>
+        <div className="flex gap-1">
+          {["pending", "verified", "rejected"].map((s) => (
+            <button key={s} onClick={() => setStatus(s)}
+                    className={`hard-border px-3 py-2 text-xs ${status === s ? "bg-[#0B1B2B] text-white" : "bg-white"}`}
+                    data-testid={`ver-filter-${s}`}>
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-4">
+        {items.length === 0 ? (
+          <p className="text-neutral-500 text-sm hard-border bg-white p-6 shadow-brutal text-center">No {status} verifications.</p>
+        ) : items.map((u) => {
+          const p = u.profile || {};
+          const rs = u.reference_summary || {};
+          return (
+            <div key={u.id} className="hard-border bg-white p-5 shadow-brutal" data-testid={`ver-row-${u.id}`}>
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="min-w-0 flex-1">
+                  <p className="overline text-neutral-500">{(u.role || "").toUpperCase()}</p>
+                  <p className="font-display font-extrabold text-lg tracking-tight">
+                    {u.name}
+                    {u.role === "employer" && u.verification_status === "verified" && <span className="text-[#C79A3B] ml-1" title="Verified company">✦</span>}
+                    {u.role === "talent" && u.verification_status === "verified" && <span className="text-[#0EA5E9] ml-1" title="BGV verified">✓</span>}
+                  </p>
+                  <p className="text-xs font-mono text-neutral-500">{u.email}</p>
+                  {u.role === "employer" && (
+                    <p className="text-xs text-neutral-600 mt-1">{p.company_name} · {p.company_website} · {p.company_size || "—"}</p>
+                  )}
+                  {u.role === "talent" && (
+                    <p className="text-xs text-neutral-600 mt-1">{(p.work_history || []).length} work rows · {(p.references || []).length} refs · LinkedIn: {p.linkedin_url ? "✓" : "—"}</p>
+                  )}
+                </div>
+                {u.role === "talent" && rs.total > 0 && (
+                  <div className="flex gap-1 flex-wrap" data-testid={`ref-chips-${u.id}`}>
+                    {rs.yes > 0     && <span className={`hard-border px-2 py-1 text-[10px] font-mono ${chipColor("yes")}`} data-testid={`ref-yes-${u.id}`}>{rs.yes} YES</span>}
+                    {rs.partial > 0 && <span className={`hard-border px-2 py-1 text-[10px] font-mono ${chipColor("partial")}`} data-testid={`ref-partial-${u.id}`}>{rs.partial} PARTIAL</span>}
+                    {rs.no > 0      && <span className={`hard-border px-2 py-1 text-[10px] font-mono ${chipColor("no")}`} data-testid={`ref-no-${u.id}`}>{rs.no} NO</span>}
+                    {rs.pending > 0 && <span className={`hard-border px-2 py-1 text-[10px] font-mono ${chipColor("pending")}`} data-testid={`ref-pending-${u.id}`}>{rs.pending} PENDING</span>}
+                  </div>
+                )}
+              </div>
+              {u.verification_notes && (
+                <p className="text-xs text-neutral-600 mt-3 hard-border bg-[#FAF9F6] px-2 py-1"><b>Notes:</b> {u.verification_notes}</p>
+              )}
+              {status === "pending" && canDecide && (
+                <div className="flex gap-2 mt-4">
+                  <button onClick={() => decide(u.id, "approve")} className="btn-primary text-xs" data-testid={`ver-approve-${u.id}`}>Approve</button>
+                  <button onClick={() => decide(u.id, "reject")}  className="btn-outline text-xs" data-testid={`ver-reject-${u.id}`}>Reject</button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

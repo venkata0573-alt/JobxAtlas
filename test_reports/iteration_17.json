@@ -1,0 +1,26 @@
+{
+  "summary": "Iteration 28 — save-as-template, trusted partner ribbon, employer KYB perks, and admin Verifications panel with reference-answer chips. 10/10 backend pytest cases pass. All 4 frontend flows verified end-to-end via Playwright.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration28_templates_trust_kyb.py",
+    "/app/test_reports/pytest/iter28.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "projects.py save_project_as_template: correctly guards on `superadmin` OR `customization` scope; support scope returns 403 as required. Uses ±15% band (0.85/1.15) around avg rate — matches spec.",
+    "admin.py admin_approve_verification: KYB perks correctly gated by `kyb_perks_granted` flag; hours_balance uses $inc (separate op after $set) — safe. Re-approval leaves perks_granted={} preventing double-credit (verified live).",
+    "server.py list_talent: is_trusted_partner correctly computed as completed>=5 AND avg_rating>=4.5 — no seeded talent qualifies (as expected per user note); field shape is present on every row.",
+    "projects.py admin_verifications_with_refs: correctly hides `token` field on refs (public-safe); reference_summary counts yes/partial/no/pending correctly. Confirmed live on Test Talent (3 YES / 1 PARTIAL / 4 PENDING chips render).",
+    "server.py /api/projects/templates response uses key `templates` (not `items`) — worth noting for future test authors; custom-* templates merge in via _all_project_templates helper.",
+    "Docstring says ±20% but implementation uses ±15% (0.85 / 1.15). Cosmetic doc mismatch."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration28_templates_trust_kyb.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@talenthub.io/Admin@2026 (superadmin), support1@jobatlas.io/Support@2026 (support-only), talent@test.io/Talent@2026. Backend tests register a fresh employer kybperks_<hex>@test.io/Test@2026 each run.",
+  "seed_data_creation": "Each backend run inserts: 1 doc into db.custom_project_templates (custom-test-blueprint-*), 1 project_lead against that template, 1 fresh employer user + associated verification submission (approved). Cleanup selectors: db.custom_project_templates.delete_many({'title':{'$regex':'^Test blueprint'}}); db.users.delete_many({'email':{'$regex':'^kybperks_'}}).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter28 pytest file /app/backend/tests/test_iteration28_templates_trust_kyb.py covers: save-as-template (superadmin+support 403), custom template in library + pricing bundle, lead against custom template (must send seat_index in each assigned_team entry — Pydantic requires it), trusted-partner shape check (no seeded talents qualify — is_trusted_partner=false everywhere), fresh-employer KYB approval flow with double-credit guard, and verifications-with-refs scope matrix (moderation+support 200, talent 403). Frontend live-verified: /browse renders 32 talent cards (0 trusted ribbons, matches expectation); /projects/{id}/workspace shows data-testid=save-as-template-btn for admins and window.prompt() flow works; /admin admin-tab-verifications tab renders verifications-panel with all 3 filter chips + Test Talent row showing 3 YES / 1 PARTIAL / 4 PENDING chips + approve/reject buttons.",
+  "rca of the issue": "N/A — no issues found."
+}

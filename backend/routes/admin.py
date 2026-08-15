@@ -491,14 +491,33 @@ async def admin_approve_verification(uid: str, payload: VerificationDecisionIn,
     target = await db.users.find_one({"id": uid})
     if not target:
         raise HTTPException(404, "User not found")
-    await db.users.update_one(
-        {"id": uid},
-        {"$set": {"verification_status": "verified",
-                  "verified_at": now().isoformat(),
-                  "verified_by": user["id"],
-                  "verification_notes": (payload.notes or "")[:500]}},
-    )
-    return {"ok": True, "user_id": uid, "status": "verified"}
+    updates = {
+        "verification_status": "verified",
+        "verified_at": now().isoformat(),
+        "verified_by": user["id"],
+        "verification_notes": (payload.notes or "")[:500],
+    }
+    perks_granted = {}
+    # KYB perks — only granted once per employer, tracked via kyb_perks_granted
+    if target.get("role") == "employer" and not target.get("kyb_perks_granted"):
+        updates["hero_placement"] = True
+        updates["kyb_perks_granted"] = True
+        updates["kyb_perks_granted_at"] = now().isoformat()
+        perks_granted = {"hours_credited": 10, "hero_placement": True}
+    await db.users.update_one({"id": uid}, {"$set": updates})
+    if perks_granted:
+        # Increment hours_balance separately (Mongo $inc + $set can't share a top-level path with the field)
+        await db.users.update_one({"id": uid}, {"$inc": {"hours_balance": 10}})
+        await db.audit_log.insert_one({
+            "id": new_id(),
+            "actor_id": user["id"], "actor_name": user.get("name"),
+            "target_user_id": uid,
+            "kind": "kyb_perks_granted",
+            "perks": perks_granted,
+            "created_at": now().isoformat(),
+        })
+    return {"ok": True, "user_id": uid, "status": "verified",
+            "perks_granted": perks_granted}
 
 
 @api.post("/admin/verifications/{uid}/reject")

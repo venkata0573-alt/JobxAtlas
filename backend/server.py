@@ -265,7 +265,24 @@ async def list_talent(q: Optional[str] = None, skill: Optional[str] = None,
     cursor = db.users.find(query, {"_id": 0, "password_hash": 0, "email": 0, "integrations": 0,
                                     "email_verification_token": 0})
     items = await cursor.to_list(200)
-    # Add employer-facing sell rate + tier margin to every card
+    # Compute Trusted Partner status: >=5 completed engagements at avg rating >=4.5.
+    talent_ids = [u["id"] for u in items]
+    completed_map: Dict[str, int] = {}
+    if talent_ids:
+        pipeline = [
+            {"$match": {"talent_id": {"$in": talent_ids}, "status": "completed"}},
+            {"$group": {"_id": "$talent_id", "n": {"$sum": 1}}},
+        ]
+        async for row in db.engagements.aggregate(pipeline):
+            completed_map[row["_id"]] = int(row["n"])
+        rating_map: Dict[str, Dict[str, float]] = {}
+        pipeline2 = [
+            {"$match": {"reviewee_id": {"$in": talent_ids}, "status": "approved"}},
+            {"$group": {"_id": "$reviewee_id", "avg": {"$avg": "$rating"}, "n": {"$sum": 1}}},
+        ]
+        async for row in db.reviews.aggregate(pipeline2):
+            rating_map[row["_id"]] = {"avg": float(row["avg"] or 0), "n": int(row["n"])}
+    # Add employer-facing sell rate + tier margin + trust badges to every card
     from pricing import sell_rate, margin_pct
     for u in items:
         profile = u.get("profile") or {}
@@ -273,9 +290,14 @@ async def list_talent(q: Optional[str] = None, skill: Optional[str] = None,
         if tr > 0:
             u["sell_rate"] = sell_rate(tr)
             u["margin_pct"] = margin_pct(tr)
-        # Verified badge exposure — bool the frontend can read directly
         u["is_verified"] = u.get("verification_status") == "verified"
         u["email_verified"] = bool(u.get("email_verified"))
+        completed = completed_map.get(u["id"], 0)
+        rating_info = rating_map.get(u["id"], {}) if talent_ids else {}
+        avg_rating = float(rating_info.get("avg") or 0)
+        u["completed_engagements"] = completed
+        u["avg_rating"] = round(avg_rating, 2)
+        u["is_trusted_partner"] = completed >= 5 and avg_rating >= 4.5
     return items
 
 
@@ -1794,9 +1816,15 @@ PROJECT_PHASES = [
 ]
 
 
+async def _all_project_templates() -> List[Dict[str, Any]]:
+    """Static blueprints + admin-saved custom blueprints from db.custom_project_templates."""
+    custom = await db.custom_project_templates.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return list(PROJECT_TEMPLATES) + custom
+
+
 @api.get("/projects/templates")
 async def list_project_templates(industry: Optional[str] = None):
-    items = PROJECT_TEMPLATES
+    items = await _all_project_templates()
     if industry:
         items = [t for t in items if t["industry"] == industry]
     return {"templates": items, "count": len(items), "phases": PROJECT_PHASES}
@@ -1805,7 +1833,8 @@ async def list_project_templates(industry: Optional[str] = None):
 @api.get("/projects/templates/{template_id}")
 async def get_project_template(template_id: str):
     from pricing import price_team, tiers_summary
-    for t in PROJECT_TEMPLATES:
+    templates = await _all_project_templates()
+    for t in templates:
         if t["id"] == template_id:
             # Price the default team using rate_range mid for each seat
             seats = []
@@ -1955,6 +1984,9 @@ async def submit_project_lead(payload: ProjectLeadIn):
         }
     else:
         template = next((t for t in PROJECT_TEMPLATES if t["id"] == payload.template_id), None)
+        if not template:
+            # Check admin-saved custom blueprints
+            template = await db.custom_project_templates.find_one({"id": payload.template_id}, {"_id": 0})
         if not template:
             raise HTTPException(400, "Unknown template_id")
     # Build the seat list: prefer the buyer-assembled team; else the template default

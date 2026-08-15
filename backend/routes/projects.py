@@ -1334,3 +1334,107 @@ async def admin_scan_overdue(user: dict = Depends(get_current_user)):
         "at": now().isoformat(), "result": result, "manual": True,
     })
     return result
+
+
+# ---------- Save a live project as a permanent template ----------
+import re
+
+
+class SaveAsTemplateIn(BaseModel):
+    title: str
+    industry: str
+    summary: Optional[str] = ""
+
+
+def _slugify(s: str) -> str:
+    s = re.sub(r"[^a-z0-9]+", "-", (s or "").lower()).strip("-")
+    return s or "custom"
+
+
+@api.post("/admin/projects/{project_id}/save-as-template")
+async def save_project_as_template(project_id: str, payload: SaveAsTemplateIn,
+                                    user: dict = Depends(get_current_user)):
+    """Superadmin promotes a successful project's team into the permanent
+    blueprint library. Preserves the seat structure + rate ranges as a
+    ±20% band around the actual rate paid."""
+    if not (has_admin_scope(user, "superadmin") or has_admin_scope(user, "customization")):
+        raise HTTPException(403, "Requires superadmin or customization scope")
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(404, "Project not found")
+    seats = project.get("assigned_team") or []
+    if not seats:
+        raise HTTPException(400, "Project has no team to snapshot")
+    # Group by role → count + averaged rate → ±20% band
+    role_agg: Dict[str, Dict[str, Any]] = {}
+    for s in seats:
+        role = s.get("role") or "Contributor"
+        r = float(s.get("rate") or 0)
+        if role not in role_agg:
+            role_agg[role] = {"count": 0, "sum_rate": 0.0, "n_rated": 0}
+        role_agg[role]["count"] += 1
+        if r > 0:
+            role_agg[role]["sum_rate"] += r
+            role_agg[role]["n_rated"] += 1
+    team = []
+    for role, agg in role_agg.items():
+        avg = (agg["sum_rate"] / agg["n_rated"]) if agg["n_rated"] else 100.0
+        low = max(30, int(round(avg * 0.85)))
+        high = int(round(avg * 1.15))
+        team.append({"role": role, "count": agg["count"],
+                      "rate_range": [low, high]})
+    base_slug = _slugify(payload.title)
+    slug = f"custom-{base_slug}"
+    # Uniqueness — collide with a suffix if needed
+    while await db.custom_project_templates.find_one({"id": slug}, {"id": 1}):
+        slug = f"{slug}-{secrets.token_hex(2)}"
+    doc = {
+        "id": slug,
+        "industry": payload.industry,
+        "title": payload.title[:120],
+        "summary": (payload.summary or project.get("template_title") or "")[:500],
+        "duration_months": int(project.get("duration_months") or 6),
+        "team": team,
+        "source_project_id": project_id,
+        "source_company": project.get("company_name"),
+        "created_by": user["id"],
+        "created_at": now().isoformat(),
+    }
+    await db.custom_project_templates.insert_one(doc)
+    doc.pop("_id", None)
+    return {"ok": True, "template": doc}
+
+
+import secrets  # placed at bottom so the module-level import order stays tidy
+
+
+# ---------- Reference-check summary alongside verifications ----------
+@api.get("/admin/verifications-with-refs")
+async def admin_verifications_with_refs(status: Optional[str] = "pending",
+                                         user: dict = Depends(get_current_user)):
+    """Same as /admin/verifications but joins each talent row with a
+    reference-check summary so ops can approve BGV in one screen."""
+    if not (has_admin_scope(user, "moderation") or has_admin_scope(user, "support")):
+        raise HTTPException(403, "Requires moderation or support scope")
+    q = {}
+    if status in ("pending", "verified", "rejected", "none"):
+        q["verification_status"] = status
+    users = await db.users.find(q, {"_id": 0, "password_hash": 0,
+                                     "email_verification_token": 0}).sort("verification_submitted_at", 1).to_list(200)
+    out = []
+    for u in users:
+        refs = []
+        if u.get("role") == "talent":
+            refs = await db.reference_checks.find(
+                {"talent_id": u["id"]}, {"_id": 0, "token": 0},
+            ).sort("sent_at", -1).to_list(10)
+        summary = {
+            "total": len(refs),
+            "yes":     sum(1 for r in refs if r.get("response") == "yes"),
+            "partial": sum(1 for r in refs if r.get("response") == "partial"),
+            "no":      sum(1 for r in refs if r.get("response") == "no"),
+            "pending": sum(1 for r in refs if r.get("response") is None),
+        }
+        out.append({**u, "reference_checks": refs, "reference_summary": summary})
+    return {"items": out, "count": len(out)}
+

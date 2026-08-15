@@ -108,9 +108,28 @@ export default function ProjectWorkspace() {
           <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mt-1">{p.company_name}</h1>
           <p className="text-sm text-neutral-500 mt-1 font-mono">{p.template_title}</p>
         </div>
-        <span className={`hard-border px-4 py-2 text-xs font-mono uppercase tracking-widest ${p.status === "active" ? "bg-[#0B1B2B] text-[#C79A3B]" : "bg-neutral-200"}`}>
-          {p.status}
-        </span>
+        <div className="flex items-center gap-2">
+          {isAdmin && p.assigned_team?.length > 0 && (
+            <button
+              onClick={async () => {
+                const title = window.prompt("Template title", `${p.template_title} · ${p.industry}`);
+                if (!title) return;
+                try {
+                  const r = await api.post(`/admin/projects/${p.id}/save-as-template`, {
+                    title, industry: p.industry || "Other",
+                    summary: `Adapted from ${p.company_name}`,
+                  });
+                  toast.success(`Saved as template ${r.data.template.id}`);
+                } catch (e) { toast.error(formatErr(e)); }
+              }}
+              className="btn-outline text-xs" data-testid="save-as-template-btn">
+              ⋮ Save as template
+            </button>
+          )}
+          <span className={`hard-border px-4 py-2 text-xs font-mono uppercase tracking-widest ${p.status === "active" ? "bg-[#0B1B2B] text-[#C79A3B]" : "bg-neutral-200"}`}>
+            {p.status}
+          </span>
+        </div>
       </div>
 
       {/* Rollup grid */}
