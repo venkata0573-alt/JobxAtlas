@@ -850,3 +850,268 @@ def is_proven_reliable(profile: dict) -> bool:
     except Exception:
         return False
 
+
+
+# ---- Refund Audit Export (signed PDF for finance reconciliation) -----------
+def _refund_audit_signature(rows: List[dict], period_start: str, period_end: str) -> str:
+    """Deterministic SHA-256 over the rendered rows. Any edit invalidates it."""
+    import hashlib, json as _json
+    canonical = _json.dumps(
+        {"start": period_start, "end": period_end, "rows": rows},
+        sort_keys=True, separators=(",", ":"),
+    ).encode()
+    salt = os.environ.get("REFUND_AUDIT_SIGN_SECRET",
+                          os.environ.get("DRILL_SIGN_SECRET", "jobatlas-refund-v1")).encode()
+    return hashlib.sha256(salt + canonical).hexdigest()
+
+
+async def _refund_audit_rows(days: int = 30) -> tuple:
+    """Return (rows[], period_start_iso, period_end_iso) for the PDF export.
+    Each row is fully denormalised — grievance ref, amount, payer + admin
+    initials, refund id, reason — so the PDF is self-contained."""
+    start_dt = (now() - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    end_dt = now()
+    start_iso = start_dt.isoformat()
+    end_iso = end_dt.isoformat()
+
+    txs = await db.dispute_fee_transactions.find(
+        {"refunded_at": {"$gte": start_iso}},
+        {"_id": 0},
+    ).sort("refunded_at", -1).to_list(500)
+
+    # Batch-load users + grievances referenced by the txs
+    grievance_ids = list({t.get("grievance_id") for t in txs if t.get("grievance_id")})
+    admin_ids = list({t.get("refunded_by_id") for t in txs if t.get("refunded_by_id")})
+    payer_ids = list({t.get("payer_id") for t in txs if t.get("payer_id")})
+    ids = list(set(admin_ids + payer_ids))
+
+    g_by_id = {}
+    if grievance_ids:
+        async for g in db.grievances.find({"id": {"$in": grievance_ids}},
+                                           {"_id": 0, "id": 1, "ref": 1, "ruling": 1,
+                                            "talent_id": 1, "employer_id": 1}):
+            g_by_id[g["id"]] = g
+    u_by_id = {}
+    if ids:
+        async for u in db.users.find({"id": {"$in": ids}},
+                                      {"_id": 0, "id": 1, "name": 1, "email": 1}):
+            u_by_id[u["id"]] = u
+
+    rows: List[dict] = []
+    # Local anonymiser — mirrors the one in routes/auth.py
+    def _init(name: str) -> str:
+        if not name:
+            return "—"
+        parts = [p for p in str(name).strip().split() if p]
+        if not parts:
+            return "—"
+        if len(parts) == 1:
+            return (parts[0][0] + ".").upper()
+        return ".".join(p[0].upper() for p in parts[:2]) + "."
+
+    for t in txs:
+        g = g_by_id.get(t.get("grievance_id"), {})
+        payer = u_by_id.get(t.get("payer_id"), {})
+        admin = u_by_id.get(t.get("refunded_by_id"), {})
+        rows.append({
+            "refunded_at": t.get("refunded_at"),
+            "ref": g.get("ref") or "—",
+            "amount_usd": round((t.get("amount_cents") or 0) / 100.0, 2),
+            "payer": _init(payer.get("name") or ""),
+            "refund_id": t.get("refund_id") or "—",
+            "reason": (t.get("refund_reason") or "")[:180],
+            "admin": _init(admin.get("name") or ""),
+            "ruling": g.get("ruling") or "—",
+        })
+    return rows, start_iso, end_iso
+
+
+@api.get("/admin/revisions/refund-audit/pdf")
+async def admin_refund_audit_pdf(days: int = 30, request: Request = None,
+                                   user: dict = Depends(get_current_user)):
+    """Signed PDF of the last N days of refunds. Finance-reconciliation ready:
+    header + totals + per-row (ref, $amount, payer initials, refund_id, reason,
+    admin initials) + SHA-256 signature footer + verification QR."""
+    if not has_admin_scope(user, "moderation"):
+        raise HTTPException(403, "Requires moderation scope")
+    if days < 1 or days > 365:
+        raise HTTPException(400, "days must be between 1 and 365")
+    from fastapi.responses import Response as _R
+
+    rows, start_iso, end_iso = await _refund_audit_rows(days)
+    sig = _refund_audit_signature(rows, start_iso, end_iso)
+
+    # Persist receipt so /verify can vouch for authenticity forever.
+    await db.refund_audit_receipts.insert_one({
+        "id": new_id(), "signature": sig, "period_start": start_iso,
+        "period_end": end_iso, "row_count": len(rows),
+        "amount_total_usd": round(sum(r["amount_usd"] for r in rows), 2),
+        "issued_by_id": user["id"], "issued_at": now().isoformat(),
+    })
+
+    base_url = os.environ.get("PUBLIC_BASE_URL", "")
+    if not base_url and isinstance(request, Request):
+        proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+        if host:
+            base_url = f"{proto}://{host}"
+
+    pdf_bytes = _render_refund_audit_pdf(
+        rows=rows, period_start=start_iso, period_end=end_iso,
+        signature=sig, base_url=base_url,
+    )
+    fname = f"jobatlas-refund-audit-{end_iso[:10]}.pdf"
+    return _R(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"',
+                 "X-Audit-Signature": sig},
+    )
+
+
+@api.get("/admin/revisions/refund-audit/verify/{signature}")
+async def admin_refund_audit_verify(signature: str,
+                                     user: dict = Depends(get_current_user)):
+    """Look up an audit receipt by signature. Confirms this PDF was really
+    issued by Job Atlas. Full tamper-check requires re-running the query for
+    the same window and comparing the recomputed hash."""
+    if not has_admin_scope(user, "moderation"):
+        raise HTTPException(403, "Requires moderation scope")
+    r = await db.refund_audit_receipts.find_one({"signature": signature}, {"_id": 0})
+    return {"receipt_found": bool(r), "receipt": r}
+
+
+def _render_refund_audit_pdf(*, rows: List[dict], period_start: str,
+                              period_end: str, signature: str,
+                              base_url: str = "") -> bytes:
+    """Branded refund-audit PDF. Uses the same visual language as the /trust
+    drill export (violet + ink, QR-verifiable footer) but tabular for finance."""
+    import io
+    import qrcode
+    from reportlab.lib.pagesizes import LETTER
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.pdfgen import canvas as _canvas
+    from reportlab.lib.utils import ImageReader
+
+    VIOLET = colors.HexColor("#6B21A8")
+    INK = colors.HexColor("#0B1B2B")
+    VIOLET_50 = colors.HexColor("#F5F3FF")
+    MUTED = colors.HexColor("#6B6B6B")
+    RED = colors.HexColor("#DC2626")
+
+    buf = io.BytesIO()
+    c = _canvas.Canvas(buf, pagesize=LETTER)
+    W, H = LETTER
+    _base_url = base_url
+    total_amount = round(sum(r["amount_usd"] for r in rows), 2)
+
+    def _header(page_num: int):
+        c.setFillColor(INK); c.rect(0, H - 0.9 * inch, W, 0.9 * inch, stroke=0, fill=1)
+        c.setFillColor(colors.white); c.setFont("Helvetica-Bold", 16)
+        c.drawString(0.6 * inch, H - 0.55 * inch, "Job Atlas · Refund Audit")
+        c.setFillColor(VIOLET); c.setFont("Helvetica", 9)
+        c.drawString(0.6 * inch, H - 0.75 * inch,
+                     f"PERIOD  {period_start[:10]}  →  {period_end[:10]}")
+        c.setFillColor(colors.white); c.setFont("Helvetica", 8)
+        c.drawRightString(W - 0.6 * inch, H - 0.55 * inch,
+                          f"Generated {period_end[:19].replace('T', ' ')} UTC")
+        c.drawRightString(W - 0.6 * inch, H - 0.75 * inch, f"Page {page_num}")
+
+    def _footer():
+        y = 0.55 * inch
+        c.setStrokeColor(colors.HexColor("#e5e7eb"))
+        c.line(0.6 * inch, y + 0.75 * inch, W - 0.6 * inch, y + 0.75 * inch)
+        verify_url = f"{_base_url}/api/admin/revisions/refund-audit/verify/{signature}" if _base_url else f"/verify/{signature}"
+        qr = qrcode.QRCode(version=1, box_size=6, border=1)
+        qr.add_data(verify_url); qr.make(fit=True)
+        img = qr.make_image(fill_color="#0B1B2B", back_color="white")
+        img_buf = io.BytesIO(); img.save(img_buf, format="PNG"); img_buf.seek(0)
+        c.drawImage(ImageReader(img_buf), 0.6 * inch, y - 0.05 * inch,
+                    width=0.75 * inch, height=0.75 * inch)
+        c.setFillColor(MUTED); c.setFont("Helvetica-Bold", 8)
+        c.drawString(1.5 * inch, y + 0.6 * inch, "Signature · SHA-256")
+        c.setFillColor(INK); c.setFont("Courier", 7)
+        c.drawString(1.5 * inch, y + 0.45 * inch, signature[:44])
+        c.drawString(1.5 * inch, y + 0.32 * inch, signature[44:])
+        c.setFillColor(MUTED); c.setFont("Helvetica", 7)
+        c.drawString(1.5 * inch, y + 0.15 * inch,
+                     "Scan the QR or GET /api/admin/revisions/refund-audit/verify/{signature} to verify.")
+        c.drawString(1.5 * inch, y + 0.03 * inch,
+                     "Any edit to the rows above invalidates this signature.")
+
+    page = 1; _header(page)
+    y = H - 1.15 * inch
+
+    # Totals card
+    c.setFillColor(VIOLET_50); c.rect(0.6 * inch, y - 0.75 * inch, W - 1.2 * inch, 0.7 * inch, stroke=0, fill=1)
+    c.setFillColor(INK); c.setFont("Helvetica-Bold", 10)
+    c.drawString(0.75 * inch, y - 0.15 * inch, f"{len(rows)} refund(s) · ${total_amount:.2f} returned to card")
+    c.setFillColor(MUTED); c.setFont("Helvetica", 9)
+    c.drawString(0.75 * inch, y - 0.35 * inch,
+                 "Anonymised to initials. Reconcile against Stripe Refunds using the refund_id column.")
+    c.drawString(0.75 * inch, y - 0.55 * inch,
+                 "Sorted newest first. Each row is a separate refund event.")
+    y -= 1.1 * inch
+
+    # Table header
+    def _table_header():
+        c.setFillColor(INK); c.rect(0.6 * inch, y - 0.02 * inch, W - 1.2 * inch, 0.28 * inch, stroke=0, fill=1)
+        c.setFillColor(colors.white); c.setFont("Helvetica-Bold", 8)
+        c.drawString(0.65 * inch, y + 0.09 * inch, "DATE")
+        c.drawString(1.55 * inch, y + 0.09 * inch, "REF")
+        c.drawString(2.55 * inch, y + 0.09 * inch, "AMOUNT")
+        c.drawString(3.30 * inch, y + 0.09 * inch, "PAYER")
+        c.drawString(3.90 * inch, y + 0.09 * inch, "RULING")
+        c.drawString(4.60 * inch, y + 0.09 * inch, "REFUND ID")
+        c.drawString(6.30 * inch, y + 0.09 * inch, "ADMIN")
+
+    if not rows:
+        _table_header()
+        y -= 0.5 * inch
+        c.setFillColor(MUTED); c.setFont("Helvetica-Oblique", 11)
+        c.drawString(0.75 * inch, y, "No refunds in this period.")
+        _footer(); c.showPage(); c.save()
+        return buf.getvalue()
+
+    _table_header(); y -= 0.32 * inch
+    row_h = 0.35 * inch
+
+    for r in rows:
+        # New page if needed
+        if y < 1.6 * inch:
+            _footer(); c.showPage(); page += 1; _header(page)
+            y = H - 1.15 * inch
+            _table_header(); y -= 0.32 * inch
+
+        c.setStrokeColor(colors.HexColor("#e5e7eb"))
+        c.setFillColor(colors.white)
+        c.rect(0.6 * inch, y - 0.2 * inch, W - 1.2 * inch, row_h - 0.05 * inch, stroke=1, fill=1)
+
+        c.setFillColor(INK); c.setFont("Helvetica", 8)
+        d = (r.get("refunded_at") or "")[:10]
+        c.drawString(0.65 * inch, y - 0.05 * inch, d)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(1.55 * inch, y - 0.05 * inch, (r.get("ref") or "—")[:15])
+        c.setFillColor(RED); c.setFont("Helvetica-Bold", 9)
+        c.drawString(2.55 * inch, y - 0.05 * inch, f"-${r.get('amount_usd', 0):.2f}")
+        c.setFillColor(INK); c.setFont("Helvetica", 8)
+        c.drawString(3.30 * inch, y - 0.05 * inch, (r.get("payer") or "—")[:8])
+        c.setFillColor(VIOLET); c.setFont("Helvetica-Bold", 7)
+        c.drawString(3.90 * inch, y - 0.05 * inch, (r.get("ruling") or "—").upper()[:8])
+        c.setFillColor(INK); c.setFont("Courier", 7)
+        c.drawString(4.60 * inch, y - 0.05 * inch, (r.get("refund_id") or "—")[:24])
+        c.setFont("Helvetica", 8)
+        c.drawString(6.30 * inch, y - 0.05 * inch, (r.get("admin") or "—")[:8])
+
+        # Reason on second line, wrapped
+        reason = (r.get("reason") or "").strip()
+        if reason:
+            c.setFillColor(MUTED); c.setFont("Helvetica-Oblique", 7)
+            c.drawString(0.65 * inch, y - 0.17 * inch, f"Reason: {reason[:130]}")
+
+        y -= row_h
+
+    _footer(); c.showPage(); c.save()
+    return buf.getvalue()
+

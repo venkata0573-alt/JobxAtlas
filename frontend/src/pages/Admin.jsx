@@ -1059,15 +1059,23 @@ function RefundAnalyticsCard({ analytics }) {
             </p>
           </div>
         </div>
-        {isAlert && (
-          <span className="hard-border px-3 py-1 bg-red-600 text-white text-[10px] font-mono uppercase tracking-widest"
-                data-testid="refund-alert-chip">
-            ⚠ Above {alert.threshold_pct}% threshold
-          </span>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {isAlert && (
+            <span className="hard-border px-3 py-1 bg-red-600 text-white text-[10px] font-mono uppercase tracking-widest"
+                  data-testid="refund-alert-chip">
+              ⚠ Above {alert.threshold_pct}% threshold
+            </span>
+          )}
+          <a
+            href={`${process.env.REACT_APP_BACKEND_URL}/api/admin/revisions/refund-audit/pdf`}
+            target="_blank" rel="noreferrer noopener"
+            className="hard-border bg-white text-[#6B21A8] hover:bg-[#F5F3FF] text-[11px] font-mono uppercase tracking-widest px-3 py-1 inline-flex items-center gap-1"
+            data-testid="refund-audit-download">
+            ⬇ Signed audit PDF
+          </a>
+        </div>
       </div>
-      <div className="h-32" data-testid="refund-analytics-chart">
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="h-32" data-testid="refund-analytics-chart">        <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={series} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="grad-paid" x1="0" y1="0" x2="0" y2="1">

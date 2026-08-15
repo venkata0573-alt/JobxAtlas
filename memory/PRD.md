@@ -32,6 +32,12 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
+## Implemented (2026-02-15, iteration 37 — Signed Refund Audit PDF export)
+- **New backend endpoint** `GET /api/admin/revisions/refund-audit/pdf?days=30` (moderation scope) renders a branded reportlab PDF: header, totals card, one row per refund with `{date, ref, -$amount, payer initials, ruling, refund_id, admin initials, reason}`. Footer carries a SHA-256 signature (env-tunable salt `REFUND_AUDIT_SIGN_SECRET`, falls back to `DRILL_SIGN_SECRET`) + QR code pointing to `GET /api/admin/revisions/refund-audit/verify/{signature}`. Receipts persisted in `db.refund_audit_receipts` for later reconciliation.
+- **Verify endpoint** `GET /api/admin/revisions/refund-audit/verify/{signature}` (moderation) confirms a PDF was really issued by Job Atlas by returning the stored receipt (`{period_start, period_end, row_count, amount_total_usd, issued_by_id, issued_at}`).
+- **Frontend button** `data-testid=refund-audit-download` sits inside the Admin → Revisions refund analytics card. Uses the current session cookie so a click downloads instantly.
+- Verified live: PDF is 11.7 KB, `%PDF-` header valid, X-Audit-Signature response header exposes the SHA-256, verify endpoint returns the stored receipt with matching amount ($49 out).
+
 ## Implemented (2026-02-15, iteration 36 — Refund Analytics chart on Admin Revisions)
 - **New backend endpoint** `GET /api/admin/revisions/refund-analytics` (moderation scope) — 30-day daily series with `{date, paid, refunded, refund_rate_pct}` per day + rolling totals `{paid_30d, refunded_30d, refund_rate_pct, amount_refunded_usd}`. Auto-alert breach flag when rolling rate ≥ `REFUND_ALERT_THRESHOLD_PCT` (default 20).
 - **Frontend** `RefundAnalyticsCard` sits at the top of the Admin → Revisions panel (`data-testid=refund-analytics-card`). Recharts stacked area — violet gradient for paid, red gradient for refunded. Big rolling headline (`data-testid=refund-rate-pct`) + a red "⚠ ABOVE N% threshold" chip (`data-testid=refund-alert-chip`) when the rate breaches.
