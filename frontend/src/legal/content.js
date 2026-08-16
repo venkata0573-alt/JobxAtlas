@@ -25,11 +25,13 @@ export const COMPANY = {
   jurisdiction: "India (Hyderabad, Telangana)",
   gstin: "36AAGCD3748K1ZC",
   registered_office: "Hyderabad, Telangana, India",
-  grievance_email: "grievance@talenthub.io",
+  grievance_email: "grievance@geminista.com",
+  grievance_officer_name: "M. Hasan",
+  grievance_officer_phone: "+91 90109 08194",
   support_email: "hello@talenthub.io",
   dpo_email: "privacy@geminista.io",
-  effective_date: "15 February 2026",
-  version: "v1.0 — 15 February 2026",
+  effective_date: "16 February 2026",
+  version: "v1.1 — 16 February 2026",
 };
 
 // ---------------------------------------------------------------------------
@@ -195,9 +197,10 @@ BY ACCESSING OR USING THE PLATFORM YOU AGREE TO BE BOUND BY THESE TERMS. IF YOU 
 
 26. GRIEVANCE OFFICER (INDIA, IT RULES 2021)
 As required by Rule 3(2)(a) of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021:
-    Grievance Officer:  [NAME TO BE INSERTED]
+    Grievance Officer:  ${COMPANY.grievance_officer_name}
     Address:            ${COMPANY.registered_office}
     Email:              ${COMPANY.grievance_email}
+    Phone:              ${COMPANY.grievance_officer_phone}
     Response window:    24 hours acknowledgement, 15 days resolution.
 
 27. SANCTIONS, EXPORT CONTROL, ANTI-BRIBERY

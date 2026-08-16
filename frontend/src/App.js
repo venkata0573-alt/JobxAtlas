@@ -5,6 +5,8 @@ import "@/App.css";
 
 import { AuthProvider } from "@/context/AuthContext";
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import CookieConsent from "@/components/CookieConsent";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 import Landing from "@/pages/Landing";
@@ -37,6 +39,7 @@ import VerifyEmail from "@/pages/VerifyEmail";
 import Verification from "@/pages/Verification";
 import ReferenceCheck from "@/pages/ReferenceCheck";
 import Trust from "@/pages/Trust";
+import SubProcessors from "@/pages/SubProcessors";
 
 function App() {
   return (
@@ -72,10 +75,13 @@ function App() {
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             <Route path="/grievance" element={<Grievance />} />
             <Route path="/legal" element={<Legal />} />
+            <Route path="/subprocessors" element={<SubProcessors />} />
             <Route path="/talent/earnings" element={<ProtectedRoute role="talent"><Earnings /></ProtectedRoute>} />
             <Route path="/referrals" element={<ProtectedRoute><Referral /></ProtectedRoute>} />
             <Route path="/hire/:slug" element={<SkillLanding />} />
           </Routes>
+          <Footer />
+          <CookieConsent />
           <Toaster position="top-right" richColors />
         </AuthProvider>
       </BrowserRouter>
