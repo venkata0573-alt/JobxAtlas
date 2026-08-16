@@ -1,128 +1,70 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import api from "@/lib/api";
-import { FileText } from "@phosphor-icons/react";
+import { FileText, Warning } from "@phosphor-icons/react";
+import { TERMS, PRIVACY, REFUND, AUP, COOKIES, COMPANY } from "@/legal/content";
 
 const DOCS = {
-  terms: {
-    title: "Terms of Service",
-    body: `These Terms govern your access to and use of Job Atlas (the "Platform"), operated by
-Denkoit Softech Pvt. Ltd., a company registered in Hyderabad, Telangana, India (GSTIN 36AAGCD3748K1ZC).
-
-1. Eligibility. You must be 18+ and legally able to enter into contracts in your jurisdiction.
-2. Marketplace role. The Platform introduces employers and independent professionals ("Talent"). We are not the
-   employer of the Talent nor the agent of any employer. All engagements are contracts between the parties.
-3. Hour packages & payments. Employers purchase hour packages via card or Indian bank transfer. Hours are
-   allocated by the employer to specific engagements, tracked and deducted per approved deliverable.
-4. 12-Month Exclusivity. Talent introduced to an Employer via the Platform may not be hired or engaged
-   directly outside the Platform for 12 months from first engagement, and vice versa. Breach entitles the
-   Platform to a liquidated fee equal to six (6) months of projected fees.
-5. On-site engagements. Where an engagement is on-site or hybrid, both parties must acknowledge the health,
-   safety, transport and legal-conduct clauses recorded in the contract before signing.
-6. Illegal conduct. Any illegal act at the work location is the sole responsibility of the acting party. The
-   Platform disclaims all liability, does not condone and does not support such conduct.
-7. Fees. Employer platform fee is 8% of hours purchased on paid plans. Talent commission on hourly rates is
-   volume-tiered (8% → 4%). A multi-employer monthly fee of $9 / ₹749 applies when a Talent has active
-   engagements with more than one Employer in the same calendar month.
-8. Termination. Either party may terminate an engagement for cause on 7 days notice. Unused hours revert.
-9. Governing law. These Terms are governed by the laws of India. Courts of Hyderabad shall have exclusive
-   jurisdiction.`
-  },
-  privacy: {
-    title: "Privacy Policy",
-    body: `Denkoit Softech Pvt. Ltd. ("we") collects and processes personal data to operate Job Atlas. We are the
-data controller for the purposes of applicable data-protection laws including India's Digital Personal Data
-Protection Act.
-
-Data we collect: name, email, payment metadata, profile & portfolio info you upload, connected accounts &
-tokens (encrypted at rest), calendar availability, engagement & deliverable records.
-
-Purpose: providing the service, fraud prevention, statutory reporting (including GST invoicing), grievance
-handling, and product improvement.
-
-Retention: engagement records are retained for 7 years for statutory & tax compliance. You may request
-deletion of personal data not required for such compliance by writing to grievance@talenthub.io.
-
-International transfers: we may use sub-processors outside India (Stripe, cloud hosting) with appropriate
-contractual safeguards.
-
-Cookies: session cookies for authentication (httpOnly). No third-party ad tracking.
-
-Your rights: access, rectification, portability, and erasure — write to grievance@talenthub.io with a copy of
-your ID for verification.`
-  },
-  refund: {
-    title: "Refund Policy",
-    body: `1. Unused hours are refundable at the employer's request within 12 months of purchase, minus the platform
-   fee and any transaction fees. Bank-transfer refunds are processed within 7 working days.
-2. Hours already allocated to signed engagements are not refundable but may be reassigned to another
-   talent on the platform if the original engagement is terminated for cause.
-3. Subscription plan fees (Starter, Growth) are non-refundable but can be cancelled anytime and take effect
-   at the end of the current billing cycle.
-4. Multi-employer monthly fees for talent are charged in arrears and are non-refundable once billed.
-5. All refund requests must be submitted in writing to grievance@talenthub.io with the transaction reference.`
-  },
-  acceptable_use: {
-    title: "Acceptable Use",
-    body: `You may not use Job Atlas to:
-· Circumvent the platform to transact directly with an introduced party (breach of exclusivity).
-· Post misleading skills, credentials or portfolio.
-· Upload malware, illegal content, or content that violates intellectual property rights.
-· Harass, threaten or discriminate against other users.
-· Engage in illegal activity — the platform will suspend accounts and cooperate with lawful investigations.`
-  },
-  exclusivity: {
-    title: "12-Month Exclusivity Terms",
-    body: `The exclusivity clause is a foundational protection for the Platform's marketplace. For 12 months from the
-effective date of any signed engagement:
-· Employer shall not directly engage, hire or contract the Talent outside the Platform.
-· Talent shall not accept work directly from the Employer outside the Platform.
-· All communication and payment must remain on-platform.
-· Introductions to third parties from either side are subject to the same 12-month period.
-
-Breach entitles the Platform to invoice a liquidated fee equal to six (6) months of the projected engagement
-fees, plus recovery of reasonable enforcement costs.`
-  },
+  terms:          { title: "Terms of Service",     body: TERMS,   summary: "Master Services Agreement covering marketplace nature, exclusivity, fees, IP, disputes and governing law." },
+  privacy:        { title: "Privacy Policy",       body: PRIVACY, summary: "GDPR / UK GDPR / DPDP-Act compliant. Explains what we collect, why, sub-processors, retention, and your rights." },
+  refund:         { title: "Refund Policy",        body: REFUND,  summary: "How refunds work for hour packages, projects, subscriptions, arbitration fees and chargebacks." },
+  acceptable_use: { title: "Acceptable Use",       body: AUP,     summary: "Prohibited conduct, IP take-down, marketplace integrity, enforcement ladder and appeals." },
+  cookies:        { title: "Cookie Notice",        body: COOKIES, summary: "Short list of the cookies we set — no third-party ad trackers." },
 };
 
 export default function Legal() {
-  const [legal, setLegal] = useState(null);
   const [active, setActive] = useState("terms");
-  useEffect(() => { api.get("/legal").then((r) => setLegal(r.data)); }, []);
+  const doc = DOCS[active];
 
   return (
-    <main className="max-w-6xl mx-auto px-6 md:px-12 py-16">
+    <main className="max-w-6xl mx-auto px-6 md:px-12 py-16" data-testid="legal-page">
       <p className="overline text-[#6B21A8] mb-3">LEGAL &amp; COMPLIANCE</p>
       <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-3">Everything, in writing.</h1>
-      {legal && (
-        <p className="text-sm text-neutral-500 font-mono mb-8">
-          {legal.company.product} · {legal.company.brand} · {legal.company.legal_name} · {legal.company.registered_office} · GSTIN {legal.company.gstin}
-        </p>
-      )}
+      <p className="text-sm text-neutral-500 font-mono mb-6">
+        {COMPANY.product} · {COMPANY.parent_brand} · {COMPANY.legal_name} · {COMPANY.registered_office} · GSTIN {COMPANY.gstin} · {COMPANY.version}
+      </p>
 
-      <div className="grid md:grid-cols-[220px_1fr] gap-6">
-        <nav className="hard-border bg-white p-4 shadow-brutal h-fit">
+      {/* Counsel-review banner */}
+      <div className="hard-border bg-[#FEF9C3] border-yellow-500 p-4 mb-8 flex items-start gap-3" data-testid="legal-review-banner">
+        <div className="hard-border bg-[#0B1B2B] text-[#A78BFA] w-9 h-9 flex items-center justify-center shrink-0">
+          <Warning size={18} weight="duotone"/>
+        </div>
+        <div className="text-sm">
+          <p className="font-display font-extrabold text-[#854D0E]">Template — pending counsel review.</p>
+          <p className="text-[13px] text-neutral-700 mt-1 leading-relaxed">
+            These documents are drafted to be broadly protective of Job Atlas and {COMPANY.parent_brand} across India, the EU/UK and the United States.
+            They must be reviewed and localised by qualified counsel in each operating jurisdiction before publication or reliance in any dispute.
+            Nothing on this page constitutes legal advice.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-[240px_1fr] gap-6">
+        <nav className="hard-border bg-white p-4 shadow-brutal h-fit" data-testid="legal-nav">
           <p className="overline mb-3">Documents</p>
           <ul className="space-y-1">
             {Object.entries(DOCS).map(([id, d]) => (
               <li key={id}>
                 <button onClick={() => setActive(id)}
-                        className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 ${active === id ? "bg-[#0A0A0A] text-white" : "hover:bg-neutral-100"}`}>
+                        data-testid={`legal-tab-${id}`}
+                        className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 ${active === id ? "bg-[#0B1B2B] text-white" : "hover:bg-[#F5F3FF]"}`}>
                   <FileText size={14} weight="duotone"/> {d.title}
                 </button>
               </li>
             ))}
           </ul>
-          <div className="mt-6 pt-4 border-t border-black/10 text-xs font-mono text-neutral-500">
-            <p>Support: hello@talenthub.io</p>
-            <p>Grievance: grievance@talenthub.io</p>
+          <div className="mt-6 pt-4 border-t border-black/10 text-xs font-mono text-neutral-500 space-y-1">
+            <p>Support: {COMPANY.support_email}</p>
+            <p>Grievance: {COMPANY.grievance_email}</p>
+            <p>DPO: {COMPANY.dpo_email}</p>
             <p className="mt-2"><Link to="/grievance" className="underline">Raise a grievance →</Link></p>
           </div>
         </nav>
-        <article className="hard-border bg-white p-8 md:p-10 shadow-brutal">
-          <h2 className="font-display font-extrabold text-3xl tracking-tight mb-6">{DOCS[active].title}</h2>
-          <pre className="whitespace-pre-wrap font-body leading-relaxed text-sm text-neutral-800" style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}>
-{DOCS[active].body}
+
+        <article className="hard-border bg-white p-8 md:p-10 shadow-brutal" data-testid={`legal-doc-${active}`}>
+          <h2 className="font-display font-extrabold text-3xl tracking-tight mb-2">{doc.title}</h2>
+          <p className="text-sm text-neutral-500 mb-6">{doc.summary}</p>
+          <pre className="whitespace-pre-wrap font-body leading-relaxed text-sm text-neutral-800" style={{ fontFamily: "'IBM Plex Sans', 'Inter', sans-serif" }}>
+{doc.body.trim()}
           </pre>
         </article>
       </div>
