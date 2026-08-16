@@ -915,7 +915,7 @@ class TestGrievances:
         d = r.json()
         assert d["ok"] is True
         assert d["reference"]
-        assert d["email_to"] == "grievance@talenthub.io"
+        assert d["email_to"] == "grievance@geminista.com"
         TestGrievances.gid = d["reference"]
 
     def test_submit_grievance_validation(self):

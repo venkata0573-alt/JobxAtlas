@@ -20,7 +20,7 @@ export default function Legal() {
       <p className="overline text-[#6B21A8] mb-3">LEGAL &amp; COMPLIANCE</p>
       <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-3">Everything, in writing.</h1>
       <p className="text-sm text-neutral-500 font-mono mb-6">
-        {COMPANY.product} · {COMPANY.parent_brand} · {COMPANY.legal_name} · {COMPANY.registered_office} · GSTIN {COMPANY.gstin} · {COMPANY.version}
+        {COMPANY.product} · {COMPANY.parent_brand} · {COMPANY.legal_name} · {COMPANY.registered_office} · CIN {COMPANY.cin} · GSTIN {COMPANY.gstin} · {COMPANY.version}
       </p>
 
       {/* Counsel-review banner */}

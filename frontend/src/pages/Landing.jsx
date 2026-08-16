@@ -358,38 +358,6 @@ export default function Landing() {
           </div>
         </div>
       </section>
-
-      <footer className="bg-black text-neutral-500 text-sm border-t border-neutral-900">
-        <div className="max-w-7xl mx-auto px-6 md:px-12 py-12 grid md:grid-cols-4 gap-8 font-mono">
-          <div>
-            <p className="text-white font-display font-extrabold tracking-tight text-lg mb-2">JOB ATLAS</p>
-            <p>Operated by <span className="text-white">Denkoit Softech Pvt. Ltd.</span></p>
-            <p className="mt-2">Structured hiring for a global workforce.</p>
-          </div>
-          <div>
-            <p className="text-neutral-300 mb-2">Product</p>
-            <p><Link to="/browse" className="hover:text-white">Browse talent</Link></p>
-            <p><Link to="/pricing" className="hover:text-white">Pricing</Link></p>
-            <p><Link to="/register" className="hover:text-white">Sign up</Link></p>
-            <p><Link to="/login" className="hover:text-white">Sign in</Link></p>
-          </div>
-          <div>
-            <p className="text-neutral-300 mb-2">Company</p>
-            <p><Link to="/legal" className="hover:text-white">Terms &amp; Privacy</Link></p>
-            <p><Link to="/legal" className="hover:text-white">Refund policy</Link></p>
-            <p><Link to="/legal" className="hover:text-white">Acceptable use</Link></p>
-            <p><Link to="/grievance" className="hover:text-white">Raise a grievance</Link></p>
-          </div>
-          <div>
-            <p className="text-neutral-300 mb-2">Contact</p>
-            <p>hello@talenthub.io</p>
-            <p>grievance@talenthub.io</p>
-            <p className="mt-4 text-neutral-600">Operated by Denkoit Softech Pvt. Ltd.</p>
-            <p className="text-neutral-600">GSTIN 36AAGCD3748K1ZC</p>
-            <p className="mt-3">© 2026 Job Atlas</p>
-          </div>
-        </div>
-      </footer>
     </main>
   );
 }

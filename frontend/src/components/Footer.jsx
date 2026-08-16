@@ -16,6 +16,7 @@ export default function Footer() {
           <p className="text-xs font-mono text-neutral-400 leading-relaxed">
             {COMPANY.legal_name}<br/>
             {COMPANY.registered_office}<br/>
+            CIN {COMPANY.cin}<br/>
             GSTIN {COMPANY.gstin}
           </p>
         </div>

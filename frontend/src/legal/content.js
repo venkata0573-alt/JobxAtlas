@@ -22,6 +22,7 @@ export const COMPANY = {
   product: "Job Atlas",
   parent_brand: "Geminista",
   legal_name: "Denkoit Softech Pvt. Ltd.",
+  cin: "U93030TG2017PTC119844",
   jurisdiction: "India (Hyderabad, Telangana)",
   gstin: "36AAGCD3748K1ZC",
   registered_office: "Hyderabad, Telangana, India",
@@ -31,7 +32,7 @@ export const COMPANY = {
   support_email: "hello@talenthub.io",
   dpo_email: "privacy@geminista.io",
   effective_date: "16 February 2026",
-  version: "v1.1 — 16 February 2026",
+  version: "v1.2 — 16 February 2026",
 };
 
 // ---------------------------------------------------------------------------
@@ -41,7 +42,7 @@ export const TERMS = `
 JOB ATLAS — TERMS OF SERVICE
 Master Services Agreement · Effective ${COMPANY.effective_date} · ${COMPANY.version}
 
-Operator: ${COMPANY.legal_name} ("Company", "we", "us", "our"), a private limited company incorporated in India (CIN available on request), operating the online platform known as "Job Atlas" ("Platform", "Service") under the parent brand "${COMPANY.parent_brand}". Registered office: ${COMPANY.registered_office}. GSTIN: ${COMPANY.gstin}.
+Operator: ${COMPANY.legal_name} ("Company", "we", "us", "our"), a private limited company incorporated in India, CIN ${COMPANY.cin}, operating the online platform known as "Job Atlas" ("Platform", "Service") under the parent brand "${COMPANY.parent_brand}". Registered office: ${COMPANY.registered_office}. GSTIN: ${COMPANY.gstin}.
 
 BY ACCESSING OR USING THE PLATFORM YOU AGREE TO BE BOUND BY THESE TERMS. IF YOU DO NOT AGREE, DO NOT USE THE PLATFORM.
 
@@ -232,7 +233,7 @@ ${COMPANY.legal_name} ("Company", "we") is the controller of personal data proce
 If you have any questions, contact our Data Protection Officer at ${COMPANY.dpo_email}. Grievance route: ${COMPANY.grievance_email}.
 
 1. WHO WE ARE (CONTROLLER)
-1.1  Controller: ${COMPANY.legal_name}, ${COMPANY.registered_office}. GSTIN ${COMPANY.gstin}.
+1.1  Controller: ${COMPANY.legal_name}, ${COMPANY.registered_office}. CIN ${COMPANY.cin}. GSTIN ${COMPANY.gstin}.
 1.2  For personal data of Employer users passed onto Talent (or vice-versa) after an Engagement is signed, each party independently becomes controller of the personal data it receives.
 
 2. CATEGORIES OF PERSONAL DATA WE COLLECT

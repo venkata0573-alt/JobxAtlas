@@ -812,7 +812,7 @@ async def reviews_for_user(user_id: str):
 
 
 # ---------- Grievances ----------
-GRIEVANCE_EMAIL = "grievance@talenthub.io"
+GRIEVANCE_EMAIL = "grievance@geminista.com"
 
 
 @api.post("/grievances")
@@ -2657,7 +2657,7 @@ async def get_legal():
             "product": "Job Atlas",
             "registered_office": "Hyderabad, Telangana, India",
             "gstin": "36AAGCD3748K1ZC",
-            "grievance_email": "grievance@talenthub.io",
+            "grievance_email": "grievance@geminista.com",
             "support_email": "hello@talenthub.io",
         },
         "documents": [

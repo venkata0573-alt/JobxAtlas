@@ -72,7 +72,7 @@ export default function SubProcessors() {
       <p className="overline text-[#6B21A8] mb-3">TRANSPARENCY · SUB-PROCESSOR REGISTER</p>
       <h1 className="font-display font-extrabold text-4xl md:text-5xl tracking-tight mb-3">Everyone who touches your data.</h1>
       <p className="text-sm text-neutral-500 font-mono mb-6">
-        {COMPANY.product} · {COMPANY.parent_brand} · {COMPANY.legal_name} · Register {COMPANY.version}
+        {COMPANY.product} · {COMPANY.parent_brand} · {COMPANY.legal_name} · CIN {COMPANY.cin} · Register {COMPANY.version}
       </p>
       <p className="text-neutral-600 max-w-3xl mb-10 leading-relaxed">
         This page names every third-party sub-processor that may process personal data on our behalf. We keep the list short on purpose.
