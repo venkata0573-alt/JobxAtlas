@@ -31,7 +31,7 @@ export default function Earnings() {
       `− Multi-employer fee:   $${e.multi_employer_fee.toFixed(2)}`,
       `= NET PAYABLE:          $${e.net.toFixed(2)} ${e.currency.toUpperCase()}`,
       ``,
-      `Job Atlas · operated by Denkoit Softech Pvt. Ltd.`,
+      `Job Atlas · operated by Denkoit Softech Pvt. Ltd. under the brand Geminista`,
     ];
     const blob = new Blob([rows.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);

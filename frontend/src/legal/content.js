@@ -42,7 +42,7 @@ export const TERMS = `
 JOB ATLAS — TERMS OF SERVICE
 Master Services Agreement · Effective ${COMPANY.effective_date} · ${COMPANY.version}
 
-Operator: ${COMPANY.legal_name} ("Company", "we", "us", "our"), a private limited company incorporated in India, CIN ${COMPANY.cin}, operating the online platform known as "Job Atlas" ("Platform", "Service") under the parent brand "${COMPANY.parent_brand}". Registered office: ${COMPANY.registered_office}. GSTIN: ${COMPANY.gstin}.
+Operator: ${COMPANY.legal_name} ("Company", "we", "us", "our"), a private limited company incorporated in India, CIN ${COMPANY.cin}, operating the online platform "Job Atlas" ("Platform", "Service"). Job Atlas is operated by ${COMPANY.legal_name} under the brand "${COMPANY.parent_brand}". Registered office: ${COMPANY.registered_office}. GSTIN: ${COMPANY.gstin}.
 
 BY ACCESSING OR USING THE PLATFORM YOU AGREE TO BE BOUND BY THESE TERMS. IF YOU DO NOT AGREE, DO NOT USE THE PLATFORM.
 
@@ -228,7 +228,7 @@ export const PRIVACY = `
 JOB ATLAS — PRIVACY POLICY
 Effective ${COMPANY.effective_date} · ${COMPANY.version}
 
-${COMPANY.legal_name} ("Company", "we") is the controller of personal data processed on the Job Atlas platform, operating under the parent brand ${COMPANY.parent_brand}. This Policy explains what personal data we collect, how we use it, whom we share it with, and the rights you have.
+${COMPANY.legal_name} ("Company", "we") is the controller of personal data processed on the Job Atlas platform. Job Atlas is operated by ${COMPANY.legal_name} under the brand ${COMPANY.parent_brand}. This Policy explains what personal data we collect, how we use it, whom we share it with, and the rights you have.
 
 If you have any questions, contact our Data Protection Officer at ${COMPANY.dpo_email}. Grievance route: ${COMPANY.grievance_email}.
 
@@ -359,7 +359,7 @@ export const REFUND = `
 JOB ATLAS — REFUND POLICY
 Effective ${COMPANY.effective_date} · ${COMPANY.version}
 
-This Refund Policy governs how ${COMPANY.legal_name} ("Company", operator of Job Atlas under the ${COMPANY.parent_brand} brand) handles refund requests. It forms part of the Terms of Service and must be read together with them. Where a discrepancy exists between this Policy and any statutory consumer-protection right in your jurisdiction, the statutory right prevails.
+This Refund Policy governs how ${COMPANY.legal_name} (operator of Job Atlas under the ${COMPANY.parent_brand} brand; hereafter "Company") handles refund requests. It forms part of the Terms of Service and must be read together with them. Where a discrepancy exists between this Policy and any statutory consumer-protection right in your jurisdiction, the statutory right prevails.
 
 1. SCOPE
 1.1  This Policy covers refunds of amounts paid to the Company, including:
@@ -437,7 +437,7 @@ export const AUP = `
 JOB ATLAS — ACCEPTABLE USE POLICY
 Effective ${COMPANY.effective_date} · ${COMPANY.version}
 
-This Acceptable Use Policy ("AUP") sets out conduct that is prohibited when using Job Atlas, operated by ${COMPANY.legal_name} under the ${COMPANY.parent_brand} brand. It forms part of the Terms of Service. Violations may lead to suspension, termination, liquidated damages under the Terms, and reporting to law-enforcement or regulators where warranted.
+This Acceptable Use Policy ("AUP") sets out conduct that is prohibited when using Job Atlas. Job Atlas is operated by ${COMPANY.legal_name} under the ${COMPANY.parent_brand} brand. It forms part of the Terms of Service. Violations may lead to suspension, termination, liquidated damages under the Terms, and reporting to law-enforcement or regulators where warranted.
 
 1. PROHIBITED CONTENT
 You must NOT upload, transmit, post or link to Content that:

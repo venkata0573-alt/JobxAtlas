@@ -32,6 +32,13 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
+## Implemented (2026-02-16, iteration 40 — Attribution Phrasing + Public DPIA)
+- **Attribution unified**: Every user-facing surface now uses the exact requested phrasing "Job Atlas is operated by Denkoit Softech Pvt. Ltd. under the brand Geminista". Updated in the global Footer brand block, the Terms of Service opening paragraph, the Privacy Policy controller section, the Refund Policy scope line, the Acceptable Use Policy header, the Earnings-page footer, and the Sub-Processors + DPIA headers.
+- **Public DPIA** at `/dpia` (`pages/DPIA.jsx`) — six-section Data Protection Impact Assessment for the Background Verification workflow (the platform's highest-risk processing), following the ICO / CNIL / GDPR Art. 35 structure. Sections: (1) Scope of processing, (2) Legal basis + necessity mapping to GDPR Art. 6 + DPDP §7, (3) Necessity & proportionality, (4) full risk-and-mitigation table with impact/likelihood chips (colour-coded red/yellow/green), (5) all 8 data-subject rights honoured, (6) consultation & sign-off cadence.
+- **DPIA extras**: DPO contact card cross-linked to Sub-Processors + Privacy Policy; grievance-officer cross-reference (M. Hasan, grievance@geminista.com, +91 90109 08194); NDA-gated full-DPIA availability disclosure at the bottom.
+- **Footer nav** now surfaces `DPIA · BGV` under the Policies column (`data-testid=footer-dpia`).
+- Live-verified: attribution phrasing renders correctly on all pages checked; DPIA page loads with all 6 sections + risk table + rights grid.
+
 ## Implemented (2026-02-16, iteration 39 — Grievance Officer + Cookie Consent + Sub-Processor Register)
 - **Grievance Officer nominated** per Indian IT Rules 2021 Rule 3(2)(a): **M. Hasan** · `grievance@geminista.com` · **+91 90109 08194**. Wired into `legal/content.js` COMPANY object, into Section 26 of the Terms of Service (email + phone + name filled in), and into a dedicated global-footer card visible on every route (`data-testid=footer-grievance-officer`).
 - **Global Footer** (`components/Footer.jsx`) — four columns (brand + address + GSTIN, policy links, support/DPO, grievance officer contact). Mounted globally in `App.js`. Also carries Sub-processors link, Trust & Safety link, and the version stamp.

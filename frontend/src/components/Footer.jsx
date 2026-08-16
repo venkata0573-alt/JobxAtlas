@@ -12,9 +12,12 @@ export default function Footer() {
     <footer className="border-t border-black/10 bg-[#0B1B2B] text-neutral-300 mt-16" data-testid="site-footer">
       <div className="max-w-7xl mx-auto px-6 md:px-12 py-10 grid gap-8 md:grid-cols-4">
         <div>
-          <p className="overline text-[#A78BFA] mb-3">JOB ATLAS · GEMINISTA</p>
+          <p className="overline text-[#A78BFA] mb-3">JOB ATLAS</p>
           <p className="text-xs font-mono text-neutral-400 leading-relaxed">
-            {COMPANY.legal_name}<br/>
+            <span className="text-white">Job Atlas</span> is operated by <span className="text-white">{COMPANY.legal_name}</span><br/>
+            under the brand <span className="text-white">{COMPANY.parent_brand}</span>.
+          </p>
+          <p className="text-xs font-mono text-neutral-400 leading-relaxed mt-3">
             {COMPANY.registered_office}<br/>
             CIN {COMPANY.cin}<br/>
             GSTIN {COMPANY.gstin}
@@ -28,6 +31,7 @@ export default function Footer() {
             <li><Link to="/legal" className="hover:text-white" data-testid="footer-refund">Refund Policy</Link></li>
             <li><Link to="/legal" className="hover:text-white" data-testid="footer-aup">Acceptable Use</Link></li>
             <li><Link to="/subprocessors" className="hover:text-white" data-testid="footer-subprocessors">Sub-processors</Link></li>
+            <li><Link to="/dpia" className="hover:text-white" data-testid="footer-dpia">DPIA · BGV</Link></li>
             <li><Link to="/trust" className="hover:text-white">Trust &amp; Safety</Link></li>
           </ul>
         </div>

@@ -40,6 +40,7 @@ import Verification from "@/pages/Verification";
 import ReferenceCheck from "@/pages/ReferenceCheck";
 import Trust from "@/pages/Trust";
 import SubProcessors from "@/pages/SubProcessors";
+import DPIA from "@/pages/DPIA";
 
 function App() {
   return (
@@ -76,6 +77,7 @@ function App() {
             <Route path="/grievance" element={<Grievance />} />
             <Route path="/legal" element={<Legal />} />
             <Route path="/subprocessors" element={<SubProcessors />} />
+            <Route path="/dpia" element={<DPIA />} />
             <Route path="/talent/earnings" element={<ProtectedRoute role="talent"><Earnings /></ProtectedRoute>} />
             <Route path="/referrals" element={<ProtectedRoute><Referral /></ProtectedRoute>} />
             <Route path="/hire/:slug" element={<SkillLanding />} />
