@@ -1,3 +1,11 @@
+/**
+ * Central registry of `data-testid` selectors used by our e2e / testing agents.
+ *
+ * SECURITY NOTE (scanner false-positive): the strings "login-password" and
+ * "register-password" below are DOM selector IDs — NOT credentials. There are
+ * no secrets in this file. It ships to the browser bundle by design.
+ * secretlint-disable
+ */
 export const TID = {
   navLogo: "nav-logo",
   navLogin: "nav-login-btn",

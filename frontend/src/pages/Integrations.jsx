@@ -35,11 +35,11 @@ export default function Integrations() {
   };
   const loadCrm = async () => {
     try { const r = await api.get("/integrations/crm"); setCrmConns(r.data.items || []); }
-    catch { /* endpoint gated by role; ignore for talents */ }
+    catch (err) { /* endpoint gated by role; talents legitimately get 403 */ console.debug("[integrations] crm list skipped", err?.response?.status || err); }
   };
   const loadSyncLog = async () => {
     try { const r = await api.get("/integrations/crm/sync-log?limit=20"); setSyncLog(r.data.items || []); }
-    catch { /* ignore for talent role */ }
+    catch (err) { console.debug("[integrations] sync-log skipped", err?.response?.status || err); }
   };
 
   useEffect(() => {

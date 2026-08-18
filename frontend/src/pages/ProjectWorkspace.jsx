@@ -72,7 +72,7 @@ export default function ProjectWorkspace() {
     try {
       await api.post(`/alerts/${aid}/read`);
       setData((d) => ({ ...d, alerts: (d.alerts || []).map((a) => a.id === aid ? { ...a, read: true } : a) }));
-    } catch (e) { /* silent */ }
+    } catch (err) { console.warn("[workspace] dismiss alert failed", err); }
   };
 
   return (

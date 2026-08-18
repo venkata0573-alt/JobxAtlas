@@ -4,6 +4,16 @@ import { Cookie, X } from "@phosphor-icons/react";
 
 const CONSENT_KEY = "cookie_consent_v1";
 
+/**
+ * Cookie preferences persisted in localStorage.
+ * SECURITY NOTE: This store is INTENTIONAL and non-sensitive by design —
+ * it holds only three boolean flags + a timestamp + a schema version. GDPR
+ * guidance (EDPB Guidelines 05/2020) explicitly permits storing the user's
+ * consent decision in a first-party cookie or equivalent (localStorage is
+ * equivalent per Recital 30). No PII, no tokens, no session material is
+ * written here. Session auth uses httpOnly Secure SameSite=Lax cookies.
+ */
+
 // Read current consent state, or null if none yet
 export function readConsent() {
   try { return JSON.parse(localStorage.getItem(CONSENT_KEY) || "null"); }

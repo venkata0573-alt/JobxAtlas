@@ -32,6 +32,17 @@ work-tracker integrations, timezone-aware calendar, EOI flow, and dual payment r
 - Role-aware dashboard with shared + specific metrics + charts.
 - Landing with hero, marquee, video demo tabs (Employer / Individual), pricing tiers.
 
+## Implemented (2026-02-16, iteration 41 — Code Review Fixes)
+Applied the actionable items from the code review. False positives are noted inline for future scans.
+
+- **testIds.js "hardcoded secrets" — false positive**: lines 12/16 are DOM selector strings `login-password` / `register-password`, not credentials. Added a JSDoc + `secretlint-disable` comment so scanners stop flagging.
+- **CookieConsent localStorage — accepted design**: added a security-note JSDoc explaining that the store holds only `{necessary, functional, timestamp, version}` — no PII, no tokens — which is explicitly permitted by EDPB Guidelines 05/2020. Session auth uses httpOnly Secure cookies (unchanged).
+- **Empty catch blocks fixed** in the 4 flagged files: `TalentDashboard.jsx` (SSE parse + broadcast-read + rate-nudge dismiss), `Integrations.jsx` (CRM list + sync-log — talent-role 403 debug-logged), `Shortlist.jsx` (CRM list role fallback), `ProjectWorkspace.jsx` (alert dismiss). All now `console.warn`/`console.debug` with tagged prefix for easy grep in browser devtools.
+- **`admin.py ↔ server.py` circular import — false positive**: `routes/admin.py` has zero imports from `server.py`. Confirmed via grep. No change needed.
+- **`work_integrations.py` `is`-vs-`==` — false positive**: all `is None` / `is not None` usages verified against PEP 8; they are the correct style. AST scan found zero constant-literal `is` comparisons in the file.
+- **Remaining "important" items acknowledged, deferred**: excessive-complexity function splits (`public_trust_timeseries_details`, `_render_drill_pdf`, `Admin.jsx`, `EngagementChat.jsx`) and 61 hook-dep suggestions are refactors that would risk regressing green flows (18/18 backend + 12/12 frontend on iter 33; 20/20 on iter 34; 10/10 on iter 35). Ticketed for a dedicated refactor iteration after the next customer beta.
+- Post-fix smoke: `/`, `/legal`, `/subprocessors`, `/dpia` all load 200 with hero + policies rendering correctly.
+
 ## Implemented (2026-02-16, iteration 40 — Attribution Phrasing + Public DPIA)
 - **Attribution unified**: Every user-facing surface now uses the exact requested phrasing "Job Atlas is operated by Denkoit Softech Pvt. Ltd. under the brand Geminista". Updated in the global Footer brand block, the Terms of Service opening paragraph, the Privacy Policy controller section, the Refund Policy scope line, the Acceptable Use Policy header, the Earnings-page footer, and the Sub-Processors + DPIA headers.
 - **Public DPIA** at `/dpia` (`pages/DPIA.jsx`) — six-section Data Protection Impact Assessment for the Background Verification workflow (the platform's highest-risk processing), following the ICO / CNIL / GDPR Art. 35 structure. Sections: (1) Scope of processing, (2) Legal basis + necessity mapping to GDPR Art. 6 + DPDP §7, (3) Necessity & proportionality, (4) full risk-and-mitigation table with impact/likelihood chips (colour-coded red/yellow/green), (5) all 8 data-subject rights honoured, (6) consultation & sign-off cadence.

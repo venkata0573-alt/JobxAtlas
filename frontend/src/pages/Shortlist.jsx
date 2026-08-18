@@ -26,7 +26,7 @@ export default function Shortlist() {
   };
   const loadCrm = async () => {
     try { const r = await api.get("/integrations/crm"); setCrmConns(r.data.items || []); }
-    catch { /* ignore */ }
+    catch (err) { console.debug("[shortlist] crm list not available for role", err?.response?.status || err); }
   };
 
   const pushToCrm = async (t) => {

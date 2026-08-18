@@ -72,10 +72,10 @@ export default function TalentDashboard() {
               });
               toast.success(`${ev.employer_name} is ready to hire you`, { duration: 8000 });
             }
-          } catch (err) { /* ignore parse errors on comments */ }
+          } catch (err) { console.debug("[sse] skipping malformed broadcast", err); }
         };
-        es.onerror = () => { /* browser auto-reconnects */ };
-      } catch (err) { /* silent — non-critical */ }
+        es.onerror = () => { /* browser auto-reconnects; onerror is normal on transient drops */ };
+      } catch (err) { console.warn("[sse] failed to open broadcast stream", err); }
     })();
     return () => { cancelled = true; if (es) es.close(); };
   }, [user]);
@@ -84,12 +84,13 @@ export default function TalentDashboard() {
     try {
       await api.post(`/talent/me/broadcasts/${docId}/read`);
       setBroadcasts((prev) => prev.map((x) => x.id === docId ? { ...x, read: true } : x));
-    } catch (e) { /* silent */ }
+    } catch (err) { console.warn("[talent] mark broadcast read failed", err); }
   };
 
   const dismissNudge = async () => {
     setNudgeDismissed(true);
-    try { await api.post("/talent/me/rate-nudge/dismiss"); } catch (e) { /* silent */ }
+    try { await api.post("/talent/me/rate-nudge/dismiss"); }
+    catch (err) { console.warn("[talent] dismiss nudge failed", err); }
   };
 
   const applyNudge = async () => {
