@@ -100,6 +100,8 @@ frontend/node_modules/.cache/default-development/8.pack
 .env
 .env.*
 *.env
+# But do allow the template — it's the documented shape of the env, no secrets.
+!.env.example
 credentials.json
 *.key
 .credentials

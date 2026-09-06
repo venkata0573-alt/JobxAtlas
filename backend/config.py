@@ -15,6 +15,7 @@ for descriptions.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import List, Literal, Optional
 
@@ -167,7 +168,12 @@ class Settings(BaseSettings):
     """The single point of truth. Every module imports `settings` from
     this file. See docs/CONFIG_INVENTORY.md for the full var catalogue."""
     model_config = _MODEL_CONFIG
-    env: EnvName = Field(default="development", alias="ENV")
+    # NO default. ENV gates conditional-required behaviour (Turnstile in
+    # production, S-08). Silently defaulting to "development" in prod would
+    # neuter that enforcement — the highest-consequence misconfiguration
+    # the module can prevent. Missing ENV therefore fails boot loud,
+    # alongside every other required var.
+    env: EnvName = Field(alias="ENV")
     mongo: MongoSettings
     stripe: StripeSettings
     mail: MailSettings
@@ -215,36 +221,74 @@ def _env_var_name(cls: type[BaseSettings], field_name: str) -> str:
     return field.alias or field_name.upper()
 
 
+_TOP_LEVEL_LABEL = "Environment / global"
+
+
 def _build_settings() -> Settings:
     """Construct Settings, aggregating every missing-var error across
-    all nested groups into ONE RuntimeError message. Non-missing
-    validation errors (e.g. CORS_ORIGINS='*') are included in the same
-    message so a single boot attempt surfaces every problem at once."""
+    all nested groups AND the top-level Settings fields (ENV,
+    prod-conditional validators) into ONE RuntimeError message.
+
+    A single failed boot surfaces every problem at once instead of
+    forcing 'fix one, retry, fix next' whack-a-mole."""
     kwargs: dict = {}
     missing_by_group: dict[str, List[str]] = {}
     other_errors: List[str] = []
+
+    def _absorb(cls: type, e: ValidationError, label: str) -> None:
+        for err in e.errors():
+            if err["type"] == "missing":
+                field_name = str(err["loc"][0])
+                missing_by_group.setdefault(label, []).append(
+                    _env_var_name(cls, field_name)
+                )
+            else:
+                loc = ".".join(str(x) for x in err["loc"])
+                other_errors.append(f"  {label}.{loc}: {err['msg']}")
 
     for key, cls, label in _NESTED:
         try:
             kwargs[key] = cls()
         except ValidationError as e:
-            group_missing: List[str] = []
-            for err in e.errors():
-                if err["type"] == "missing":
-                    field_name = str(err["loc"][0])
-                    group_missing.append(_env_var_name(cls, field_name))
-                else:
-                    loc = ".".join(str(x) for x in err["loc"])
-                    other_errors.append(f"  {label}.{loc}: {err['msg']}")
-            if group_missing:
-                missing_by_group[label] = group_missing
+            _absorb(cls, e, label)
+
+    # Direct ENV check — must be reported in the aggregate even when
+    # nested groups are also broken (a missing nested arg would short-
+    # circuit the Settings(**kwargs) construction below). config.py is
+    # the sole allowed env reader; the AST scan in test_config.py
+    # exempts this file precisely for cases like this.
+    env_raw = os.environ.get("ENV")
+    if env_raw is None and _ENV_PATH.exists():
+        for line in _ENV_PATH.read_text().splitlines():
+            stripped = line.strip()
+            if stripped.startswith("ENV=") and not stripped.startswith("#"):
+                env_raw = stripped.split("=", 1)[1].strip()
+                break
+    if env_raw is None:
+        missing_by_group.setdefault(_TOP_LEVEL_LABEL, []).append("ENV")
+    elif env_raw not in ("development", "test", "production"):
+        other_errors.append(
+            f"  {_TOP_LEVEL_LABEL}.env: must be one of "
+            f"development/test/production, got {env_raw!r}"
+        )
+
+    # Only attempt full Settings construction if the nested groups are
+    # clean — a nested missing arg would cascade into a distracting
+    # "field required" on Settings itself, doubling the noise.
+    result: Optional[Settings] = None
+    if not missing_by_group and not other_errors:
+        try:
+            result = Settings(**kwargs)
+        except ValidationError as e:
+            _absorb(Settings, e, _TOP_LEVEL_LABEL)
 
     if missing_by_group or other_errors:
         lines = [
             "Config error — required environment variables missing or invalid:",
             "",
         ]
-        for _, _, label in _NESTED:
+        ordered_labels = [label for _, _, label in _NESTED] + [_TOP_LEVEL_LABEL]
+        for label in ordered_labels:
             if label in missing_by_group:
                 lines.append(f"  {label}:")
                 for var in missing_by_group[label]:
@@ -254,19 +298,11 @@ def _build_settings() -> Settings:
             lines.append("Also invalid:")
             lines.extend(other_errors)
         lines.append("")
-        lines.append(f"Set them in {_ENV_PATH} (see backend/.env.example for descriptions).")
+        lines.append("Set the missing variables (see .env.example for descriptions).")
         raise RuntimeError("\n".join(lines))
 
-    try:
-        return Settings(**kwargs)
-    except ValidationError as e:
-        # Prod-only conditional missing (e.g. TURNSTILE_SECRET_KEY when
-        # ENV=production). All other errors were caught above.
-        msgs = "\n".join(f"  - {err['msg']}" for err in e.errors())
-        raise RuntimeError(
-            f"Config error — production-mode validation failed:\n{msgs}\n\n"
-            f"Set them in {_ENV_PATH} (see backend/.env.example for descriptions)."
-        ) from e
+    assert result is not None  # invariant: no errors implies Settings built
+    return result
 
 
 # ---------- Module-level singleton ------------------------------------------

@@ -71,6 +71,7 @@ test-backend:
 			tests/test_11_engagements.py \
 			tests/test_public_surface.py \
 			tests/test_csrf_surface.py \
+			tests/test_config.py \
 			../docs/scripts/tests/ \
 			-v
 
