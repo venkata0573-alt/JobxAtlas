@@ -1,0 +1,125 @@
+# docker-compose.test.yml — ephemeral Phase 1a test stack.
+#
+# Constraints (per plan approval):
+#   - mongo runs on tmpfs so every `up-test` starts with an empty DB.
+#   - stripe-mock replaces live Stripe; sitecustomize.py inside the backend
+#     image points `stripe.api_base` at http://stripe-mock:12111. This works
+#     for pytest, Playwright, and hand-driven curl — the injection is in the
+#     backend process, not in the test process.
+#   - Deterministic host ports (18443 / 13000) avoid clashing with the dev
+#     stack (8000 / 3000 / 27017 / 12111). Mongo and stripe-mock are NOT
+#     published to the host at all.
+#   - Backend runs HTTPS-only on :8443 with a self-signed cert generated at
+#     image build time (see backend/Dockerfile.test). This is what lets
+#     `SameSite=None; Secure` cookies ride in the harness — the manual
+#     cookie-jar/Bearer workaround the previous conftest used is gone.
+
+name: atlas-test
+
+services:
+  mongo:
+    image: mongo:7
+    tmpfs:
+      - /data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  stripe-mock:
+    image: stripe/stripe-mock:latest
+    # Container-only. Reachable inside the compose network as
+    # `http://stripe-mock:12111` — same shape as real Stripe, canned data.
+    # stripe-mock ships from `scratch` (no shell, wget, or curl) so a
+    # Docker healthcheck is not feasible. `depends_on:service_started` is used
+    # by the backend below. If the container has died, backend readiness
+    # itself won't help — test_00_smoke.py::test_stripe_api_base_is_the_mock
+    # is the real gate: it exercises a Stripe path end-to-end.
+
+  storage-mock:
+    # In-memory object-storage mock. Serves the API shape storage_client.py
+    # speaks to (see backend/tests/_storage_mock/app.py).
+    #
+    # SHARED-IMAGE CAVEAT: this service is built from the same
+    # backend/Dockerfile.test as `backend`. That means:
+    #   * `docker compose build` rebuilds both when the Dockerfile or
+    #     requirements.txt changes — usually what you want.
+    #   * The `.:/app` bind-mount is applied to both services. Editing
+    #     backend/tests/_storage_mock/app.py takes effect on the next
+    #     storage-mock restart; editing backend/server.py only affects
+    #     backend on its next restart (uvicorn isn't --reload-enabled).
+    #   * If a test flakes and you see storage-mock bouncing, check whether
+    #     someone restarted backend for an unrelated edit and compose
+    #     cascaded a restart.
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.test
+    volumes:
+      - .:/app
+    working_dir: /app/backend
+    environment:
+      PYTHONPATH: /app/backend
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request as u; u.urlopen('http://localhost:9000/health', timeout=2).read()"]
+      interval: 3s
+      timeout: 4s
+      retries: 30
+    command: ["uvicorn", "tests._storage_mock.app:app",
+              "--host", "0.0.0.0", "--port", "9000"]
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.test
+    env_file: .env.test
+    depends_on:
+      mongo:
+        condition: service_healthy
+      stripe-mock:
+        condition: service_started
+      storage-mock:
+        condition: service_healthy
+    ports:
+      - "18443:8443"
+    volumes:
+      # Bind-mount the whole repo at /app so tests can reach docs/scripts,
+      # security/, etc. sitecustomize.py lives in site-packages (see
+      # backend/Dockerfile.test), NOT under /app, so this mount cannot hide it.
+      # Certs live in /certs (also outside /app), same reason.
+      - .:/app
+    working_dir: /app/backend
+    healthcheck:
+      # /api/marketplace/industries — verified to return 200 on an empty DB
+      # (routes/marketplace.py:91 initializes counts from EMPLOYER_INDUSTRIES
+      # constant, then runs an aggregation which is a no-op when users is empty).
+      # HTTPS with unverified context because the cert is self-signed.
+      test: ["CMD", "python", "-c",
+             "import urllib.request as u, ssl; u.urlopen('https://localhost:8443/api/marketplace/industries', timeout=2, context=ssl._create_unverified_context()).read()"]
+      interval: 3s
+      timeout: 4s
+      retries: 30
+    command: ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8443",
+              "--ssl-keyfile", "/certs/key.pem", "--ssl-certfile", "/certs/cert.pem"]
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.test
+    environment:
+      REACT_APP_BACKEND_URL: https://localhost:18443
+      REACT_APP_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      HOST: 0.0.0.0
+      PORT: "3000"
+      WDS_SOCKET_PORT: "13000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "13000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      interval: 5s
+      timeout: 5s
+      retries: 30

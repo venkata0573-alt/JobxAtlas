@@ -1,0 +1,29 @@
+# frontend/Dockerfile.test — used ONLY by docker-compose.test.yml.
+#
+# Just enough to run `craco start` bound to 0.0.0.0:3000 for Playwright E2E
+# tests to target. We deliberately do NOT `yarn build` — that produces a
+# static bundle whose REACT_APP_* vars are baked at build time, defeating the
+# whole point of runtime config for a test stack that redeploys often.
+
+FROM node:20-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Deps first for cache friendliness. Project uses yarn (yarn.lock is
+# authoritative); npm ci fails on ERESOLVE because date-fns@4 and
+# react-day-picker@8's peer range don't intersect. yarn resolves it.
+RUN npm install -g yarn@1.22.22 --force
+COPY frontend/package.json frontend/yarn.lock /app/
+RUN yarn install --frozen-lockfile --network-timeout 600000
+
+COPY frontend/ /app/
+
+EXPOSE 3000
+
+# WDS_SOCKET_PORT so the HMR websocket handshake uses the host port (13000),
+# not the container port (3000). Otherwise browser connections fail silently.
+CMD ["yarn", "start"]

@@ -1,0 +1,146 @@
+# security/public_routes.yml — allowlist for routes with no authorization check
+#
+# Every route that `docs/scripts/route_scan.py` flags `unauthorized: true`
+# must appear here in one of the two groups. The invariant test
+# `backend/tests/test_public_surface.py` fails otherwise.
+#
+# Entries are EXACT (method, path) pairs. There is no prefix matching. Adding
+# a new endpoint or changing a parameter name is a deliberate policy choice
+# that requires editing this file.
+#
+# Group semantics:
+#   intentional_public  — reviewed and confirmed public. `reason` must state
+#                         why (e.g. Stripe signature gate, static content,
+#                         emailed one-time token, marketing SEO page).
+#   surprising_unauth   — reviewed and confirmed to be a gap that should
+#                         require auth. `reason` cites the FEATURES.md section
+#                         (or ticket) that documents the intended shape. These
+#                         are triage items, not accepted state.
+
+intentional_public:
+  # ---- auth / verification flows ----
+  - method: POST
+    path: /api/auth/register
+    reason: "Public registration; Turnstile-gated (fails open when TURNSTILE_SECRET_KEY unset). FEATURES §3."
+  - method: POST
+    path: /api/auth/login
+    reason: "Public login; bcrypt + Turnstile. FEATURES §3."
+  - method: POST
+    path: /api/auth/logout
+    reason: "Idempotent cookie clear; FEATURES §3."
+  - method: GET
+    path: /api/auth/verify-email
+    reason: "Public email-verification token consumption; FEATURES §3."
+  - method: GET
+    path: /api/reference-check/{token}
+    reason: "Public referee form; gated by emailed one-time token in path. FEATURES §15."
+  - method: POST
+    path: /api/reference-check/{token}
+    reason: "Public referee submit; same one-time token gate. FEATURES §15."
+
+  # ---- trust / marketing surface ----
+  - method: GET
+    path: /api/trust/stats
+    reason: "Public /trust page metrics. FEATURES §4."
+  - method: GET
+    path: /api/trust/timeseries
+    reason: "Public /trust page timeseries. FEATURES §4."
+  - method: GET
+    path: /api/trust/timeseries/details
+    reason: "Public /trust drill-through. FEATURES §4."
+  - method: GET
+    path: /api/trust/timeseries/details/pdf
+    reason: "Public signed PDF export; writes a drill_receipts row. FEATURES §4."
+  - method: POST
+    path: /api/trust/verify-drill
+    reason: "Public tamper-check POST; FEATURES §4 (also listed as no-UI in FEATURES 'Dead ends')."
+  - method: GET
+    path: /api/trust/verify-drill/{signature}
+    reason: "Public signature lookup driven by QR code in the PDF. FEATURES §4."
+
+  # ---- marketplace / SEO / discovery ----
+  - method: GET
+    path: /api/marketplace/industries
+    reason: "Public industry list for Register form + SEO. FEATURES §5/§8."
+  - method: GET
+    path: /api/marketplace/stats
+    reason: "Public marketplace stats. FEATURES §8."
+  - method: GET
+    path: /api/seo/skills
+    reason: "SEO skill index. Public marketing surface."
+  - method: GET
+    path: /api/seo/city-skills
+    reason: "SEO city×skill index. Public marketing surface."
+  - method: GET
+    path: /api/seo/hire/{skill_slug}
+    reason: "Public /hire/:slug landing page. FEATURES §8."
+  - method: GET
+    path: /api/seo/hire-city/{slug}
+    reason: "Public /hire/city landing page. FEATURES §8."
+  - method: GET
+    path: /api/sitemap.xml
+    reason: "Public sitemap for crawlers."
+  - method: GET
+    path: /api/talent
+    reason: "Public browse endpoint powering /browse. FEATURES §8."
+  - method: GET
+    path: /api/reviews/user/{user_id}
+    reason: "Public reviews on talent card. FEATURES §11."
+
+  # ---- pricing / packages ----
+  - method: GET
+    path: /api/pricing
+    reason: "Public /pricing page. FEATURES §10."
+  - method: GET
+    path: /api/pricing/tiers
+    reason: "Public tiers subset of /api/pricing. FEATURES §10 (Dead ends: no UI caller)."
+  - method: POST
+    path: /api/pricing/quote
+    reason: "Public quote calculator. FEATURES §10 (Dead ends: no UI caller)."
+  - method: GET
+    path: /api/packages
+    reason: "Public hour-package catalog for /employer/purchase. FEATURES §10."
+
+  # ---- payments / webhook ----
+  - method: GET
+    path: /api/payments/status/{session_id}
+    reason: "Polled by /payment/success without a session (session_id from Stripe URL). FEATURES §10."
+  - method: POST
+    path: /api/stripe/webhook
+    reason: "Gated by stripe.Webhook.construct_event signature verification at server.py:562. Cookie auth is inapplicable."
+
+  # ---- misc public forms + static ----
+  - method: POST
+    path: /api/grievances
+    reason: "Public grievance-officer submission form. FEATURES §2."
+  - method: POST
+    path: /api/newsletter/signup
+    reason: "Public newsletter waitlist from SEO landing pages."
+  - method: GET
+    path: /api/legal
+    reason: "Public static legal metadata. FEATURES §1."
+  - method: GET
+    path: /api/customization/public
+    reason: "Public tenant customization payload for header/hero. FEATURES §21."
+
+  # ---- template previews (marketing/scoping) ----
+  - method: GET
+    path: /api/projects/templates
+    reason: "Public template catalog (Projects.jsx renders it before login). FEATURES §16."
+  - method: GET
+    path: /api/projects/templates/{template_id}
+    reason: "Public template detail; consumed by anonymous browsing. FEATURES §16."
+
+surprising_unauth:
+  # Each entry is a triage item — reason cites the FEATURES.md claim it violates.
+  - method: POST
+    path: /api/projects/lead
+    backlog_id: S-23
+    reason: "S-23 (P1). FEATURES §16 tables list this as `auth`. Currently anyone can POST a project_leads row with a forged employer_id. Lead-forgery + attribution poisoning + queue-spam vector."
+  - method: GET
+    path: /api/projects/templates/{template_id}/team-suggestions
+    backlog_id: S-24
+    reason: "S-24 (P1). Returns _CURATED_TALENT names + hourly rates + sell-rate/margin math to any unauthenticated caller — crown-jewel supply pool per CONTRACTOR_SPLIT.md. FEATURES §16 claims `auth`."
+  - method: GET
+    path: /api/integrations/providers
+    reason: "FEATURES §22 tables list this as `auth`. Low-sensitivity list of provider names, but the docs-vs-code claim disagrees."

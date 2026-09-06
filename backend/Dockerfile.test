@@ -1,0 +1,79 @@
+# backend/Dockerfile.test — used ONLY by docker-compose.test.yml.
+# Never ship this image to prod.
+#
+# Key detail: sitecustomize.py is copied into the interpreter's site-packages,
+# NOT into /app. The compose file bind-mounts the repo at /app for hot reload;
+# if sitecustomize lived under /app the bind-mount could hide or overwrite it
+# and Stripe calls would silently escape to api.stripe.com.
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# System deps for wheels + healthchecks (wget) + self-signed cert (openssl).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential wget openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Self-signed cert for HTTPS-only backend. Lives in /certs (OUTSIDE /app) so
+# the compose `.:/app` bind-mount cannot shadow it. Same defensive placement
+# as sitecustomize.py — the harness never lets host state hide critical
+# image-baked assets.
+# SAN covers localhost + the compose service name so both host-side (Playwright)
+# and inter-container callers get a matching CN.
+RUN mkdir -p /certs \
+    && openssl req -x509 -newkey rsa:2048 -sha256 -nodes \
+        -keyout /certs/key.pem -out /certs/cert.pem \
+        -days 3650 -subj "/CN=localhost" \
+        -addext "subjectAltName=DNS:localhost,DNS:backend,IP:127.0.0.1" \
+    && chmod 0400 /certs/key.pem
+
+# Install prod deps + test-only pins. pytest-asyncio is not in prod
+# requirements.txt on purpose — it is a test-only dep and doesn't need to
+# ship with the app.
+#
+# `emergentintegrations==0.2.0` in requirements.txt is not on PyPI (CLAUDE.md
+# landmine, backlog F-01). We strip it here and install a minimal shim below
+# so `from emergentintegrations.llm.chat import LlmChat, UserMessage` resolves
+# at import time. With EMERGENT_LLM_KEY empty in .env.test the LLM path is
+# never actually taken (ai_service.py:15 early-returns), so the shim only
+# needs to satisfy the top-level import.
+COPY backend/requirements.txt /tmp/requirements.txt
+RUN grep -v -E '^emergentintegrations==' /tmp/requirements.txt > /tmp/requirements-filtered.txt \
+    && pip install --no-cache-dir -r /tmp/requirements-filtered.txt \
+# pytest-asyncio: 1.2.0 was requested but declares `pytest<9` and conflicts
+# with the pytest==9.1.1 already pinned in requirements.txt. 1.4.0 is the
+# earliest release that supports pytest 9. Pin exactly for reproducibility.
+# pytest-cov: 5.x also declares pytest<9. 6.0.0 supports pytest 9. Same story.
+                                     pytest-asyncio==1.4.0 \
+                                     pytest-cov==6.0.0
+
+# Stub package — test image only.
+RUN mkdir -p /usr/local/lib/python3.11/site-packages/emergentintegrations/llm \
+    && touch /usr/local/lib/python3.11/site-packages/emergentintegrations/__init__.py \
+    && touch /usr/local/lib/python3.11/site-packages/emergentintegrations/llm/__init__.py \
+    && printf 'class LlmChat: pass\nclass UserMessage: pass\n' \
+       > /usr/local/lib/python3.11/site-packages/emergentintegrations/llm/chat.py
+
+# Test-only Stripe injection — see backend/tests/sitecustomize.py header.
+# Installed into site-packages so it is on sys.path regardless of what the
+# compose bind-mount does to /app. Python's site module imports it at
+# interpreter startup, before uvicorn imports server.py.
+COPY backend/tests/sitecustomize.py /usr/local/lib/python3.11/site-packages/sitecustomize.py
+
+# At runtime the compose bind-mount overlays this with the live repo, but the
+# COPY keeps the image self-contained for `docker run` outside compose.
+COPY backend/ /app/backend/
+COPY docs/ /app/docs/
+COPY security/ /app/security/
+
+WORKDIR /app/backend
+
+# Writeable dir for coverage.py subprocess data files. See
+# backend/.coveragerc `data_file` and backend/tests/sitecustomize.py.
+RUN mkdir -p /tmp/coverage && chmod 0777 /tmp/coverage
+
+EXPOSE 8443
+
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8443", \
+     "--ssl-keyfile", "/certs/key.pem", "--ssl-certfile", "/certs/cert.pem"]

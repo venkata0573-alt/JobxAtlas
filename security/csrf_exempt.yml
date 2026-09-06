@@ -1,0 +1,23 @@
+# security/csrf_exempt.yml — CSRF middleware exemption list
+#
+# Once the CSRF middleware from SECURITY_BACKLOG.md S-01 is registered, every
+# non-GET route is protected by default. This file names the small set of
+# non-GET endpoints that MUST be exempt — server-to-server webhooks, one-time-
+# token forms without a browser session, etc.
+#
+# `backend/tests/test_csrf_surface.py` enforces:
+#   1. Every non-GET route either sits behind the middleware or appears here.
+#   2. Every entry has a non-empty `reason`.
+#   3. Every entry's (method, path) resolves to a real route — stale
+#      exemptions rot silently, so the test fails on them.
+#
+# Entries are EXACT (method, path) pairs. No prefix matching. Adding one is a
+# deliberate policy choice that needs a written justification.
+
+exempt:
+  - method: POST
+    path: /api/stripe/webhook
+    reason: >
+      Server-to-server from Stripe; no browser, no cookie. Authenticated by
+      stripe.Webhook.construct_event signature verification (server.py:562),
+      which is a stronger check than CSRF. Must never accept cookie auth.

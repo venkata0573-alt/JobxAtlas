@@ -1,0 +1,23 @@
+# backend/.coveragerc — test-only config, read by pytest-cov via
+# --cov-config=/app/backend/.coveragerc AND by sub-process coverage via
+# COVERAGE_PROCESS_START in .env.test.
+#
+# parallel=true is required because both pytest AND uvicorn/backend collect
+# coverage simultaneously. Each process writes a distinct
+# .coverage.HOST.PID.N file into `data_file`'s directory; `coverage combine`
+# merges them before the JSON report is generated.
+
+[run]
+source = /app/backend
+data_file = /tmp/coverage/.coverage
+parallel = true
+omit =
+    /app/backend/tests/*
+    /app/backend/.venv/*
+    /app/backend/__pycache__/*
+    */site-packages/*
+
+[report]
+# Show missing line ranges in term output.
+show_missing = true
+skip_empty = true

@@ -101,3 +101,173 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: >
+  Phase 1b — convert FEATURES.md §11 (Engagements + contract signing + deliverables)
+  into automated tests using the cookie-only harness. One test per numbered manual
+  step; per-endpoint negative tests (unauth 401, wrong role 403, cross-tenant 404
+  per S-11 load_owned convention). Also cover the messaging endpoints §11 uses but
+  never tables. Test the real /api/engagements/sign path, not the doc's incorrect
+  /api/engagements/{id}/sign.
+
+backend:
+  - task: "§11 POST /api/deliverables — S-11 ownership check"
+    implemented: true
+    working: false
+    file: "backend/server.py:670"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: false
+        -agent: "testing"
+        -comment: >
+          FAIL: TestDeliverablesCreate::test_cross_tenant_returns_404_per_s11 in
+          tests/test_11_engagements.py:400. Cross-tenant POST (talent_flagged
+          submitting against ENGAGEMENT_SIGNED_ID which belongs to talent_clean)
+          returns 403 "Only the engaged talent can submit deliverables". Per
+          SECURITY_BACKLOG.md S-11, should return 404 to avoid the id-exists
+          side channel. Handler at server.py:670 checks user["id"] !=
+          eng.get("talent_id") and raises 403. Fix: replace with a load_owned()
+          helper that raises 404 on both "not found" and "not yours". Failure
+          is intentional — leaving it red per Phase 1b protocol.
+
+  - task: "§11 POST /api/deliverables/{id}/approve — S-11 ownership check"
+    implemented: true
+    working: false
+    file: "backend/server.py:705"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: false
+        -agent: "testing"
+        -comment: >
+          FAIL: TestDeliverableApprove::test_cross_tenant_employer_returns_404_per_s11
+          in tests/test_11_engagements.py:454. Cross-tenant approve
+          (employer_nocard on DELIVERABLE_SUBMITTED_ID which belongs to
+          employer_card) returns 403 "Only the engaging employer can review
+          deliverables" from _act_deliverable at server.py:705. S-11 wants 404.
+          Same load_owned() fix as the deliverables-create case above; single
+          helper closes both. Intentional red.
+
+  - task: "§11 POST /api/deliverables/{id}/reject — S-11 ownership check"
+    implemented: true
+    working: false
+    file: "backend/server.py:705"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: false
+        -agent: "testing"
+        -comment: >
+          FAIL: TestDeliverableReject::test_cross_tenant_employer_returns_404_per_s11
+          in tests/test_11_engagements.py:477. Same _act_deliverable ownership
+          path as approve (server.py:705); returns 403 instead of 404. Bundled
+          with S-11 approve fix. Intentional red.
+
+  - task: "§11 POST /api/engagements/{id}/sign — documented path does not exist"
+    implemented: false
+    working: "NA"
+    file: "FEATURES.md:352"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "testing"
+        -comment: >
+          FEATURES.md §11 (line 352) documents POST /api/engagements/{id}/sign.
+          That handler does not exist in backend/server.py. The real endpoint
+          is POST /api/engagements/sign with engagement_id in the JSON body
+          (SignContractIn schema at server.py:127; handler at server.py:647).
+          Tests target the real path. A guard test
+          (TestEngagementSign::test_documented_path_returns_404) asserts the
+          documented path returns 404 so a future refactor cannot silently
+          make the doc "correct" without a real code change. Fix: update
+          FEATURES.md §11 table row to the real path. No code change.
+
+  - task: "§11 POST /api/reviews — status field spelling drift"
+    implemented: true
+    working: true
+    file: "backend/server.py:800"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: >
+          FEATURES.md §11 step 6 (line 372) says reviews land with
+          status="pending_moderation". Handler at server.py:800 writes
+          status="pending". Functionally equivalent (both mean "not yet
+          approved") but the doc's exact string mismatch would trip a
+          test written literally from the doc. Test asserts the real
+          value; noted here so someone fixes the doc, not the code.
+
+  - task: "§11 lifecycle manual steps 1-6"
+    implemented: true
+    working: true
+    file: "backend/tests/test_11_engagements.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: >
+          All six TestManualSteps tests pass against the cookie-only harness:
+          engagement create, both-parties sign (status flips to contract_signed
+          and employer hours_balance decrements by hours_allocated), talent
+          submits deliverable, employer approves (hours_used increments), payout
+          row is written with correct commission (60 rate * 5 hrs = 300 gross;
+          commission tier applied), and review lands with status=pending.
+
+  - task: "§11 auth-only messaging endpoints (undocumented in §11 table)"
+    implemented: true
+    working: true
+    file: "backend/server.py:937,946,2286"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: >
+          GET /api/messages/{engagement_id}, POST /api/messages, and
+          POST /api/messages/upload all enforce cookie auth + party membership
+          via 404-on-cross-tenant (matches S-11 convention already). Only
+          negative caveat: /messages/upload actually calls storage_client
+          which points at INTEGRATION_PROXY_URL (currently stripe-mock in
+          .env.test) — the happy-path upload test is skipped until a real
+          storage mock lands. Auth-gate tests still cover the endpoint.
+
+metadata:
+  created_by: "testing"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "S-11 load_owned() helper — covers 3 backend tests marked working: false above"
+    - "FEATURES.md §11 table row for POST /api/engagements/sign — doc-only fix"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    -agent: "testing"
+    -message: >
+      Phase 1b §11 landed at 77 passed / 3 failed / 2 skipped. The 3 failures
+      are intentional — they surface S-11 (SECURITY_BACKLOG.md) at server.py:670
+      and server.py:705. All three collapse into a single load_owned(collection,
+      id, user) helper per S-11's proposed fix. Skips: (1) one skip is the
+      /messages/upload happy path — needs a storage mock (harness debt); (2)
+      the CSRF ratchet skip is unchanged (waiting on S-01).
+      Two docs need PRs: (a) FEATURES.md §11 fix the /engagements/{id}/sign
+      path, (b) FEATURES.md §11 fix the review status string
+      "pending_moderation" → "pending". Both zero-risk doc-only fixes; not in
+      this PR's scope (which is tests-only).
+#====================================================================================================
