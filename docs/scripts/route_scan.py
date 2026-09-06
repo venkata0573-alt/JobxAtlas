@@ -21,10 +21,17 @@ from `backend/deps.py`). For each route it records:
     `user["role"]`, or `user.role` — anything else (e.g. loop-variable `u`) is
     excluded to avoid false positives
   - admin_perm_checks: `user.get("admin_permissions", ...)` inspections
+  - ownership_checks: comparisons whose LHS (or RHS, for equality) is
+    literally `user["id"]` / `user.get("id")` / `user.id` — the canonical
+    party-ownership pattern. Deliberately STRICT: only counts when (a) the
+    compare is the test of an `if` at the top level of the function body,
+    (b) that `if` body unconditionally raises HTTPException(401/403/404)
+    or returns, and (c) `in`/`not in` uses a literal container RHS.
+    See _find_ownership_checks for the full inverse-guard rationale.
   - unauthorized: True iff none of {has_get_current_user, scope_checks,
-    role_checks, admin_perm_checks} are set. Presence of unrelated
-    `Depends(...)` does NOT suppress this flag (a `Depends(rate_limiter)`
-    without an identity check is still unauthorized).
+    role_checks, admin_perm_checks, ownership_checks} are set. Presence of
+    unrelated `Depends(...)` does NOT suppress this flag (a `Depends(
+    rate_limiter)` without an identity check is still unauthorized).
 
 Also reports:
   - skipped_decorators: things that looked like route decorators but weren't
@@ -217,6 +224,158 @@ def _find_get_current_user_and_deps(
     return has_gcu, dep_targets
 
 
+_OWNERSHIP_OPS = {
+    ast.Eq: "==", ast.NotEq: "!=",
+    ast.In: "in", ast.NotIn: "not in",
+}
+
+
+def _is_user_id_ref(node: ast.expr) -> bool:
+    """True iff `node` is a reference to the current user's id in one of
+    three canonical shapes: `user["id"]`, `user.get("id")`, `user.id`.
+
+    Same-shape guard as the role_ref block below: the receiver must be
+    literally the `user` variable. `u["id"]` inside a loop, or a captured
+    `payer["id"]`, is business logic — not authorization.
+    """
+    if (isinstance(node, ast.Subscript)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "user"
+            and _unparse(node.slice).strip("\"'") == "id"):
+        return True
+    if (isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "get"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and node.args[0].value == "id"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "user"):
+        return True
+    if (isinstance(node, ast.Attribute)
+            and node.attr == "id"
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "user"):
+        return True
+    return False
+
+
+def _is_safe_membership_rhs(node: ast.expr) -> bool:
+    """For `user["id"] in <RHS>` / `not in <RHS>` — accept only literal
+    container expressions (`(a, b)`, `[a, b]`, `{a, b}`).
+
+    Inverse-guard #4: rejects `user["id"] in engagement` — a bare Name
+    RHS is a wrong-container bug (membership against dict KEYS, not a
+    party-id whitelist). If someone actually needs a computed set they
+    should build a literal at the call site, not rely on a variable.
+    """
+    return isinstance(node, (ast.Tuple, ast.List, ast.Set))
+
+
+def _if_body_blocks(stmts: list[ast.stmt]) -> bool:
+    """True iff the statement list unconditionally raises HTTPException
+    with a 401/403 status OR has an unconditional return.
+
+    Inverse-guard #3: without this check, an ownership Compare whose
+    result is bound to a variable (`owns = user["id"] == d["owner_id"]`)
+    or logged / returned as data would silently count as "protection."
+    The compare has to actually block the request path.
+    """
+    for stmt in stmts:
+        if isinstance(stmt, ast.Raise) and isinstance(stmt.exc, ast.Call):
+            fn = stmt.exc.func
+            fn_name: str | None = None
+            if isinstance(fn, ast.Name):
+                fn_name = fn.id
+            elif isinstance(fn, ast.Attribute):
+                fn_name = fn.attr
+            if fn_name == "HTTPException" and stmt.exc.args:
+                first = stmt.exc.args[0]
+                if isinstance(first, ast.Constant) and first.value in (401, 403, 404):
+                    # 404 counts as a valid "no I won't tell you it exists"
+                    # response — S-11 wants exactly this shape for cross-tenant.
+                    return True
+        if isinstance(stmt, ast.Return):
+            return True
+    return False
+
+
+def _extract_ownership_compares(expr: ast.expr) -> list[tuple[str, ast.expr]]:
+    """Walk a boolean expression (the `test` of an `if`) and pull out
+    every ownership Compare it contains. Returns [(op_sym, other_side), ...].
+
+    Handles compound tests — `if not eng or user["id"] not in (...):` —
+    by recursing through BoolOp/UnaryOp. The ATLAS engagement/deliverable/
+    messaging handlers use exactly this shape.
+    """
+    results: list[tuple[str, ast.expr]] = []
+    if isinstance(expr, ast.BoolOp):
+        for operand in expr.values:
+            results.extend(_extract_ownership_compares(operand))
+        return results
+    if isinstance(expr, ast.UnaryOp) and isinstance(expr.op, ast.Not):
+        # Negation doesn't unwrap operationally, but for ownership
+        # detection the inner compare still counts (e.g. `if not (user["id"]
+        # in parties): raise`). This is rare in ATLAS but harmless.
+        return _extract_ownership_compares(expr.operand)
+    if not isinstance(expr, ast.Compare) or len(expr.ops) != 1:
+        return results
+    op_sym = _OWNERSHIP_OPS.get(type(expr.ops[0]))
+    if op_sym is None:
+        return results
+    left = expr.left
+    right = expr.comparators[0]
+    if _is_user_id_ref(left):
+        # Inverse-guard #4 applies for membership on the RHS.
+        if op_sym in ("in", "not in") and not _is_safe_membership_rhs(right):
+            return results
+        results.append((op_sym, right))
+    elif _is_user_id_ref(right) and op_sym in ("==", "!="):
+        # RHS-variant only makes sense for equality (`payer_id != user["id"]`).
+        # You can't `X in user["id"]`.
+        results.append((op_sym, left))
+    return results
+
+
+def _find_ownership_checks(
+    func: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> list[str]:
+    """Return the list of ownership checks that ACTUALLY block the
+    request. See the inverse-guard notes on _is_safe_membership_rhs and
+    _if_body_blocks — this function is deliberately strict:
+
+      1. LHS must be literally `user["id"]` / `user.get("id")` / `user.id`.
+      2. If op is `in`/`not in`, RHS must be a literal container
+         (`(a, b)` / `[a, b]` / `{a, b}`).
+      3. The compare must be the test of an `if`, not an assignment or
+         return expression.
+      4. The `if` body must unconditionally raise `HTTPException(401|403|
+         404)` or return.
+      5. The `if` must sit at the top-level of the function body (or a
+         top-level `else` chain). Nested inside another `if`/`for`/
+         `while`/`try`/`with`, it counts as skippable and doesn't count.
+
+    A scanner that only found correct patterns would silently bless the
+    incorrect ones. These five rules together are the inverse guards.
+    """
+    checks: list[str] = []
+
+    def _visit_top_level(stmts: list[ast.stmt]) -> None:
+        for stmt in stmts:
+            if not isinstance(stmt, ast.If):
+                continue
+            if _if_body_blocks(stmt.body):
+                for op_sym, other in _extract_ownership_compares(stmt.test):
+                    checks.append(f"user['id'] {op_sym} {_unparse(other)}")
+            # Recurse into `else` — an else-if chain is still "top-level"
+            # for the purposes of unconditional enforcement.
+            if stmt.orelse:
+                _visit_top_level(stmt.orelse)
+
+    _visit_top_level(list(func.body))
+    return checks
+
+
 def _collect_body_checks(func: ast.FunctionDef | ast.AsyncFunctionDef) -> dict[str, Any]:
     scope_checks: list[str] = []
     role_checks: list[str] = []
@@ -274,10 +433,7 @@ def _collect_body_checks(func: ast.FunctionDef | ast.AsyncFunctionDef) -> dict[s
                 role_ref = True
             if role_ref:
                 for op, comp in zip(node.ops, node.comparators):
-                    op_sym = {
-                        ast.Eq: "==", ast.NotEq: "!=",
-                        ast.In: "in", ast.NotIn: "not in",
-                    }.get(type(op), "?")
+                    op_sym = _OWNERSHIP_OPS.get(type(op), "?")
                     role_checks.append(f"role {op_sym} {_unparse(comp)}")
 
         # 3. admin_permissions inspections
@@ -289,10 +445,14 @@ def _collect_body_checks(func: ast.FunctionDef | ast.AsyncFunctionDef) -> dict[s
                 and node.args[0].value == "admin_permissions"):
             admin_perm_checks.append('user.get("admin_permissions", ...)')
 
+    # 4. Ownership checks (S-28 fix — must be strict: see _find_ownership_checks).
+    ownership_checks = _find_ownership_checks(func)
+
     return {
         "scope_checks": scope_checks,
         "role_checks": role_checks,
         "admin_perm_checks": admin_perm_checks,
+        "ownership_checks": ownership_checks,
         "raises_403": raises_403,
         "raises_401": raises_401,
     }
@@ -345,6 +505,7 @@ def _scan_file(path: Path, backend_root: Path, result: ScanResult) -> None:
                 and not body["scope_checks"]
                 and not body["role_checks"]
                 and not body["admin_perm_checks"]
+                and not body["ownership_checks"]
             )
             result.routes.append({
                 "method": method.upper(),
@@ -358,6 +519,7 @@ def _scan_file(path: Path, backend_root: Path, result: ScanResult) -> None:
                 "scope_checks": body["scope_checks"],
                 "role_checks": body["role_checks"],
                 "admin_perm_checks": body["admin_perm_checks"],
+                "ownership_checks": body["ownership_checks"],
                 "raises_403": body["raises_403"],
                 "raises_401": body["raises_401"],
                 "unauthorized": unauthorized,

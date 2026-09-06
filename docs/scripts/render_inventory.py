@@ -39,7 +39,8 @@ def md_table(headers: list[str], rows: list[list[str]]) -> str:
 def fmt_dep(r: dict) -> str:
     if not r["has_get_current_user"] \
             and not r["scope_checks"] and not r["role_checks"] \
-            and not r["admin_perm_checks"]:
+            and not r["admin_perm_checks"] \
+            and not r.get("ownership_checks"):
         return "— (public)"
     return "get_current_user"
 
@@ -50,6 +51,7 @@ def fmt_body_check(r: dict) -> str:
     parts.extend(f"body: {c}" for c in r["role_checks"])
     if r["admin_perm_checks"]:
         parts.append("body: admin_permissions inspected")
+    parts.extend(f"body: ownership: {c}" for c in r.get("ownership_checks") or [])
     return "; ".join(parts) if parts else ""
 
 
@@ -226,8 +228,9 @@ Every file/line reference is exact.
 
 Methodology notes:
 - The scanner detects `Depends(get_current_user)` in all three FastAPI shapes: positional/keyword defaults, `Annotated[dict, Depends(get_current_user)]`, and route-decorator `dependencies=[Depends(...)]`.
-- "Body scope/role check" is what the handler actually enforces at request time. Only comparisons whose left-hand receiver is literally the `user` variable are treated as authorization — loop-variable classifications like `u.get("role")` are excluded.
-- "NO-AUTH" flag = no `Depends(get_current_user)`, no `_require_scope`/`has_admin_scope`, no `user["role"]`/`user.get("role")` comparison, no `admin_permissions` inspection. Unrelated `Depends(...)` (e.g. rate-limiter) do NOT suppress this flag. Some public routes are still gated by out-of-band checks (Stripe signature on the webhook, emailed token on `/reference-check/{{token}}`).
+- "Body scope/role check" is what the handler actually enforces at request time. Four classes are detected: (1) `_require_scope`/`has_admin_scope` calls; (2) `user["role"]`/`user.get("role")`/`user.role` comparisons; (3) `user.get("admin_permissions", ...)` inspections; (4) **ownership** — `user["id"]`/`user.get("id")`/`user.id` comparisons via `==`/`!=`/`in`/`not in`. Only comparisons whose receiver is literally the `user` variable count — loop-variable shapes like `u.get("role")` or `row["owner_id"] == row["talent_id"]` are excluded.
+- Ownership checks are STRICT (see `docs/scripts/route_scan.py::_find_ownership_checks`): the compare must be the test of an `if` at the top level of the function body; the body must unconditionally raise `HTTPException(401|403|404)` or return; membership (`in`/`not in`) RHS must be a literal tuple/list/set. A check nested inside another `if`, computed but never enforced, or comparing against a bare-Name RHS does NOT count. The inverse guards in `docs/scripts/tests/test_scanner.py` (S-28) lock these rules in.
+- "NO-AUTH" flag = no `Depends(get_current_user)`, no scope/role/admin_perm/ownership check. Unrelated `Depends(...)` (e.g. rate-limiter) do NOT suppress this flag. Some public routes are still gated by out-of-band checks (Stripe signature on the webhook, emailed token on `/reference-check/{{token}}`).
 - Diff verdicts are tri-state: **match** (docs & code agree), **mismatch** (real divergence), **unknown** (FEATURES.md claim is a free-form phrase the tool cannot parse).
 
 ---

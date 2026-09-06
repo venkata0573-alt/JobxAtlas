@@ -65,7 +65,11 @@ def auth_matches(code_r: dict, features_claim: str) -> Verdict:
     has_gcu = code_r["has_get_current_user"]
     scopes = _scope_names(code_r)
     roles = _role_names(code_r)
-    code_public = not has_gcu and not scopes and not roles and not code_r["admin_perm_checks"]
+    ownerships = code_r.get("ownership_checks") or []
+    code_public = (
+        not has_gcu and not scopes and not roles
+        and not code_r["admin_perm_checks"] and not ownerships
+    )
 
     # Case 1: docs say public
     if re.fullmatch(r"public(\s*\([^)]+\))?", feat):
@@ -132,6 +136,7 @@ def build_diff(routes: list[dict], features: list[dict]) -> dict:
         parts.extend(r["role_checks"])
         if r["admin_perm_checks"]:
             parts.append("admin_permissions check")
+        parts.extend(f"ownership: {c}" for c in r.get("ownership_checks") or [])
         if not parts and r["has_get_current_user"]:
             return "auth (no role/scope in body)"
         if not parts:

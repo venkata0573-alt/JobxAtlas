@@ -251,3 +251,325 @@ async def aggregate():
     r = _by_path(result, "GET", "/api/aggregate")
     assert r["role_checks"] == []
     assert r["unauthorized"] is True
+
+
+# ==========================================================================
+# S-28: ownership checks (user["id"] in/not in/==/!= ...)
+#
+# Positive shapes MUST be recognised. Negative shapes MUST NOT — a scanner
+# that only knows how to find correct patterns will silently bless the
+# incorrect ones (see S-28 in SECURITY_BACKLOG.md for the rationale).
+# ==========================================================================
+
+# ---- Positive: canonical patterns that should count ----------------------
+
+def test_ownership_membership_tuple_is_recognized(tmp_path: Path) -> None:
+    """The ATLAS canonical shape at revisions.py:679 and 7+ server.py sites:
+    `if user["id"] not in (a, b): raise HTTPException(403)`."""
+    _write_module(tmp_path, "routes.py", '''
+from fastapi import Depends, HTTPException
+from deps import api, get_current_user, db
+
+@api.get("/engagements/{eid}")
+async def get_engagement(eid: str, user: dict = Depends(get_current_user)):
+    eng = await db.engagements.find_one({"id": eid})
+    if not eng or user["id"] not in (eng["employer_id"], eng["talent_id"]):
+        raise HTTPException(404, "Not found")
+    return eng
+''')
+    result = scan_backend(tmp_path)
+    r = _by_path(result, "GET", "/api/engagements/{eid}")
+    assert r["ownership_checks"], (
+        f"Canonical `user['id'] not in (a, b)` should be detected; got "
+        f"ownership_checks={r['ownership_checks']}"
+    )
+    assert r["unauthorized"] is False
+
+
+def test_ownership_equality_both_sides_recognized(tmp_path: Path) -> None:
+    """Both `user["id"] == foo` and `foo != user["id"]` count. The latter
+    is the shape at revisions.py:608 (`if payer_id != user["id"]:`)."""
+    _write_module(tmp_path, "routes.py", '''
+from fastapi import Depends, HTTPException
+from deps import api, get_current_user
+
+@api.post("/lhs-equality")
+async def lhs_equality(user: dict = Depends(get_current_user)):
+    d = {"owner_id": "x"}
+    if user["id"] != d["owner_id"]:
+        raise HTTPException(403, "not owner")
+    return {}
+
+@api.post("/rhs-equality")
+async def rhs_equality(user: dict = Depends(get_current_user)):
+    payer_id = "y"
+    if payer_id != user["id"]:
+        raise HTTPException(403, "wrong payer")
+    return {}
+''')
+    result = scan_backend(tmp_path)
+    for path in ("/api/lhs-equality", "/api/rhs-equality"):
+        r = _by_path(result, "POST", path)
+        assert r["ownership_checks"], (
+            f"{path}: equality-form ownership check missed"
+        )
+        assert r["unauthorized"] is False
+
+
+def test_ownership_via_user_get_id_and_dot_id(tmp_path: Path) -> None:
+    """All three receiver shapes count: user["id"], user.get("id"), user.id."""
+    _write_module(tmp_path, "routes.py", '''
+from fastapi import Depends, HTTPException
+from deps import api, get_current_user
+
+@api.get("/via-get")
+async def via_get(user: dict = Depends(get_current_user)):
+    if user.get("id") != "x":
+        raise HTTPException(403, "nope")
+    return {}
+
+@api.get("/via-attr")
+async def via_attr(user = Depends(get_current_user)):
+    if user.id != "x":
+        raise HTTPException(403, "nope")
+    return {}
+''')
+    result = scan_backend(tmp_path)
+    for path in ("/api/via-get", "/api/via-attr"):
+        r = _by_path(result, "GET", path)
+        assert r["ownership_checks"], f"{path}: shape not recognised"
+
+
+def test_ownership_recognized_in_boolop_compound_test(tmp_path: Path) -> None:
+    """`if not eng or user["id"] not in (a, b): raise` — the compound
+    test used across ATLAS. BoolOp recursion in _extract_ownership_compares
+    must find the inner ownership Compare."""
+    _write_module(tmp_path, "routes.py", '''
+from fastapi import Depends, HTTPException
+from deps import api, get_current_user, db
+
+@api.get("/compound")
+async def compound(user: dict = Depends(get_current_user)):
+    eng = await db.engagements.find_one({"id": "e1"})
+    if not eng or user["id"] not in (eng["employer_id"], eng["talent_id"]):
+        raise HTTPException(403, "not party")
+    return eng
+''')
+    result = scan_backend(tmp_path)
+    r = _by_path(result, "GET", "/api/compound")
+    assert r["ownership_checks"], (
+        "BoolOp compound test containing an ownership compare must be found"
+    )
+
+
+def test_ownership_recognized_with_404_response(tmp_path: Path) -> None:
+    """S-11 wants cross-tenant to be 404, not 403 (id-exists side channel).
+    A handler that raises 404 on the ownership-fail branch must still count
+    as protection — the caller is blocked either way."""
+    _write_module(tmp_path, "routes.py", '''
+from fastapi import Depends, HTTPException
+from deps import api, get_current_user
+
+@api.post("/four-oh-four")
+async def four_oh_four(user: dict = Depends(get_current_user)):
+    d = {"owner_id": "x"}
+    if user["id"] != d["owner_id"]:
+        raise HTTPException(404, "Not found")
+    return {}
+''')
+    result = scan_backend(tmp_path)
+    r = _by_path(result, "POST", "/api/four-oh-four")
+    assert r["ownership_checks"], "404 blocks the caller; ownership must count"
+
+
+def test_ownership_recognized_in_whitelist_branch_pattern(tmp_path: Path) -> None:
+    """The `_load_deliverable_and_authorize` shape in revisions.py:120-131:
+    a sequence of `if user["id"] == X: return d` allow-lists followed by a
+    final `raise HTTPException(403)`. Each allow-branch returns, so the
+    ownership compare counts under the "unconditional exit" rule."""
+    _write_module(tmp_path, "routes.py", '''
+from fastapi import Depends, HTTPException
+from deps import api, get_current_user
+
+@api.get("/whitelist")
+async def whitelist(user: dict = Depends(get_current_user)):
+    d = {"employer_id": "e", "talent_id": "t"}
+    if user["id"] == d.get("employer_id"):
+        return {"role": "employer"}
+    if user["id"] == d.get("talent_id"):
+        return {"role": "talent"}
+    raise HTTPException(403, "Not authorised")
+''')
+    result = scan_backend(tmp_path)
+    r = _by_path(result, "GET", "/api/whitelist")
+    assert len(r["ownership_checks"]) >= 2, (
+        f"Both whitelist branches should count as ownership; got "
+        f"{r['ownership_checks']}"
+    )
+
+
+# ---- Inverse guards: shapes that LOOK authorized but aren't --------------
+#
+# Each of these MUST NOT be classified as protected. The scanner is
+# supposed to under-report authorization when the pattern is uncertain,
+# not silently bless a broken check.
+
+
+def test_inverse_guard_loop_variable_lhs_is_not_authz(tmp_path: Path) -> None:
+    """Inverse guard (a): the compare's LHS is a loop/row variable, not
+    the request `user`. `row["owner_id"] == row["talent_id"]` is business
+    logic classifying data, not authorizing the request."""
+    _write_module(tmp_path, "routes.py", '''
+from fastapi import Depends, HTTPException
+from deps import api, get_current_user, db
+
+@api.get("/loop-var")
+async def loop_var(user: dict = Depends(get_current_user)):
+    rows = await db.deliverables.find({}).to_list(50)
+    for row in rows:
+        if row["owner_id"] == row["talent_id"]:
+            raise HTTPException(403, "self-owned")
+    return rows
+''')
+    result = scan_backend(tmp_path)
+    r = _by_path(result, "GET", "/api/loop-var")
+    assert r["ownership_checks"] == [], (
+        f"LOOP VARIABLE LHS must NOT count as ownership; got {r['ownership_checks']}. "
+        f"This is the shape that would let a broken 'compare-two-fields-that-happen-"
+        f"to-both-be-the-user' pattern silently look protected."
+    )
+
+
+def test_inverse_guard_ownership_in_skippable_branch_is_not_authz(tmp_path: Path) -> None:
+    """Inverse guard (b): the ownership check is nested inside an outer
+    conditional. If the outer condition is false the check is skipped
+    entirely, so the request is not authorized on that path.
+
+    ATLAS calls this pattern out explicitly — the correct shape is a
+    top-level `if user[id] not in (...): raise`, not nested."""
+    _write_module(tmp_path, "routes.py", '''
+from fastapi import Depends, HTTPException
+from deps import api, get_current_user
+
+@api.post("/skippable")
+async def skippable(user: dict = Depends(get_current_user)):
+    payload = {"strict": False, "owner_id": "x"}
+    if payload["strict"]:
+        # SKIPPABLE: only enforced when payload.strict is True. A caller
+        # can bypass ownership by setting strict=False in the body.
+        if user["id"] != payload["owner_id"]:
+            raise HTTPException(403, "not owner")
+    return payload
+''')
+    result = scan_backend(tmp_path)
+    r = _by_path(result, "POST", "/api/skippable")
+    assert r["ownership_checks"] == [], (
+        f"Nested-inside-outer-if ownership check MUST NOT count; got "
+        f"{r['ownership_checks']}. This is the shape that lets a request "
+        f"bypass ownership by hitting the outer-else branch."
+    )
+
+
+def test_inverse_guard_ownership_computed_but_never_raises(tmp_path: Path) -> None:
+    """Inverse guard (c): the ownership compare is assigned to a variable
+    (or embedded in a return dict) but never raises. The developer
+    computed the check and forgot to enforce it."""
+    _write_module(tmp_path, "routes.py", '''
+from fastapi import Depends
+from deps import api, get_current_user
+
+@api.get("/computed-not-enforced")
+async def computed_not_enforced(user: dict = Depends(get_current_user)):
+    d = {"owner_id": "x"}
+    owns = user["id"] == d["owner_id"]
+    return {"owns": owns, "data": d}
+
+@api.get("/computed-in-return")
+async def computed_in_return(user: dict = Depends(get_current_user)):
+    d = {"owner_id": "x"}
+    return {"is_owner": user["id"] == d["owner_id"]}
+''')
+    result = scan_backend(tmp_path)
+    for path in ("/api/computed-not-enforced", "/api/computed-in-return"):
+        r = _by_path(result, "GET", path)
+        assert r["ownership_checks"] == [], (
+            f"{path}: ownership compare that never raises MUST NOT count; "
+            f"got {r['ownership_checks']}. This is the classic "
+            f"forgot-to-actually-enforce bug."
+        )
+
+
+def test_inverse_guard_membership_against_wrong_container(tmp_path: Path) -> None:
+    """Inverse guard (d): `user["id"] in engagement` — membership against
+    a bare Name RHS. This is almost certainly a bug (dict membership
+    tests KEYS, not values; the dev probably meant `in (engagement[
+    "talent_id"], engagement["employer_id"])`). Reject bare-name RHS."""
+    _write_module(tmp_path, "routes.py", '''
+from fastapi import Depends, HTTPException
+from deps import api, get_current_user
+
+@api.post("/wrong-container")
+async def wrong_container(user: dict = Depends(get_current_user)):
+    engagement = {"talent_id": "t", "employer_id": "e"}
+    if user["id"] in engagement:
+        # Bug: tests dict KEYS ("talent_id", "employer_id"), not values.
+        # user["id"] is a UUID, so this is always False → always raises.
+        raise HTTPException(403, "not party")
+    return engagement
+
+@api.post("/name-rhs")
+async def name_rhs(user: dict = Depends(get_current_user)):
+    parties = ["t", "e"]  # not a literal at the compare site
+    if user["id"] not in parties:
+        raise HTTPException(403, "not party")
+    return {}
+''')
+    result = scan_backend(tmp_path)
+    for path in ("/api/wrong-container", "/api/name-rhs"):
+        r = _by_path(result, "POST", path)
+        assert r["ownership_checks"] == [], (
+            f"{path}: bare-Name RHS in membership check MUST NOT count; "
+            f"got {r['ownership_checks']}. Only literal Tuple/List/Set "
+            f"is accepted; a variable might be the wrong container "
+            f"(inverse-guard #4 in _find_ownership_checks)."
+        )
+
+
+def test_inverse_guard_bare_expression_statement_is_not_authz(tmp_path: Path) -> None:
+    """Extra defense: an ownership compare as a bare expression statement
+    (or inside an assert) is not the test of an `if` and doesn't
+    unconditionally block."""
+    _write_module(tmp_path, "routes.py", '''
+from fastapi import Depends
+from deps import api, get_current_user
+
+@api.get("/bare-expr")
+async def bare_expr(user: dict = Depends(get_current_user)):
+    d = {"owner_id": "x"}
+    user["id"] == d["owner_id"]  # bare expression — no effect
+    return d
+''')
+    result = scan_backend(tmp_path)
+    r = _by_path(result, "GET", "/api/bare-expr")
+    assert r["ownership_checks"] == []
+
+
+# ---- Regression: NO-AUTH flag drops when ownership_checks fires ----------
+
+def test_ownership_check_suppresses_no_auth_flag(tmp_path: Path) -> None:
+    """The whole point of S-28: a handler that has get_current_user +
+    an ownership check should NOT be classified as `unauthorized`."""
+    _write_module(tmp_path, "routes.py", '''
+from fastapi import Depends, HTTPException
+from deps import api, get_current_user
+
+@api.get("/owned")
+async def owned(user: dict = Depends(get_current_user)):
+    if user["id"] != "x":
+        raise HTTPException(403)
+    return {}
+''')
+    result = scan_backend(tmp_path)
+    r = _by_path(result, "GET", "/api/owned")
+    assert r["unauthorized"] is False
+    assert r["ownership_checks"], "owned-by-user check must fire"
