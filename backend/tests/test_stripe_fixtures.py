@@ -236,31 +236,59 @@ class TestS03DisputeFeeBranchSwallowsErrors:
         })
         assert tx is None
 
-    async def test_S03_shape_documented_dispute_branch_swallows(self):
-        """Meta-assertion: read server.py:568-573 verbatim and confirm the
-        `try/except → return {"ok": True}` shape. If someone refactors
-        this to `raise` (i.e. fixes S-03), this test's grep will miss the
-        pattern and fail — that's the signal to close S-03.
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "S-03: server.py:568-573 dispute_fee branch wraps "
+            "mark_dispute_fee_paid in try/except and returns {'ok': True} "
+            "unconditionally — a fault in the helper silently succeeds "
+            "for Stripe. When S-03 lands (raise instead of swallow) this "
+            "test starts passing; strict=True then fails on the "
+            "unexpected pass, forcing us to remove the xfail and close "
+            "S-03. If it starts passing unexpectedly, DO NOT re-mark "
+            "xfail — verify the source at server.py:568-573 to confirm "
+            "the swallow is gone, then delete the marker."
+        ),
+    )
+    async def test_dispute_fee_branch_raises_5xx_when_helper_throws(
+        self, monkeypatch,
+    ):
+        """Behavioral S-03 canary. Patches mark_dispute_fee_paid to raise,
+        invokes the webhook handler directly (bypass HTTP so the
+        monkey-patch is visible — uvicorn is a separate process), asserts
+        the handler propagates a 5xx.
+
+        Direct-import is the only route: `from routes.revisions import
+        mark_dispute_fee_paid` at server.py:569 is a LATE import inside
+        the handler branch, so `monkeypatch.setattr(routes.revisions,
+        "mark_dispute_fee_paid", ...)` is picked up at branch execution
+        time — this is what makes the fault injection work at all.
         """
-        from pathlib import Path
-        src = Path("/app/backend/server.py").read_text()
-        # Find the dispute_fee branch and assert on its shape.
-        assert 'if meta.get("kind") == "dispute_fee":' in src
-        # The swallow pattern: try/except that logs then returns 200
-        # unconditionally. Match by proximity (nearby lines) rather than
-        # exact-string so trivial reformatting doesn't break the test.
-        dispute_idx = src.index('if meta.get("kind") == "dispute_fee":')
-        # Look at the ~15 lines that follow.
-        snippet = src[dispute_idx:dispute_idx + 800]
-        assert "try:" in snippet, (
-            "S-03 shape changed — dispute_fee branch no longer wraps the "
-            "mark call in try/except. If this was intentional, S-03 may "
-            "be ready to close; verify and remove this test."
+        import routes.revisions as revisions_mod
+        from server import stripe_webhook
+        from fastapi import HTTPException
+
+        async def _boom(session_id: str) -> None:
+            raise RuntimeError(
+                "Simulated Mongo hiccup in mark_dispute_fee_paid — S-03 test"
+            )
+        monkeypatch.setattr(revisions_mod, "mark_dispute_fee_paid", _boom)
+
+        payload, headers = sf.checkout_session_completed(
+            session_id="cs_test_s03_behavioral_xfail",
+            kind="dispute_fee",
+            metadata={"grievance_id": "does-not-exist"},
         )
-        assert "except Exception" in snippet
-        assert "logger.exception" in snippet
-        assert 'return {"ok": True}' in snippet, (
-            "S-03 canary: after the try/except, the dispute_fee branch "
-            "still returns 200 unconditionally. If this line moved to a "
-            "raise, S-03 is fixed and this test should be updated."
-        )
+        req = sf.make_webhook_request(payload, headers)
+
+        # POST-S-03: the exception propagates → HTTPException(5xx) OR the
+        # RuntimeError bubbles up. Either way pytest.raises catches it.
+        # PRE-S-03: the handler catches + logs + returns {"ok": True} —
+        # no exception → pytest.raises fails → test fails → xfail catches.
+        with pytest.raises((HTTPException, RuntimeError)) as exc:
+            await stripe_webhook(req)
+        if isinstance(exc.value, HTTPException):
+            assert exc.value.status_code >= 500, (
+                f"S-03 fix must propagate a 5xx (Stripe retries on 5xx, "
+                f"not 4xx); got {exc.value.status_code}"
+            )

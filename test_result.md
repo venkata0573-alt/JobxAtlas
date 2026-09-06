@@ -243,6 +243,88 @@ backend:
           .env.test) — the happy-path upload test is skipped until a real
           storage mock lands. Auth-gate tests still cover the endpoint.
 
+  - task: "§10 hours purchase + §17 milestone payments — 30 money-path tests"
+    implemented: true
+    working: true
+    file: "backend/tests/{test_10_hours_purchase, test_17_milestone_payments}.py + updated test_stripe_fixtures.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: >
+          PASS: 283 passed / 3 S-11 ratchets / 1 CSRF skip / 3 xfailed.
+          Baseline before: 256 passed / 3 ratchets / 1 skip / 0 xfail.
+          Delta: +27 pass, +3 xfail (all expected). Zero pre-existing
+          regressions.
+          Files added:
+          - test_10_hours_purchase.py (17 tests, 15 pass + 2 xfail):
+            /payments/checkout + /bank/{initiate,submit} + /mine +
+            /status/{id} + webhook hours-credit + S-03(b) idempotency
+            (sequential + concurrent) + F-05 dual-credit + forged +
+            unknown session + charge.refunded xfail.
+          - test_17_milestone_payments.py (13 tests, all pass):
+            /projects/workspace/{p}/milestones/{m}/checkout + status
+            + webhook milestone-flip + idempotency + forged + unknown.
+          - test_stripe_fixtures.py updated: grep canary replaced
+            with behavioral S-03 xfail(strict=True) that patches
+            mark_dispute_fee_paid to raise and asserts 5xx propagates.
+            Currently XFAILED (swallow present); flips xpassed when
+            S-03 lands, forcing removal.
+          Findings from writing these tests:
+          - Sequential-replay idempotency PASSES today for both hours
+            (test_sequential_replay_credits_once) and milestone
+            (test_sequential_replay_leaves_state_stable). The
+            session_id + `payment_status: {"$ne": "paid"}` guard is
+            effective for serial re-delivery. The user's a-priori
+            "expect double credit" prediction for sequential replay
+            is not the current behavior. S-03(b) evidence is the
+            CONCURRENT case, not sequential.
+          - Concurrent replay (5× asyncio.gather on same session_id +
+            same event.id) XFAILED — race hit, hours credited more
+            than once. Root cause is at server.py:590-595: the if-check
+            reads `rec.get("payment_status")` from the find_one
+            snapshot; multiple concurrent handlers all see 'pending'
+            in the same read window, all enter the block, all $inc
+            hours_balance (the update_one uses $ne guard atomically
+            but the subsequent $inc is unconditional on that update's
+            success). F-05 race real for concurrent case. Fix scope
+            per S-03(b): add stripe_events collection with unique
+            event.id index so the second delivery is dropped BEFORE
+            the find_one runs. Marked xfail(strict=False) since race
+            is timing-dependent on tmpfs Mongo — may xpass on slow
+            hosts, which strict=False accepts.
+          - F-05 dual-credit test (webhook + polling) PASSED. Webhook
+            fires first → payment_status=paid → polling endpoint calls
+            stripe.Session.retrieve → _credit_hours_if_paid sees
+            payment_status=paid → short-circuits. Guard holds for the
+            documented sequential case.
+          - charge.refunded webhook: no handler branch exists.
+            server.py:563-596 only branches on
+            checkout.session.completed; charge.refunded falls through
+            to line 596 → 200 no-op. hours_balance stays credited
+            after Stripe reverses the charge. Marked xfail(strict=True)
+            with the expected-post-fix assertion; will flip xpassed
+            when a charge.refunded branch is added.
+          - S-03 dispute_fee behavioral xfail (replaced the grep
+            canary) XFAILED as designed. Uses sf.make_webhook_request
+            to call stripe_webhook directly (bypasses HTTP → uvicorn
+            is a separate process so monkeypatch is visible), patches
+            routes.revisions.mark_dispute_fee_paid to raise, asserts
+            5xx propagates. Currently the swallow returns 200 → no
+            exception → xfail catches. When S-03 lands, exception
+            propagates → test passes → strict=True fails on xpass →
+            forces removal.
+          Not covered (intentional bounded scope):
+          - Nightly auto-collect off-session charge path (F-05 branch
+            in projects.py:_attempt_off_session_charge) — needs a
+            scheduler-run harness. Phase 1c will add.
+          - Setup-checkout / card-attach flows (/api/billing/setup*) —
+            separate §17b domain; skipped this pass.
+          - Bank-transfer admin-approval flow — separate §21 admin-
+            panel scope, will land with the admin-panel coverage pass.
+
   - task: "Stripe webhook signing fixtures + S-03 evidence"
     implemented: true
     working: true

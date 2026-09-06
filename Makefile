@@ -72,8 +72,10 @@ test-backend:
 			tests/test_06_marketplace.py \
 			tests/test_07_shortlist.py \
 			tests/test_08_eoi.py \
+			tests/test_10_hours_purchase.py \
 			tests/test_11_engagements.py \
 			tests/test_12_13_revisions.py \
+			tests/test_17_milestone_payments.py \
 			tests/test_stripe_fixtures.py \
 			tests/test_public_surface.py \
 			tests/test_csrf_surface.py \

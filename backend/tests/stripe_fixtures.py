@@ -256,3 +256,48 @@ def with_malformed_header(payload: bytes) -> dict:
         "Stripe-Signature": "this-is-not-a-valid-stripe-signature-header",
         "Content-Type": "application/json",
     }
+
+
+# ---------- Synthetic Request builder for direct handler calls --------------
+
+def make_webhook_request(payload: bytes, headers: dict):
+    """Build a Starlette Request that `stripe_webhook` will accept when
+    called directly (bypassing HTTP + uvicorn).
+
+    Rationale: pytest runs in the same *container* as the backend, but
+    it's a separate *process* from uvicorn. Monkey-patches applied in
+    pytest are invisible to the backend process, so any test that needs
+    to force a fault in a downstream helper (e.g. S-03 xfail for
+    `mark_dispute_fee_paid`) has to call the handler in-process. This
+    helper builds the minimal ASGI scope + receive callable the handler
+    needs; construct_event still fires + validates the signature end-
+    to-end, so this is not a mock — it's the real code path.
+    """
+    from starlette.requests import Request
+
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/stripe/webhook",
+        "raw_path": b"/api/stripe/webhook",
+        "headers": [
+            (k.lower().encode("latin-1"), v.encode("latin-1"))
+            for k, v in headers.items()
+        ],
+        "query_string": b"",
+        "root_path": "",
+        "http_version": "1.1",
+        "scheme": "https",
+        "server": ("localhost", 443),
+        "client": ("127.0.0.1", 12345),
+    }
+    sent = False
+
+    async def _receive():
+        nonlocal sent
+        if sent:
+            return {"type": "http.disconnect"}
+        sent = True
+        return {"type": "http.request", "body": payload, "more_body": False}
+
+    return Request(scope, _receive)
