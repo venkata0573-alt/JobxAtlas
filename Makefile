@@ -74,6 +74,7 @@ test-backend:
 			tests/test_08_eoi.py \
 			tests/test_11_engagements.py \
 			tests/test_12_13_revisions.py \
+			tests/test_stripe_fixtures.py \
 			tests/test_public_surface.py \
 			tests/test_csrf_surface.py \
 			tests/test_config.py \

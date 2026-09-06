@@ -243,6 +243,75 @@ backend:
           .env.test) — the happy-path upload test is skipped until a real
           storage mock lands. Auth-gate tests still cover the endpoint.
 
+  - task: "Stripe webhook signing fixtures + S-03 evidence"
+    implemented: true
+    working: true
+    file: "backend/tests/stripe_fixtures.py + backend/tests/test_stripe_fixtures.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: >
+          PASS: 10/10 green under make test-backend (serial -n 0).
+          Baseline before: 246 passed / 3 S-11 ratchets / 1 CSRF skip.
+          Baseline after: 256 passed / 3 ratchets / 1 skip. Zero
+          regressions.
+          Delivered: stripe_fixtures.py with sign_payload() +
+          checkout_session_completed / payment_intent_succeeded /
+          charge_refunded factories + with_bad_signature /
+          with_stale_timestamp / with_malformed_header helpers.
+          Secret is read from settings.stripe.webhook_secret (same
+          config path the app uses) so fixture + handler agree
+          byte-exact.
+          Fixture tests (10 total):
+          - 4× signed-payload-reaches-handler (hours_purchase,
+            milestone E2E with DB update, PI succeeded, charge
+            refunded)
+          - 1× bad v1 signature → 400
+          - 1× stale timestamp (400s past tolerance) → 400
+          - 1× missing Stripe-Signature header → 400
+          - 1× malformed header value → 400
+          - 2× S-03 evidence: dispute_fee webhook returns 200 for
+            unknown session + AST snapshot of server.py:568-573 that
+            fails if the try/except → return {"ok": True} pattern
+            changes shape (canary for S-03 closure).
+          Reports H-7 in PROJECT_STATUS.md §5: "Money-path tests need
+          locally-signed payloads with a test STRIPE_WEBHOOK_SECRET"
+          — fixtures now exist; §10 / §14 / §17 tests can proceed in
+          later sessions.
+          S-03 EVIDENCE REPORT (asked by user):
+          - Signature verification path (server.py:559-562): WORKS
+            correctly. `stripe.Webhook.construct_event` throws on bad
+            HMAC, stale timestamp, missing header, malformed header —
+            handler catches and raises HTTPException(400, "Invalid
+            signature"). All four adversarial fixture tests confirm
+            400 in production; a bad signature does NOT get 200.
+          - Business-logic swallow (server.py:568-573, dispute_fee
+            branch only): SHAPE UNCHANGED — still wraps
+            mark_dispute_fee_paid in try/except that logs and then
+            unconditionally returns {"ok": True}. Confirmed by
+            test_S03_shape_documented_dispute_branch_swallows which
+            grep-checks the source. If mark_dispute_fee_paid throws
+            (Mongo down, revisions.py refactor, dependency import
+            error), Stripe still sees 200 and never retries → the DB
+            + Stripe diverge silently. The unknown-session variant
+            (dispute_fee kind + non-existent session) 200s cleanly
+            because mark_dispute_fee_paid short-circuits on missing
+            tx, not because the swallow fires; the swallow is a
+            defense-in-depth trap waiting for a real exception.
+          - Milestone branch (server.py:575-588) and hours-purchase
+            fallback (server.py:590-595) do NOT have try/except
+            wrappers — an exception there propagates as 500 (Stripe
+            retries correctly). S-03 scope is dispute_fee branch only.
+          - Verdict: S-03 correctly filed at P0. Signature side is
+            solid; the money-loss risk is the swallow. Fix per
+            SECURITY_BACKLOG.md: (a) replace the swallow with a raise
+            so 500 propagates and Stripe retries, (b) add a stripe_
+            events collection keyed on event.id for idempotency so
+            retries don't double-process.
+
   - task: "§3 auth + §8 marketplace/shortlist + §9 EOI — 98 Phase 1b tests"
     implemented: true
     working: true
