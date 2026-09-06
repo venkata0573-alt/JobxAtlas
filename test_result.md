@@ -275,11 +275,17 @@ backend:
           Findings — nothing failing:
           - H-8 assertion path is live and green; every threshold check
             binds to REVIEW_THRESHOLD_H8=4, not 3.
-          - S-25 confirmed as scanner-misfire empirically. Talent payer
-            and employer party both reach fee-status; only unrelated +
-            anon are denied. PROJECT_STATUS.md §3 marked S-25 as
-            "still unverified" — active-test citation now available;
-            can be marked CLOSED in SECURITY_BACKLOG.md.
+          - S-25 CLOSED as scanner false positive. Handler at
+            revisions.py:679 (was :672; F-11 shifted the line, content
+            unchanged since first commit f409130 2026-08-15) has always
+            enforced `user["id"] in (talent_id, employer_id) OR
+            has_admin_scope("moderation")`. Zero application-code
+            change required or made. Blind spot in
+            docs/scripts/route_scan.py:220-298 documented as S-28 with
+            list of ~11 other handlers currently mis-classified as
+            "auth (no role/scope in body)" that actually enforce
+            party-ownership via `user["id"]` patterns the scanner
+            doesn't recognise.
           - F-07 confirmed intended behaviour: revision_count is
             monotonic; only profile penalty flags reverse on ruling.
           - H-9 (parallel worker state trampling) fires hard on this
