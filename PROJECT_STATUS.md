@@ -15,7 +15,7 @@ Last updated: end of Phase 1a. Read alongside `SECURITY_BACKLOG.md`,
 | 1b — Convert FEATURES.md into tests (23 sections) | Not started |
 | 1c — Playwright E2E | Not started |
 | 1d — CI gate (`make verify`) | Partial — targets exist, no CI |
-| 2 — Fix loop (S-01…S-25, F-01…F-09) | Not started |
+| 2 — Fix loop (S-01…S-25, F-01…F-09) | **F-11 landed** (2026-09-06). See §2.F11 below. First app-code change; overrides §7's "no app code before Phase 1b" rule explicitly, closes F-08/F-09/F-10 + S-05/S-15/S-27 fully and lands partials on S-02/S-04/S-08/S-20. Remaining items still gated on Phase 1b coverage. |
 | 3 — Standing commands | Files written, not exercised |
 | 4 — Contractor split (`F-03` → `atlas-core`) | Blocked on Phase 2 |
 
@@ -46,7 +46,41 @@ Last updated: end of Phase 1a. Read alongside `SECURITY_BACKLOG.md`,
 - Personas: `admin-all`, `admin-noscope`, `talent-clean`, `talent-flagged`, `employer-card`,
   `employer-nocard`.
 - Invariant tests: `test_public_surface.py`, `test_csrf_surface.py` (17 passed, 1 ratchet/skip).
-- No application code has been modified. That is still true and should stay true until Phase 2.
+- ~~No application code has been modified.~~ **F-11 is the first app-code change** (see §2.F11).
+
+### 2.F11 — Config centralisation (landed 2026-09-06)
+
+- **Backend authority**: `backend/config.py` is the sole `os.environ`/`os.getenv`
+  reader; enforced by `test_config.py::test_no_module_outside_config_reads_os_environ`
+  (AST scan of `backend/`, excluding `config.py` and `tests/`).
+- **Frontend authority**: `frontend/src/config.js` is the sole `process.env.REACT_APP_*`
+  reader; SPA refuses to mount with a visible red banner when `REACT_APP_BACKEND_URL`
+  is unset (F-08 close).
+- **Fail-loud posture**: every required env var missing produces ONE
+  `RuntimeError` at import listing all missing vars grouped by service. No more
+  scattered `KeyError` / silent fallback / late-symptom failure modes.
+- **ENV tag required at boot** (no default). Silently defaulting to
+  "development" in a prod deploy would neuter S-08's production-Turnstile
+  enforcement — the highest-consequence config bug the module can prevent.
+- **New tests**: `backend/tests/test_config.py` — 18 tests (parametrised
+  missing-required per group + aggregation + ENV-required + CORS-wildcard
+  rejection + prod-Turnstile conditional + AST scan + H-8 non-default
+  proof + `.env.test`-values-match-settings sanity).
+- **Test baseline**: 84 → 102 collected. Post-F-11: 98 passed / 3 S-11 ratchets
+  / 1 CSRF skip. Delta = 0 pre-existing test regressions.
+- **Backlog impact**:
+  - CLOSED: S-05, S-15, S-27, F-08, F-09, F-10, H-8
+  - PARTIAL: S-02 (default removed, per-env validation still open),
+    S-04 (fallback chain collapsed, HMAC + verify recompute still open),
+    S-08 (prod required + WARN logs, rate limiting still open),
+    S-20 (password default removed + seeder skips, force-rotate + prod
+    superadmin-check still open)
+- **Commits**: `4a85b96` (backend sweep), `6448200` (initial doc updates),
+  `22329d1` (frontend sweep), plus the step-7 doc commit adding this section.
+- **Standing rules override**: PROJECT_STATUS.md §7 says "no app code before
+  Phase 1b." F-11 was authorised as a scoped exception (see conversation
+  history 2026-09-05..06). All other §7 rules still apply — no further app
+  code before Phase 1b completes.
 
 ---
 
@@ -66,32 +100,20 @@ Last updated: end of Phase 1a. Read alongside `SECURITY_BACKLOG.md`,
 ### From the harness (Phase 1a) — new
 - **F-01 upgraded.** `emergentintegrations==0.2.0` is not on PyPI. This is not a boot *risk*, it is
   a confirmed **fresh-install blocker**. Nobody can `pip install -r requirements.txt` today.
-- **F-09 (documentation debt today; becomes P1 the day this app is deployed).**
-  The app is currently local-only and never deployed, so no production configuration is at risk.
-  On deploy, this graduates to a P1 correctness bug: anyone configuring prod from ARCHITECTURE.md
-  sets variables nothing reads, and the **penalty and recovery ladder silently runs on hardcoded
-  defaults**. Fix as a doc-only PR now to avoid ever shipping the trap.
+- ~~**F-09**~~ **CLOSED — F-11 (2026-09-06).** The historical fix scope was
+  "rename the drifted names in ARCHITECTURE.md §6." The stricter close criterion
+  applied here is that **§6 no longer lists raw env var names at all** — a
+  same-named list would just recreate the same drift condition F-09 originally
+  described. §6 now uses config-field paths (`revision_review_threshold`, etc.)
+  as the identifier, with a header that says: "This section deliberately does
+  NOT list env var names — the env-var → typed field mapping lives in
+  `.env.example` and `docs/CONFIG_INVENTORY.md`. Rename a field in config.py
+  and the alias, the doc, and this table all update from a single source."
+  Renaming a field now surfaces as an IDE/type-check failure at every consumer,
+  not as free-form doc drift.
 
-  Eight variables are documented under names the code does not read:
-
-  | ARCHITECTURE.md says | Code actually reads |
-  | --- | --- |
-  | `REVIEW_FLAG_THRESHOLD` | `REVISION_REVIEW_THRESHOLD` |
-  | `PENALTY_THRESHOLD` | `REVISION_PENALTY_THRESHOLD` |
-  | `RECOVERY_UNDER_REVIEW` | `REVISION_RECOVERY_UNDER_REVIEW` |
-  | `RECOVERY_EXCESSIVE` | `REVISION_RECOVERY_EXCESSIVE` |
-  | `VISIBILITY_PENALTY` | `REVISION_VISIBILITY_PENALTY` |
-  | `RATE_NUDGE_PENALTY_PCT` | `REVISION_RATE_NUDGE_PENALTY` |
-  | `EMPLOYER_FLAG_TALENTS` | `EMPLOYER_FLAG_UNIQUE_TALENTS` |
-  | `EMPLOYER_FLAG_WINDOW_D` | `EMPLOYER_FLAG_WINDOW_DAYS` |
-
-  Five more variables are read by code and absent from ARCHITECTURE.md: `APP_BASE_URL`,
-  `PUBLIC_BASE_URL`, `PUBLIC_SITE_URL`, `INTEGRATION_PROXY_URL`, `SENDER_EMAIL`.
-
-  **Verified:** `.env.test` uses the code-correct names and its numeric values match FEATURES.md §12
-  exactly (revision 3+ → `under_review`, 5+ → `excessive_revisions`, visibility −20, rate bias −10%,
-  5 revisions × 3 talents × 60 days, $49 dispute fee). See §5 harness debt for the caveat that
-  matching-defaults exactly means a config-read regression is invisible until §12 tests land.
+  Historical evidence (pre-F-11): eight variables under wrong names + five
+  undocumented — see git history for the specific table.
 
 ---
 

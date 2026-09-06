@@ -71,59 +71,81 @@ Key non-obvious facts up front:
 
 ## 1. Boot sequence
 
-Command: `uvicorn server:app` (no factory; the module-level `app` at `server.py:42` is imported directly).
+Command: `uvicorn server:app` (no factory; the module-level `app` at `server.py:36` is imported directly).
+
+**Environment authority: `backend/config.py`.** As of F-11, config.py is the sole
+module in `backend/` that reads the process environment. Every other module
+imports typed settings via `from config import settings`. There is no
+`os.environ` / `os.getenv` call anywhere else in `backend/`, and
+`backend/tests/test_config.py::test_no_module_outside_config_reads_os_environ`
+enforces this by AST-scanning `backend/` on every test run. The env-var → typed
+field mapping lives in `.env.example` (human-friendly, grouped by service) and
+`docs/CONFIG_INVENTORY.md` (per-var provenance). Do NOT duplicate env var names
+in this doc.
 
 Order of events, in the order Python executes them:
 
-1. **`server.py:1-5`** — `load_dotenv(ROOT_DIR / ".env")` reads env vars *before any other imports*. The identical dotenv call runs again inside `deps.py:6-10` — harmless idempotent double-load, but worth knowing when you're debugging why an env var appears set only sometimes.
-2. **`server.py:17`** — `import stripe`. The Stripe SDK loads but does not connect.
-3. **`server.py:25-27`** — three local imports fire, in order:
-   - `from ai_service import suggest_hourly_rate` (`ai_service.py:6` transitively imports `emergentintegrations.llm.chat`). If the package is missing, boot dies here with `ModuleNotFoundError`.
+1. **`server.py:16`** — `from config import settings`. This is the module that
+   fires pydantic-settings' `.env` file load and every env-var read. If any
+   required var is missing or invalid (e.g. `CORS_ORIGINS='*'`), config.py's
+   factory raises **one aggregated `RuntimeError`** naming every problem at
+   once — grouped by service — instead of forcing whack-a-mole. The list of
+   required fields is in `backend/config.py:REQUIRED_FIELDS`-adjacent test
+   parametrisation (`backend/tests/test_config.py`).
+2. **`server.py:22-24`** — three local imports fire, in order:
+   - `from ai_service import suggest_hourly_rate` (`ai_service.py:6`
+     transitively imports `emergentintegrations.llm.chat`). If the package is
+     missing, boot dies here with `ModuleNotFoundError` (F-01).
    - `from work_integrations import ...` — pulls the requests-based sync adapters.
    - `from storage_client import init_storage, put_object, get_object, APP_NAME as STORAGE_APP` — loads without contacting the storage service.
-4. **`server.py:30-37`** — `from deps import (...)`. This is the moment the app becomes reachable to Mongo.
-   - `deps.py:26-28` reads three env vars via `os.environ[...]` (no default). `MONGO_URL`, `DB_NAME`, `JWT_SECRET`. Missing any of these → `KeyError` at import → uvicorn worker never becomes ready. There is no friendly error message.
-   - `deps.py:30` reads `STRIPE_WEBHOOK_SECRET` with a `""` default (optional at boot, but any webhook attempt will then fail signature verification).
-   - `deps.py:33-34` constructs `AsyncIOMotorClient(MONGO_URL)` and selects `client[DB_NAME]`. Motor connects lazily on first query; a bad URL survives import and surfaces as 500s later.
-   - `deps.py:37` creates the shared `api = APIRouter(prefix="/api")`.
-5. **`server.py:40`** — `stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or "sk_test_emergent"`. The fallback string is not a valid Stripe key; any `stripe.*` call will 401 from Stripe.
-6. **`server.py:42`** — `app = FastAPI(title="Job Atlas API")`.
-7. **`server.py:223-227`** — the five route modules import in order: `routes.auth`, `routes.admin`, `routes.marketplace`, `routes.projects`, `routes.revisions`. Each `from deps import api, ...` at the top, then decorates handlers with `@api.post(...)` / `@api.get(...)`. Because they mutate the same shared router object, order does not matter for routing but does matter for anything that depends on module-import side effects (there are none — the modules only register handlers). `routes/__init__.py` is a 6-line placeholder; it does not do package-level wiring.
-8. **`server.py:2740-2867`** — the `@app.on_event("startup")` handler runs after uvicorn reports "Application startup complete":
-   - Optional `init_storage()` call, wrapped in try/except (non-fatal).
-   - Six `db.<col>.create_index(...)` calls at `server.py:2749-2755` for `users.email` (unique), `users.id` (unique), `engagements.id` (unique), `payment_transactions.session_id` (unique), `work_items.user_id`, `eois.id` (unique), `eois.talent_id`. That is the entire set of indexes in the codebase.
-   - **Admin seeder** at `server.py:2757-2768`: reads `ADMIN_EMAIL` (default `admin@talenthub.io` — note this is not the branded `geminista.com` used elsewhere) and `ADMIN_PASSWORD` (default `Admin@2026`). If no user with that email exists, inserts one with `admin_permissions: ["superadmin"]`. Idempotent because it checks first.
-   - **Legacy industry backfill** at `server.py:2777-2789`: rewrites old `buyer archetype` labels to the new industry taxonomy using `LEGACY_INDUSTRY_MAP` from `deps.py:132-145`. Runs every startup.
-   - **APScheduler** at `server.py:2794-2867`:
-     - `_scheduler = AsyncIOScheduler(timezone="UTC")` (line 2796).
-     - Adds three jobs (all `misfire_grace_time=3600`, `replace_existing=True`):
-       - `monthly_rate_nudge_scan` — `CronTrigger(day=1, hour=9, minute=0)`, invokes `_scan_and_record_rate_nudges` (server.py:2801 wraps it late-bound).
-       - `daily_overdue_invoice_scan` — `CronTrigger(hour=8, minute=0)`, invokes `scan_overdue_invoices` late-imported from `routes.projects` at line 2824.
-       - `nightly_crm_sync` — `CronTrigger(hour=2, minute=0)`, invokes `_sync_shortlists_to_crm(trigger="cron")` late-imported from `routes.auth` at line 2846.
-     - `_scheduler.start()` at line 2864. Failure is caught and logged as a warning at line 2867 — the app boots even if scheduling is broken.
-9. **`server.py:2884`** — `app.include_router(api)` runs *after* the startup event registration. Because `app.on_event` and `app.include_router` are declarative, order does not matter for FastAPI, but visually the router is mounted at the bottom of the file, not the top.
-10. **`server.py:2886-2891`** — `app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","), allow_methods=["*"], allow_headers=["*"])`. The default `"*"` split into `["*"]` is contradictory with `allow_credentials=True` per the CORS spec — browsers refuse credentialed requests to `*` origins. In practice you must set `CORS_ORIGINS` in the env or the SPA cannot authenticate.
+3. **`server.py:29-36`** — `from deps import (...)`. This is the moment the app becomes reachable to Mongo.
+   - `deps.py:6-15` — `MONGO_URL`, `DB_NAME`, `JWT_SECRET`, `STRIPE_WEBHOOK_SECRET`
+     are exported as thin proxies for `settings.mongo.url` /
+     `.mongo.db_name` / `.auth.jwt_secret` / `.stripe.webhook_secret`. The
+     module no longer reads env directly.
+   - `deps.py:17-18` constructs `AsyncIOMotorClient(MONGO_URL)` and selects
+     `client[DB_NAME]`. Motor connects lazily on first query; a bad URL
+     survives import and surfaces as 500s later.
+   - `deps.py:21` creates the shared `api = APIRouter(prefix="/api")`.
+4. **`server.py:39`** — `stripe.api_key = settings.stripe.secret_key`. The
+   old silent fallback (`sk_test_emergent`, S-05) is gone — a missing
+   `STRIPE_SECRET_KEY` fails boot at step 1.
+5. **`server.py:41`** — `app = FastAPI(title="Job Atlas API")`.
+6. **`server.py:222-226`** — the five route modules import in order: `routes.auth`, `routes.admin`, `routes.marketplace`, `routes.projects`, `routes.revisions`. Each `from deps import api, ...` at the top, then decorates handlers with `@api.post(...)` / `@api.get(...)`. Because they mutate the same shared router object, order does not matter for routing but does matter for anything that depends on module-import side effects (there are none — the modules only register handlers). `routes/__init__.py` is a 6-line placeholder; it does not do package-level wiring.
+7. **`server.py:2740+`** — the `@app.on_event("startup")` handler runs after uvicorn reports "Application startup complete":
+   - Optional `init_storage()` call, wrapped in try/except (non-fatal). Post-F-11 this no longer depends on `EMERGENT_LLM_KEY` — S-15 split `STORAGE_TOKEN` into its own required field.
+   - Seven `db.<col>.create_index(...)` calls for `users.email` (unique), `users.id` (unique), `engagements.id` (unique), `payment_transactions.session_id` (unique), `work_items.user_id`, `eois.id` (unique), `eois.talent_id`. That is the entire set of indexes in the codebase.
+   - **Admin seeder** (S-20 partial). Reads `settings.auth.admin_email` and `settings.auth.admin_password`. **`admin_password` has no default** — if unset, the seeder logs `WARNING: ADMIN_PASSWORD unset — skipping admin seeder for <email>` and skips the insert entirely; there is no `Admin@2026` fallback. `admin_email` still defaults to the legacy `admin@talenthub.io` (S-20 remainder).
+   - **Legacy industry backfill**: rewrites old `buyer archetype` labels to the new industry taxonomy using `LEGACY_INDUSTRY_MAP` from `deps.py`. Runs every startup.
+   - **APScheduler** — three cron jobs (all `misfire_grace_time=3600`, `replace_existing=True`):
+     - `monthly_rate_nudge_scan` — `CronTrigger(day=1, hour=9, minute=0)` invokes `_scan_and_record_rate_nudges`.
+     - `daily_overdue_invoice_scan` — `CronTrigger(hour=8, minute=0)` invokes `scan_overdue_invoices` late-imported from `routes.projects`.
+     - `nightly_crm_sync` — `CronTrigger(hour=2, minute=0)` invokes `_sync_shortlists_to_crm(trigger="cron")` late-imported from `routes.auth`.
+     - `_scheduler.start()`. Failure is caught and logged as a warning — the app boots even if scheduling is broken.
+8. **`server.py:2884`** — `app.include_router(api)` runs *after* the startup event registration. Because `app.on_event` and `app.include_router` are declarative, order does not matter for FastAPI, but visually the router is mounted at the bottom of the file, not the top.
+9. **`server.py:2888+`** — `app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=settings.urls.cors_origins, allow_methods=["*"], allow_headers=["*"])`. The old `"*"` fallback (S-02) is gone. `CORS_ORIGINS` is required at boot as a comma-separated list; config's field validator rejects `"*"` as an entry.
 
 ### What breaks and where
 
+Post-F-11, every required-var miss produces the same shape: **one `RuntimeError` at
+config-module import, listing every missing variable grouped by service, with a
+pointer at `.env.example`.** No more scattered `KeyError` / silent fallback / late-
+symptom failure modes.
+
 | Failure | Symptom |
 | --- | --- |
-| `MONGO_URL` / `DB_NAME` / `JWT_SECRET` unset | Import-time `KeyError` in `deps.py:26-28`; worker never becomes ready. |
+| Any REQUIRED var unset (Mongo, Stripe, JWT, storage token, storage URL, CORS, crypto salts, ENV) | Config-module import raises `RuntimeError` naming every missing var at once. Worker never becomes ready. Message ends `Set the missing variables (see .env.example for descriptions).` |
+| `CORS_ORIGINS='*'` (or empty CSV) | Config-module import raises `RuntimeError` with `CORS_ORIGINS must not contain '*' — allow_credentials=True forbids wildcard origins (S-02)`. Wildcard values are refused explicitly. |
+| `ENV=production` and `TURNSTILE_SECRET_KEY` unset | Config-module import raises `RuntimeError` from the Settings model_validator naming `TURNSTILE_SECRET_KEY` under "Environment / global". |
 | Mongo unreachable at runtime | Import succeeds; first query 500s. |
-| `emergentintegrations` missing | Import-time `ModuleNotFoundError` at `ai_service.py:6`, cascades through `routes/auth.py:47`. Whole app dies. |
-| `STRIPE_SECRET_KEY` unset | Fallback `"sk_test_emergent"` used; every Stripe call returns 401 from Stripe. |
-| `STRIPE_WEBHOOK_SECRET` unset | Webhook signature verification fails at `server.py:562`. |
-| `RESEND_API_KEY` unset | `mailer.py:24` sets `_resend = None`; every `send_email` returns `{"sent": False, ...}` silently. |
-| `EMERGENT_LLM_KEY` unset | `ai_service.py:15-17` returns the rule-based fallback; scheduler and `/profile/suggest-rate` both work but do not use the LLM. |
-| `TURNSTILE_SECRET_KEY` unset | `_verify_turnstile` returns True (`auth.py:64-65`); captcha bypassed. |
-| `SLACK_WEBHOOK_URL` unset | `_slack_notify` early-returns silently (`projects.py:1117-1135`). |
-| Scheduler start throws | Logged as warning at `server.py:2867`; app continues without cron. |
-| `CORS_ORIGINS` unset | Defaults to `"*"` but `allow_credentials=True`; browser blocks the SPA. |
-| `APP_BASE_URL` unset | Email templates render relative links (`auth.py:35,300`, `projects.py:365,1259`); recipients click into nothing. |
-| `PUBLIC_BASE_URL` unset | Audit-PDF verification URLs render empty (`auth.py:678`, `revisions.py:952`); QR codes point nowhere. |
-| `PUBLIC_SITE_URL` unset | SEO sitemap and rate-nudge email origins fall back to request-derived hosts (`marketplace.py:82`, `server.py:1400,1402,1527`); nightly emails may land with wrong hostnames behind a proxy. |
-| `INTEGRATION_PROXY_URL` unset | **Data-protection exposure — see SECURITY_BACKLOG.md S-27.** `storage_client.py:6` silently falls through to a hardcoded `https://integrations.emergentagent.com` and every user upload (avatars, portfolio, dispute evidence, government ID from KYB) routes to a third-party host with no warning. Fix: hard-fail at boot when unset. |
-| `SENDER_EMAIL` unset | Resend "from" header defaults to `onboarding@resend.dev` (`mailer.py:14`); outbound mail looks like a Resend demo. |
+| `emergentintegrations` missing | Import-time `ModuleNotFoundError` at `ai_service.py:6`, cascades through `routes/auth.py:47`. Whole app dies. (F-01) |
+| `RESEND_API_KEY` unset (optional) | `mailer.py` sets `_resend = None`; every `send_email` returns `{"sent": False, ...}` and logs `[mailer:noop]`. Intentional silent-fail. |
+| `EMERGENT_LLM_KEY` unset (optional) | `ai_service.py` returns the rule-based fallback. Intentional silent-fail. |
+| `TURNSTILE_SECRET_KEY` unset in dev/test (S-08 partial) | `_verify_turnstile` fail-opens with `WARNING [S-08] TURNSTILE_SECRET_KEY unset (env=<value>) — captcha check BYPASSED for remote_ip=<ip>`. In `ENV=production` this branch is unreachable — config refuses to boot. |
+| `SLACK_WEBHOOK_URL` unset (optional) | `_slack_notify` early-returns silently. Intentional. |
+| `ADMIN_PASSWORD` unset (S-20 partial) | Admin seeder logs `WARNING: ADMIN_PASSWORD unset — skipping admin seeder for <email>` and skips the insert. No hardcoded credential is ever inserted. |
+| `APP_BASE_URL` / `PUBLIC_BASE_URL` / `PUBLIC_SITE_URL` unset (optional) | Email templates and audit-PDF QR codes render with empty base URLs; recipients click into nothing. Currently optional; may be tightened later. |
+| Scheduler start throws | Logged as warning; app continues without cron. |
 
 ---
 
@@ -361,7 +383,7 @@ Three Stripe Checkout kinds — hours purchase, project milestone, dispute arbit
 
 ### 5.3 Dispute arbitration fee
 
-- **Amount origin**: env `REVISION_DISPUTE_FEE_USD` (default $49), used at `revisions.py:230` when a talent opens the dispute and at `:505` on the fee-payment path.
+- **Amount origin**: `settings.business_rules.revision_dispute_fee_usd` (default $49; see `backend/config.py:BusinessRules`), used at `revisions.py:230` when a talent opens the dispute and at `:505` on the fee-payment path.
 - **Session create**: `POST /api/grievances/{gid}/pay-fee` (`revisions.py:586-667`). Uses a local `_stripe` alias (the same SDK) at line 648 with metadata `{kind: "dispute_fee", grievance_id}`. Idempotent — if a valid session already exists for the grievance it's reused rather than recreated.
 - **DB write on create**: upserts `dispute_fee_transactions` row and stamps `grievances.dispute_fee.stripe_session_id`.
 - **Webhook branch**: `server.py:569-575`. When `kind == "dispute_fee"`, awaits `mark_dispute_fee_paid(session_id)` from `routes.revisions:701-729`, which:
@@ -401,32 +423,45 @@ Three Stripe Checkout kinds — hours purchase, project milestone, dispute arbit
 
 ## 6. Business rule engine
 
-All numbers are env-tunable but every one has a hardcoded default. Enforcement lives in `routes/revisions.py`; the reversal ("recovery") lives in the deliverable-approve flow in `server.py`.
+Every threshold is a typed field in `backend/config.py:BusinessRules`. Defaults
+match FEATURES.md §12 verbatim. **This section deliberately does NOT list env
+var names** — that would recreate the F-09 drift condition (docs naming
+variables the code doesn't read). The env var → typed field mapping lives in
+`.env.example` (grouped by service, one comment per variable) and
+`docs/CONFIG_INVENTORY.md` (per-var provenance). Rename a field in config.py
+and the alias, the doc, and this table all update from a single source. If a
+name in this table diverges from a field in `BusinessRules`, that's the bug —
+fix the doc, not the code.
 
-| Rule | Env | Default | Enforced at | Reversed at |
+Enforcement lives in `routes/revisions.py`; the reversal ("recovery") lives in
+the deliverable-approve flow in `server.py`. All settings referenced below live
+under `settings.business_rules.<field>` (see `backend/config.py:BusinessRules`).
+
+| Rule | Config field | Default | Enforced at | Reversed at |
 | --- | --- | --- | --- | --- |
 | Revision counter | — | — | `revisions.py:134` (`request-revision`) increments `deliverables.revision_count` | Never decremented; only cleared on dispute ruling for talent |
-| Amber flag `under_review` | `REVISION_REVIEW_THRESHOLD` | 3 | `revisions.py:134` when count reaches threshold | 3 consecutive clean approvals — `REVISION_RECOVERY_UNDER_REVIEW` default 3 |
-| Red flag `excessive_revisions` | `REVISION_PENALTY_THRESHOLD` | 5 | `revisions.py:134` when count reaches threshold | 5 consecutive clean approvals — `REVISION_RECOVERY_EXCESSIVE` default 5; also cleared on dispute ruling in talent's favour (`revisions.py:312`) |
-| Visibility deduction | `REVISION_VISIBILITY_PENALTY` | 20 | Subtracted from `profile.visibility_score` (default 100) when `excessive_revisions` fires | Restored to 100 on recovery or talent-favourable ruling |
-| Rate bias | `REVISION_RATE_NUDGE_PENALTY` | 10 | `profile.rate_bias_pct = -10` when `excessive_revisions` fires | Reset to 0 on recovery or talent ruling |
-| "Proven Reliable" badge window | `PROVEN_RELIABLE_DAYS` | 90 | Checked against `profile.recovery_cleared_at` in badge computation | Expires 90d after last recovery |
-| Employer abuse flag | `EMPLOYER_FLAG_UNIQUE_TALENTS` × `EMPLOYER_FLAG_WINDOW_DAYS` | 3 talents × 60 days | Scan runs at revision-request time when the current talent hits `REVISION_PENALTY_THRESHOLD`; queries revision_requests in the rolling window (`revisions.py` around the abuse-check block) | Manual admin action; no automatic timeout |
-| Dispute right | `REVISION_PENALTY_THRESHOLD` | 5 | `POST /api/deliverables/{id}/dispute` at `revisions.py:235` requires `revision_count >= 5` | Not applicable — a dispute is a one-way transition |
-| Dispute fee | `REVISION_DISPUTE_FEE_USD` | 49 | Loser owes; set at ruling (`revisions.py:312`) | Admin refund |
-| Refund rate alert | `REFUND_ALERT_THRESHOLD_PCT` | 20 | 30-day rolling refund_rate computed in `/admin/revisions/refund-analytics` (`revisions.py:429`); comparison logic within the endpoint | — |
+| Amber flag `under_review` | `revision_review_threshold` | 3 | `revisions.py:134` when count reaches threshold | consecutive clean approvals — `revision_recovery_under_review` default 3 |
+| Red flag `excessive_revisions` | `revision_penalty_threshold` | 5 | `revisions.py:134` when count reaches threshold | consecutive clean approvals — `revision_recovery_excessive` default 5; also cleared on dispute ruling in talent's favour (`revisions.py:312`) |
+| Visibility deduction | `revision_visibility_penalty` | 20 | Subtracted from `profile.visibility_score` (default 100) when `excessive_revisions` fires | Restored to 100 on recovery or talent-favourable ruling |
+| Rate bias | `revision_rate_nudge_penalty` | 10 | `profile.rate_bias_pct = -10` when `excessive_revisions` fires | Reset to 0 on recovery or talent ruling |
+| "Proven Reliable" badge window | `proven_reliable_days` | 90 | Checked against `profile.recovery_cleared_at` in badge computation | Expires 90 days after last recovery |
+| Employer abuse flag | `employer_flag_unique_talents` × `employer_flag_window_days` | 3 talents × 60 days | Scan runs at revision-request time when the current talent hits the penalty threshold; queries `revision_requests` in the rolling window (`revisions.py` around the abuse-check block) | Manual admin action; no automatic timeout |
+| Dispute right | `revision_penalty_threshold` | 5 | `POST /api/deliverables/{id}/dispute` at `revisions.py:235` requires `revision_count >= 5` | Not applicable — dispute is a one-way transition |
+| Dispute fee | `revision_dispute_fee_usd` | 49 | Loser owes; set at ruling (`revisions.py:312`) | Admin refund |
+| Refund rate alert | `refund_alert_threshold_pct` | 20 | 30-day rolling refund rate computed in `/admin/revisions/refund-analytics` (`revisions.py:429`); comparison logic within the endpoint | — |
+| Rate drift threshold | `rate_drift_threshold_pct` | 15 | Compared to `\|drift_pct\|` in `_scan_and_record_rate_nudges` (`server.py:1391+`); a nudge row is upserted when exceeded | Nudge cleared when talent updates rate |
 
 ### Trusted Partner + Verified badges
 
 Computed at `GET /api/talent` (`server.py:231-324`) per talent:
 - `is_verified` = `verification_status == "verified"`.
 - `is_trusted_partner` = compound rule; check the talent-card computation in server.py near line 260-290. Usually a mix of completed_engagements + avg_rating + verified.
-- `is_proven_reliable` = `now() - profile.recovery_cleared_at < PROVEN_RELIABLE_DAYS` (default 90).
+- `is_proven_reliable` = `now() - profile.recovery_cleared_at < settings.business_rules.proven_reliable_days` (default 90).
 - `excessive_revisions` — echoed from `profile.excessive_revisions`.
 
 ### Recovery playbook
 
-Deliverable approval (`server.py:670`) increments `profile.clean_streak` when `revision_count == 0` on the approved deliverable. On reject or revision, streak resets to 0. When streak crosses `REVISION_RECOVERY_UNDER_REVIEW`, amber lifts; when it crosses `REVISION_RECOVERY_EXCESSIVE`, red lifts, `visibility_score` restores to 100, `rate_bias_pct` resets to 0, and `recovery_cleared_at` is stamped (drives the 90-day badge).
+Deliverable approval (`server.py:670`) increments `profile.clean_streak` when `revision_count == 0` on the approved deliverable. On reject or revision, streak resets to 0. When streak crosses `settings.business_rules.revision_recovery_under_review`, amber lifts; when it crosses `settings.business_rules.revision_recovery_excessive`, red lifts, `visibility_score` restores to 100, `rate_bias_pct` resets to 0, and `recovery_cleared_at` is stamped (drives the 90-day badge).
 
 ---
 

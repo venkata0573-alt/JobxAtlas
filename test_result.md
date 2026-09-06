@@ -243,6 +243,41 @@ backend:
           .env.test) — the happy-path upload test is skipped until a real
           storage mock lands. Auth-gate tests still cover the endpoint.
 
+  - task: "F-11 centralise env reads — backend/config.py + frontend/src/config.js"
+    implemented: true
+    working: true
+    file: "backend/config.py + frontend/src/config.js + backend/tests/test_config.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: >
+          PASS: F-11 landed 2026-09-06 across three commits — 4a85b96 (backend
+          sweep, 49 sites in 9 files), 6448200 (initial doc updates), 22329d1
+          (frontend sweep, 13 sites in 10 files). backend/config.py is now the
+          sole os.environ/os.getenv reader in backend/; enforced by
+          test_config.py::test_no_module_outside_config_reads_os_environ (AST
+          scan). frontend/src/config.js is the sole process.env.REACT_APP_*
+          reader; renders visible red banner + throws if REACT_APP_BACKEND_URL
+          unset (F-08 close). Aggregated missing-var factory: one RuntimeError
+          lists every missing var grouped by service. ENV is required at boot
+          (no default) — silently defaulting to "development" would neuter
+          S-08 production Turnstile enforcement. Added 18 tests in
+          test_config.py (parametrised per-required-field, aggregation,
+          ENV-no-default, CORS wildcard rejection, prod-Turnstile conditional,
+          AST scan, H-8 non-default proof, .env.test-values-match-settings
+          sanity). Baseline: was 80 passed / 3 S-11 ratchets / 1 CSRF skip;
+          post-F-11: 98 passed / 3 S-11 ratchets / 1 CSRF skip. Zero
+          pre-existing test regressions. Closed: S-05, S-15, S-27, F-08, F-09,
+          F-10, H-8. Partial: S-02 (default removed, per-env validation open),
+          S-04 (fallback chain collapsed, HMAC + verify recompute open), S-08
+          (prod required + WARN logs, rate limiting open), S-20 (password
+          default removed + seeder skips, force-rotate + prod superadmin-check
+          open). All PARTIAL rows in SECURITY_BACKLOG.md have explicit
+          "still open" notes so the backlog doesn't rot into fiction.
+
 metadata:
   created_by: "testing"
   version: "1.0"
