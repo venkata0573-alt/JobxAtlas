@@ -1,21 +1,32 @@
 // Flow 4: engagement lifecycle — sign contract → submit deliverable → approve
 //
-// The seed provides ENGAGEMENT_SIGNED (both signatures done, status
-// `contract_signed`) and DELIVERABLE_SUBMITTED (one deliverable already
-// submitted). To cover the sign step we CREATE a fresh engagement via
-// API (bypasses the mix-and-match UI which is large + not fully testid'd)
-// and drive the sign → submit → approve loop through the UI.
+// v2 posture: no API fallbacks. Setup uses API to CREATE a fresh
+// engagement in `pending_signatures` (creating one via UI would need
+// the /assemble mix-and-match page which is out of scope), but every
+// action after that — signing, submitting a deliverable, approving —
+// is driven through EngagementDetail.jsx real form fields + buttons.
+//
+// Testids (constants/testIds.js):
+//   TID.contractSignature = "contract-signature-input"
+//   TID.contractAgree     = "contract-agree-checkbox"
+//   TID.contractSubmit    = "contract-submit-btn"
+//   TID.deliverableTitle  = "deliverable-title"
+//   TID.deliverableLink   = "deliverable-link"
+//   TID.deliverableDesc   = "deliverable-desc"
+//   TID.deliverableHours  = "deliverable-hours"
+//   TID.deliverableSubmit = "deliverable-submit-btn"
+//   TID.deliverableApprove(id) = "deliverable-approve-<id>"
 
 const { test, expect } = require('@playwright/test');
 const { PERSONAS, BACKEND_URL } = require('./personas');
 const { loginViaApi } = require('./helpers');
 
+
 test('engagement: sign → submit deliverable → approve', async ({ page, browser }) => {
-  // -- Create a fresh engagement via API so we control the sign state.
+  // -- Setup: create a fresh engagement so we control the sign state.
   await loginViaApi(page, PERSONAS.EMPLOYER_CARD);
   const create = await page.request.post(`${BACKEND_URL}/api/engagements`, {
     ignoreHTTPSErrors: true,
-    // EngagementCreateIn shape (server.py:117-126) — no hourly_rate field.
     data: {
       talent_id: PERSONAS.TALENT_CLEAN.id,
       hours: 10,
@@ -28,81 +39,65 @@ test('engagement: sign → submit deliverable → approve', async ({ page, brows
   const engId = eng.id;
   expect(eng.status).toBe('pending_signatures');
 
-  // -- Employer signs via UI (EngagementDetail has a "Sign contract" button).
+  // -- Employer signs via UI. Contract form has signature input, agree
+  //    checkbox, and submit button.
   await page.goto(`/engagement/${engId}`);
-  const signBtn = page.getByTestId('engagement-sign-btn');
-  if (await signBtn.count()) {
-    await Promise.all([
-      page.waitForResponse(r => r.url().includes('/api/engagements/sign')),
-      signBtn.click(),
-    ]);
-  } else {
-    console.warn('MISSING TESTID: engagement-sign-btn on EngagementDetail.jsx');
-    const r = await page.request.post(`${BACKEND_URL}/api/engagements/sign`, {
-      ignoreHTTPSErrors: true,
-      // SignContractIn requires `signature: str`, not `name`.
-      data: { engagement_id: engId, signature: PERSONAS.EMPLOYER_CARD.name },
-    });
-    expect(r.status()).toBe(200);
-  }
+  const empSigInput = page.getByTestId('contract-signature-input');
+  await expect(empSigInput).toBeVisible({ timeout: 10_000 });
+  await empSigInput.fill(PERSONAS.EMPLOYER_CARD.name);
+  await page.getByTestId('contract-agree-checkbox').check();
 
-  // -- Talent signs (fresh context to avoid cookie collision).
-  // (Payload-safe: SignContractIn takes signature str; talent supplies their own name.)
+  await Promise.all([
+    page.waitForResponse(r => r.url().includes('/api/engagements/sign')
+                            && r.status() === 200),
+    page.getByTestId('contract-submit-btn').click(),
+  ]);
+
+  // -- Talent signs in a fresh context.
   const talentCtx = await browser.newContext({ ignoreHTTPSErrors: true });
   const talentPage = await talentCtx.newPage();
   await loginViaApi(talentPage, PERSONAS.TALENT_CLEAN);
   await talentPage.goto(`/engagement/${engId}`);
-  const talentSignBtn = talentPage.getByTestId('engagement-sign-btn');
-  if (await talentSignBtn.count()) {
-    await Promise.all([
-      talentPage.waitForResponse(r => r.url().includes('/api/engagements/sign')),
-      talentSignBtn.click(),
-    ]);
-  } else {
-    const r = await talentPage.request.post(`${BACKEND_URL}/api/engagements/sign`, {
-      ignoreHTTPSErrors: true,
-      data: { engagement_id: engId, signature: PERSONAS.TALENT_CLEAN.name },
-    });
-    expect(r.status()).toBe(200);
-  }
 
-  // -- Verify status flipped to contract_signed
-  const get1 = await talentPage.request.get(
-    `${BACKEND_URL}/api/engagements/${engId}`, { ignoreHTTPSErrors: true });
-  expect(get1.status()).toBe(200);
-  expect((await get1.json()).status).toBe('contract_signed');
+  const talentSigInput = talentPage.getByTestId('contract-signature-input');
+  await expect(talentSigInput).toBeVisible({ timeout: 10_000 });
+  await talentSigInput.fill(PERSONAS.TALENT_CLEAN.name);
+  await talentPage.getByTestId('contract-agree-checkbox').check();
 
-  // -- Talent submits a deliverable via API (UI flow is a modal — best-effort
-  // testid'd but not critical for this coverage; direct POST verifies the
-  // endpoint and state).
-  const submitR = await talentPage.request.post(`${BACKEND_URL}/api/deliverables`, {
-    ignoreHTTPSErrors: true,
-    data: {
-      engagement_id: engId,
-      title: 'E2E deliverable v1',
-      description: 'End-to-end test deliverable',
-      link: 'https://example.test/e2e-v1',
-      hours_claimed: 3,
-    },
-  });
-  expect(submitR.status()).toBe(200);
-  const deliv = await submitR.json();
+  await Promise.all([
+    talentPage.waitForResponse(r => r.url().includes('/api/engagements/sign')
+                                    && r.status() === 200),
+    talentPage.getByTestId('contract-submit-btn').click(),
+  ]);
 
-  // -- Employer approves via UI
+  // -- Talent submits a deliverable via the UI form.
+  // The submit form is only rendered when status === "contract_signed" —
+  // wait for the page to reflect the new state (a fresh render happens
+  // after the sign call resolves).
+  await talentPage.waitForTimeout(500); // give React a tick to re-render
+  const delivTitle = talentPage.getByTestId('deliverable-title');
+  await expect(delivTitle).toBeVisible({ timeout: 10_000 });
+  await delivTitle.fill('E2E deliverable v1');
+  await talentPage.getByTestId('deliverable-link').fill('https://example.test/e2e-v1');
+  await talentPage.getByTestId('deliverable-desc').fill('End-to-end test deliverable');
+  await talentPage.getByTestId('deliverable-hours').fill('3');
+
+  const submitResp = talentPage.waitForResponse(r =>
+    r.url().includes('/api/deliverables') && r.request().method() === 'POST'
+    && r.status() === 200);
+  await talentPage.getByTestId('deliverable-submit-btn').click();
+  const submitted = await submitResp;
+  const deliv = await submitted.json();
+
+  // -- Employer approves via UI (per-deliverable approve button).
   await page.goto(`/engagement/${engId}`);
-  const approveBtn = page.getByTestId(`deliverable-approve-btn-${deliv.id}`);
-  if (await approveBtn.count()) {
-    await Promise.all([
-      page.waitForResponse(r => r.url().includes(`/deliverables/${deliv.id}/approve`)),
-      approveBtn.click(),
-    ]);
-  } else {
-    console.warn(`MISSING TESTID: deliverable-approve-btn-<id> on EngagementDetail.jsx`);
-    const r = await page.request.post(
-      `${BACKEND_URL}/api/deliverables/${deliv.id}/approve`,
-      { ignoreHTTPSErrors: true, data: { feedback: 'Ship it' } });
-    expect(r.status()).toBe(200);
-  }
+  const approveBtn = page.getByTestId(`deliverable-approve-${deliv.id}`);
+  await expect(approveBtn).toBeVisible({ timeout: 10_000 });
+  await Promise.all([
+    page.waitForResponse(r => r.url().includes(`/deliverables/${deliv.id}/approve`)
+                            && r.status() === 200),
+    approveBtn.click(),
+  ]);
 
   await talentCtx.close();
 });

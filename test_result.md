@@ -243,6 +243,86 @@ backend:
           .env.test) — the happy-path upload test is skipped until a real
           storage mock lands. Auth-gate tests still cover the endpoint.
 
+  - task: "Phase 1c v2: E2E specs drive real UI (12/13, S-31/F-14/F-15 filed)"
+    implemented: true
+    working: true
+    file: "frontend/e2e/*.spec.js (rewritten) + Makefile e2e target (e2e_reset)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: >
+          v2 rewrote every spec to click real UI. Every API fallback path
+          removed. `make e2e` reseeds via a new backend/tests/e2e_reset.py
+          + seed.py so runs start from a known state (extends the H-9
+          isolation model to the frontend layer). Zero source-code
+          changes required — Phase 1c v1's "missing testids" report was
+          wrong for 4 of the 5 pages; the testids already existed with
+          different names than v1 guessed.
+          RESULT: 12 passed / 1 failed. The failure IS the finding
+          (S-31 canary — logout button doesn't clear cookies).
+          Per-flow report:
+          - Flow 1 login/logout: 4/5 pass. Login for talent + employer +
+            admin all drive real UI. Admin lands on "/" (F-14 finding —
+            filed) not /admin. Wrong-password stays on /login. LOGOUT
+            FAILS — S-31 canary intentionally red (fix lands, canary
+            flips green).
+          - Flow 2 shortlist + broadcast: PASS through real UI. Rerouted
+            through SkillLanding (/hire/react-developers) modal since
+            BrowseTalent has no shortlist button (product gap — BrowseTalent
+            card only carries "View →" link to /employer, no shortlist
+            action). Then real broadcast-btn → broadcast-modal →
+            broadcast-message → send-broadcast-btn.
+          - Flow 3 EOI: PASS through real UI. Talent side fills eoi-
+            employer-select + eoi-hours + eoi-message + eoi-submit-btn.
+            Employer side clicks eoi-accept-<id>. SPA auto-navs to
+            /engagement/<new-id>. Engagement backing store carries
+            from_eoi_id.
+          - Flow 4 engagement sign+deliver+approve: PASS through real UI.
+            Fresh engagement created via API (only /assemble mix-and-match
+            can create one via UI — out of scope). Both parties fill
+            contract-signature-input + contract-agree-checkbox +
+            contract-submit-btn. Talent fills deliverable-title/-link/
+            -desc/-hours/-submit-btn. Employer clicks deliverable-approve-
+            <id>.
+          - Flow 5 revision cycle: PASS through real UI. Employer clicks
+            request-revision-<did> → revision-modal → revision-
+            justification + revision-priority-minor + revision-submit.
+            Talent clicks resubmit-<did> → resubmit-modal → resubmit-
+            link + resubmit-hours + resubmit-submit.
+          - Flow 6 purchase hours: PASS. Real click on pkg-buy-starter_10
+            triggers /api/payments/checkout. Playwright page.route
+            intercepts the response and rewrites checkout_url to
+            /payment/success?session_id=X on our own origin (stripe-mock
+            has no hosted-checkout UI). Signed webhook via the JS
+            equivalent of backend/tests/stripe_fixtures.py credits hours.
+            PaymentSuccess polling picks it up. Balance up by +10.
+          FINDINGS FILED:
+          - S-31 (SECURITY_BACKLOG.md, P1) — logout button doesn't clear
+            cookies. Root cause: routes/auth.py:212-213
+            `response.delete_cookie("access_token", path="/")` omits
+            `secure=True, samesite="none"` — Chromium treats the
+            deletion Set-Cookie as a NEW unsecured cookie, doesn't
+            overwrite the Secure one. Fix: attribute-match the deletion.
+            User's "fix or file" — chose file per the "no application
+            code changes" constraint from v1. The E2E test is the
+            behavioural canary; fix flips it green.
+          - F-14 (SECURITY_BACKLOG.md, feature/correctness) — admin
+            login has no auto-redirect to /admin. Login.jsx:22 handles
+            employer + talent, admin falls into "/". One-line fix.
+          - F-15 (SECURITY_BACKLOG.md, feature/correctness) — password
+            reset backend endpoint does not exist. Only a frontend
+            testid + link placeholder. Users who click get a dead page.
+            Options: (a) build the full flow; (b) delete the link.
+          NEW HARNESS INFRASTRUCTURE:
+          - backend/tests/e2e_reset.py — clears mutable collections
+            between Playwright runs (shortlists, broadcasts, EOIs,
+            engagements, deliverables, etc.). Analogous to pytest
+            conftest.clean_db but for the Playwright suite. Wired into
+            `make e2e` before seed.py.
+
   - task: "Phase 1c: Playwright E2E infrastructure + 6 flows (12/13 pass, 1 finding)"
     implemented: true
     working: true

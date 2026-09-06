@@ -108,6 +108,12 @@ e2e:
 	# pytest's clean_db creates for backend tests. Otherwise state
 	# accumulates across runs (H-9 in PROJECT_STATUS.md §5, extended to
 	# the frontend layer).
+	# Clear mutable collections first — Playwright has no equivalent to
+	# pytest's conftest.clean_db autouse, so without this, subsequent
+	# runs see accumulated state and toggle-style buttons (Shortlist
+	# add/remove) fire the wrong verb. See backend/tests/e2e_reset.py
+	# for the list.
+	$(COMPOSE) exec -T backend python /app/backend/tests/e2e_reset.py
 	$(COMPOSE) exec -T backend python /app/backend/tests/seed.py
 	cd frontend && npx playwright test
 
