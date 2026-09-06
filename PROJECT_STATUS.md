@@ -142,7 +142,7 @@ tests can use a dedicated query-param fixture without reintroducing header-based
 | H-5 | passlib/bcrypt 4.x warning noise | Cosmetic; will mask real warnings later | Pin `bcrypt<4` in the F-01 PR. |
 | H-6 | Legacy `test_iteration*.py`, `backend_test.py` excluded from `make test-backend` | Dead tests rot and confuse | Delete them when the section they cover is converted in 1b. Don't leave them lying around. |
 | H-7 | `stripe-mock` returns canned fixtures | **Cannot test webhook signature verification (S-03) or the refund `payment_intent` path** | Money-path tests need locally-signed payloads with a test `STRIPE_WEBHOOK_SECRET`. Do not assume 1b covers money. |
-| H-8 | `.env.test` values match code defaults exactly. `REVISION_REVIEW_THRESHOLD=3`, `PENALTY_THRESHOLD=5`, `VISIBILITY_PENALTY=20`, etc. all equal what the code would use with the env var unset. | A regression that stops reading the env (e.g. a typo in the `os.environ.get(...)` key) would be invisible — every assertion still passes because the fallback default happens to be the same number. | §12 test session sets **one** ladder variable to a non-default value (e.g. `REVISION_PENALTY_THRESHOLD=4`) and asserts the code honours that value, not the default 5. Closes H-8. |
+| ~~H-8~~ | ~~`.env.test` values match code defaults exactly.~~ **CLOSED — F-11 (2026-09-05, commit `4a85b96`).** `.env.test` now seeds `REVISION_REVIEW_THRESHOLD=4` (non-default vs code default 3); `test_config.py` (Phase 1b step 6) asserts `settings.business_rules.revision_review_threshold == 4`, proving the config path is live. **Finding surfaced during the F-11 sweep:** changing 3→4 broke **zero** active tests, because the only ladder assertion in the repo is `test_iteration33_revisions.py:196` (`test_third_revision_triggers_under_review`) — which lives in the legacy `test_iteration*.py` suite explicitly excluded from `make test-backend` (per H-6). **The revision penalty ladder has no coverage in the active harness at all.** Phase 1b ordering therefore reorders: §12 (revision ladder) and §13 (dispute/fee) must come before §3/§6/§7/§8, so the ladder gains coverage before we depend on it for any other feature test. |
 | H-9 | `clean_db` in `backend/tests/conftest.py` is autouse function-scoped: it drops + reseeds the shared Mongo before every test. Under the pytest.ini default `-n 2 --dist loadscope`, two workers hit the same backend and one worker's drop invalidates the other worker's live JWT for the ~5ms window before the reseed lands — non-deterministic 401 "User not found" flakes. Fix in place: `-n 0` on the Makefile invocation (pytest.ini documents `-n 0` as the sanctioned serial mode). | Test-suite serial execution as coverage grows. | Serial runtime exceeds 60 s. Then either per-worker DB namespacing (needs backend to switch DB by header — an app-level change, out of no-app-code-change scope) or a Makefile split into `test-backend-unit` (parallel; scanner/public-surface/csrf tests) and `test-backend-integration` (serial; smoke + §11 + future §XX). Interim mitigation: keep the serial suite small enough that runtime stays under a minute. |
 
 ---
@@ -165,10 +165,13 @@ App is local-only, never deployed. Prod-verification steps and live-exploit hotf
    it never touched the Bearer branch). Nothing in 1b is trustworthy until this lands —
    the whole cookie/CSRF surface is unexercised today.
 3. **Phase 1b begins.** One FEATURES.md section per session, Sonnet, template in
-   `VALIDATION_PROCESS.md` §1b. Start with **§11 (engagements)** — it touches auth,
-   ownership, and state transitions. Include the §12 non-default-value assertion to
-   close harness debt H-8 (see §5). Add signed-payload Stripe fixtures before
-   reaching §10/§14/§17.
+   `VALIDATION_PROCESS.md` §1b. Ordering — **§11 → §12 → §13 → §10 → §14 → §17 →
+   §3/§6/§7/§8**. §11 (engagements) first because it touches auth, ownership, and
+   state transitions. **§12 (revision ladder) and §13 (dispute/fee) must land
+   before §3/§6/§7/§8 rather than after** — the F-11 sweep confirmed the ladder
+   has zero coverage in the active harness (H-8 finding, §5), so any feature test
+   built on top would depend on unverified behaviour. Add signed-payload Stripe
+   fixtures before reaching §10/§14/§17.
 4. ~~Hard-pin `pytest-asyncio==1.2.0`~~ Already pinned to `1.4.0` — see §5 H-3. `-rs` added to `make verify`.
 5. **Verify S-25** against `EngagementDetail.jsx` — quick grep to confirm the payer
    path is actually reachable. Documents whether S-25 is a scanner miss (as suspected)
