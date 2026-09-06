@@ -243,6 +243,81 @@ backend:
           .env.test) — the happy-path upload test is skipped until a real
           storage mock lands. Auth-gate tests still cover the endpoint.
 
+  - task: "§14 grievances + dispute-fee lifecycle + refund audit — 29 tests (S-04 evidence)"
+    implemented: true
+    working: true
+    file: "backend/tests/test_14_grievances_refunds.py + test_17_milestone_payments.py (+1 concurrent test)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: >
+          PASS: 312 passed / 3 S-11 ratchets / 1 CSRF skip / 4 xfailed.
+          Baseline before: 283/3/1/3. Delta: +29 pass, +1 xfail (S-04
+          canary), zero pre-existing regressions.
+          test_14_grievances_refunds.py (29 tests, 28 pass + 1 xfail):
+          - TestPayFee (6): anon 401, unknown 404, dispute-not-resolved
+            400, wrong-payer 403, payer creates $49 checkout session +
+            persists dispute_fee_transactions row, already-paid short-
+            circuits.
+          - TestDisputeFeeWebhook (2): signed checkout.session.completed
+            with kind=dispute_fee flips dispute_fee.payment_status +
+            dispute_fee_transactions to paid; bad signature 400s + no
+            state change. Uses stripe_fixtures.py.
+          - TestRefundFee (7): anon/noscope/unknown/not-paid/already-
+            refunded/short-reason negatives + admin refund happy path
+            (refund_id returned via stripe-mock, dispute_fee + tx
+            both flipped refunded, admin id stamped, $49 amount).
+          - TestRefundAnalytics (4): anon/noscope 401/403 + empty-state
+            30-zero-buckets + paid-and-refunded populate series with
+            correct refund_rate_pct + alert threshold=20 from
+            config.BusinessRules.
+          - TestRefundAuditPdf (5): anon/noscope + days=0/days=400
+            bounds + happy path (PDF bytes with %PDF- magic, 64-char
+            sha256 signature in X-Audit-Signature header, receipt row
+            in refund_audit_receipts).
+          - TestRefundAuditVerify (5): anon/noscope + unknown-sig
+            receipt_found=false + round-trip known-sig receipt_found=
+            true + S-04 tamper canary (xfail strict=True).
+          test_17_milestone_payments.py (+1):
+          - test_concurrent_milestone_replay_is_still_idempotent: 5×
+            asyncio.gather on same session_id. PASSES because the
+            milestone branch's follow-on writes are $set (idempotent),
+            NOT $inc. Documents the TOCTOU shape shares hours' pattern
+            but has no money-loss vector today; recorded under S-03
+            (c) as invariant that would break if a future revision
+            adds $inc.
+          S-04 EVIDENCE (asked by user, filed as xfail canary):
+          test_verify_detects_tampering_via_recompute in test_14. Fires
+          the PDF over an empty set (0 rows hashed), then inserts a
+          refunded dispute_fee_transactions row into the same 30-day
+          window (tamper), re-hits /verify/{sig}. Expected post-S-04-
+          fix: response includes recompute_matches=False. Current
+          behaviour: verify at revisions.py:978-987 is a plain
+          find_one({signature}) — no recompute — response is just
+          {"receipt_found": true, "receipt": {...}}. Assertion of
+          recompute_matches=False fails → xfail catches → XFAILED.
+          When S-04 (b) lands (verify re-runs the query + recomputes +
+          hmac.compare_digest), the assertion passes → strict fails on
+          xpass → forces removal.
+          S-03 UPDATE (backlog): SECURITY_BACKLOG.md S-03 row extended
+          with (c) — the TOCTOU pattern at server.py:590-595 gates
+          hours_balance $inc on the snapshot read rather than on the
+          update result. Fix scope: `res = update_one({session_id, $ne
+          paid}, {$set: paid}); if res.modified_count == 1: $inc`. Also
+          noted milestone branch shares the shape but writes idempotent
+          $set (no money-loss vector today, only paid_at drift), and
+          that this fires on ordinary Stripe retries + F-05
+          PaymentSuccess.jsx polling — no attacker required.
+          MILESTONE TOCTOU CHECK (asked by user): same shape as hours
+          (find_one → Python if-check → follow-on writes inside if-
+          block). NO money-loss because writes are idempotent $set
+          (status="paid", paid_at). Only observable difference is
+          paid_at gets restamped by whichever handler finishes last.
+          Concurrent test PASSES today — invariant documented.
+
   - task: "§10 hours purchase + §17 milestone payments — 30 money-path tests"
     implemented: true
     working: true

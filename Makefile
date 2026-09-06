@@ -75,6 +75,7 @@ test-backend:
 			tests/test_10_hours_purchase.py \
 			tests/test_11_engagements.py \
 			tests/test_12_13_revisions.py \
+			tests/test_14_grievances_refunds.py \
 			tests/test_17_milestone_payments.py \
 			tests/test_stripe_fixtures.py \
 			tests/test_public_surface.py \

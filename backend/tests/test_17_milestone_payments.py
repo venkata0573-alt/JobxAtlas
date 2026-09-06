@@ -171,6 +171,62 @@ class TestMilestoneReplayIdempotency:
     stripe_events collection means an event-id-level dedup does not
     exist. Documented here so the fix scope is unambiguous."""
 
+    async def test_concurrent_replay_is_still_idempotent(
+        self, anon_client, db,
+    ):
+        """Mirrors test_concurrent_replay_may_double_credit from
+        test_10_hours_purchase.py but for the milestone branch. The
+        milestone branch at server.py:575-588 shares the same TOCTOU
+        shape (snapshot find_one → Python if-check → follow-on writes
+        inside the if-block), BUT the follow-on writes are idempotent
+        `$set` (status="paid", paid_at) — no `$inc`. So concurrent
+        delivery cannot double-credit or otherwise corrupt monetary
+        state; the only observable effect is that `paid_at` gets
+        restamped by whichever handler finishes last.
+
+        This test is a passing invariant, not an xfail. Recorded here
+        so a future refactor that adds a `$inc` (commissions, ledger,
+        hours-credit-back) to this branch inherits the S-03(c) bug
+        visibly. See SECURITY_BACKLOG.md S-03 note (c)."""
+        import asyncio
+
+        session_id = "cs_test_milestone_replay_concurrent"
+        await db.payment_transactions.insert_one({
+            "id": f"pt-{session_id}", "session_id": session_id,
+            "user_id": seed_mod.EMPLOYER_CARD_ID, "kind": "milestone",
+            "project_id": seed_mod.PROJECT_OPEN_ID,
+            "milestone_id": seed_mod.MILESTONE_1_ID,
+            "invoice_id": seed_mod.INVOICE_OPEN_ID,
+            "amount": 100000, "currency": "usd",
+            "status": "initiated", "payment_status": "pending",
+            "created_at": "2026-09-06T00:00:00+00:00",
+            "updated_at": "2026-09-06T00:00:00+00:00",
+        })
+        payload, headers = sf.checkout_session_completed(
+            session_id=session_id, kind="milestone",
+            metadata={"milestone_id": seed_mod.MILESTONE_1_ID,
+                      "invoice_id": seed_mod.INVOICE_OPEN_ID},
+        )
+        results = await asyncio.gather(*[
+            anon_client.post("/api/stripe/webhook",
+                             content=payload, headers=headers)
+            for _ in range(5)
+        ])
+        for r in results:
+            assert r.status_code == 200, r.text
+
+        # No money-side field to double-count. State just settles paid.
+        m = await db.project_milestones.find_one({"id": seed_mod.MILESTONE_1_ID})
+        assert m["status"] == "paid"
+        assert m.get("paid_at"), (
+            "paid_at should be stamped (once by the winner, or restamped "
+            "by every follow-on handler — either way non-null)"
+        )
+        inv = await db.project_invoices.find_one({"id": seed_mod.INVOICE_OPEN_ID})
+        assert inv["status"] == "paid"
+        pt = await db.payment_transactions.find_one({"session_id": session_id})
+        assert pt["payment_status"] == "paid"
+
     async def test_sequential_replay_leaves_state_stable(
         self, anon_client, db,
     ):
