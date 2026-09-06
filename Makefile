@@ -98,7 +98,18 @@ test-frontend:
 	@echo "test-frontend: no frontend unit tests yet — Phase 1c will add them."
 
 e2e:
-	@echo "e2e: Playwright suite not yet added — Phase 1c will introduce frontend/e2e/."
+	# Phase 1c: Playwright end-to-end suite lives under frontend/e2e/.
+	# Runs from the HOST (Playwright browsers need direct network access
+	# to the published ports; installing them inside the frontend container
+	# would break because REACT_APP_BACKEND_URL is baked as
+	# https://localhost:18443 — unreachable from inside the container).
+	#
+	# Reset backend state first so Playwright starts from the same seed
+	# pytest's clean_db creates for backend tests. Otherwise state
+	# accumulates across runs (H-9 in PROJECT_STATUS.md §5, extended to
+	# the frontend layer).
+	$(COMPOSE) exec -T backend python /app/backend/tests/seed.py
+	cd frontend && npx playwright test
 
 # Phase 1d proper wires these tools into CI. Today this target reports what's
 # missing rather than silently passing.

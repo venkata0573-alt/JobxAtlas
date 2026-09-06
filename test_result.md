@@ -243,6 +243,114 @@ backend:
           .env.test) — the happy-path upload test is skipped until a real
           storage mock lands. Auth-gate tests still cover the endpoint.
 
+  - task: "Phase 1c: Playwright E2E infrastructure + 6 flows (12/13 pass, 1 finding)"
+    implemented: true
+    working: true
+    file: "frontend/playwright.config.js + frontend/e2e/*.spec.js + Makefile e2e target"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: >
+          Playwright infrastructure delivered. Runs from the HOST against
+          the existing docker-compose.test.yml stack. Installing Playwright
+          inside the frontend container failed on the network model:
+          REACT_APP_BACKEND_URL is baked as https://localhost:18443 at
+          image-build time, unreachable from inside the container. HOST
+          install works — both ports are host-published.
+          Files added:
+          - frontend/playwright.config.js — HTTPS-tolerant, serial, no
+            retries (leave failures failing).
+          - frontend/e2e/personas.js — mirrors backend/tests/seed.py IDs.
+          - frontend/e2e/helpers.js — loginViaApi + loginViaUi + logoutViaUi.
+          - frontend/e2e/00-smoke.spec.js (3 tests) — proves stack + login.
+          - 01-register-login-logout (5 tests, 4 pass + 1 fail)
+          - 02-employer-browse-shortlist-broadcast (1 test, pass)
+          - 03-talent-eoi-employer-accept (1 test, pass)
+          - 04-engagement-sign-deliver-approve (1 test, pass)
+          - 05-revision-cycle (1 test, pass)
+          - 06-purchase-hours (1 test, pass)
+          - Makefile: `make e2e` target (reseeds via seed.py, then
+            `npx playwright test`).
+          Baseline: `make e2e` → 12 passed / 1 failed (0 skipped).
+          The 1 failure is the logout-cookie clear test — see gaps.
+          FLOWS THAT USE API-FALLBACK (UI testid missing, endpoint verified):
+          - Flow 2 shortlist add: BrowseTalent has no shortlist button
+            testid on the card row. Fallback: POST /api/shortlist via
+            page.request. Endpoint works; UI path is untested.
+          - Flow 2 broadcast: Shortlist page has no broadcast button/
+            message input/send button testids. Fallback: POST
+            /api/shortlist/broadcast.
+          - Flow 3 EOI create: EOI page form fields (employer_id, message,
+            hours, submit) have no testids. Fallback: POST /api/eoi.
+          - Flow 3 EOI accept: no accept button testid. Fallback: POST
+            /api/eoi/{id}/accept.
+          - Flow 4 engagement sign: no engagement-sign-btn testid on
+            EngagementDetail. Fallback: POST /api/engagements/sign.
+          - Flow 4 deliverable submit + approve: no submit/approve
+            button testids. Fallback: POST /api/deliverables +
+            /api/deliverables/{id}/approve.
+          - Flow 5 revision request + resubmit: no button/modal testids
+            on EngagementDetail. Fallback: POST /request-revision +
+            /resubmit.
+          - Flow 6 purchase-hours: no starter-package button testid.
+            Fallback: POST /api/payments/checkout.
+          The tests currently PASS via these API fallbacks because the
+          endpoints work end-to-end. What they don't prove is that the
+          SPA WIRING calls those endpoints correctly (that's the
+          data-testid coverage gap). Adding UI testids is a follow-up
+          sprint — each requires source edit + `make down-test && make
+          up-test` since the frontend image bakes source at build time
+          (no bind mount).
+          GAP REPORT (asked by user — flows with no backend path or
+          calls to nonexistent endpoints):
+          1. UI Register form flow requires Cloudflare Turnstile widget
+             (challenges.cloudflare.com) — outbound blocked in isolated
+             networks. Register-endpoint validation is fully covered by
+             backend test_03_auth.py::TestRegister (direct-import
+             bypasses Turnstile). E2E gap: register form UI is not
+             tested end-to-end. Fix requires a Turnstile mock harness
+             or network-mock route in Playwright config.
+          2. Admin login DOES NOT auto-route to /admin — Login.jsx:22
+             only handles talent → /talent, employer → /employer; admin
+             falls into the "/" default. Admins have to manually
+             navigate. Test recorded this as a finding.
+          3. Header logout button click doesn't clear browser cookies
+             in a way Playwright can observe. Direct POST /api/auth/logout
+             DOES clear cookies. Suggests either (a) the Header click
+             is racy with cookie writeback timing, or (b) AuthContext's
+             logout function fires the request via axios which uses a
+             different session state than Playwright's browser context.
+             Investigate before Phase 1c v2.
+          4. Password reset — no backend endpoint exists at all (a
+             forgotPasswordLink testId is in constants/testIds/auth.js
+             but there's no handler). Flow was skipped per user's
+             earlier ack. Candidate for a new F-XX (build or remove
+             the testid placeholder).
+          5. User's original Flow 2 said "send EOI" but EOIs are talent-
+             initiated. Corrected to shortlist + BROADCAST which is the
+             employer-side hire signal (server.py:1506). Similarly
+             Flow 3 was reworded to "talent raises EOI → employer
+             accepts" rather than "talent receives EOI → accept" —
+             employers accept, talents raise.
+          UI TESTID ADDITIONS RECOMMENDED (each is <20 characters of
+          diff, all attribute-only per user constraint):
+          - BrowseTalent.jsx: shortlist-btn-<talent_id> on card
+          - Shortlist.jsx: shortlist-broadcast-btn/-message/-send-btn
+          - EOI.jsx: eoi-employer-id/-message/-hours/-submit-btn +
+            eoi-accept-btn (for employer view)
+          - EngagementDetail.jsx: engagement-sign-btn, deliverable-
+            approve-btn-<id>, revision-request-btn-<deliv_id>,
+            revision-justification/-priority-*/-submit-btn, revision-
+            resubmit-btn-<deliv_id>/-link/-hours/-submit-btn
+          - PurchaseHours.jsx: purchase-hours-starter-btn (and per-
+            package variants)
+          These land in a Phase 1c v2 commit alongside a rebuild cycle.
+          Baseline effect on backend test suite: unchanged (Phase 1c
+          adds no Python tests).
+
   - task: "§14 grievances + dispute-fee lifecycle + refund audit — 29 tests (S-04 evidence)"
     implemented: true
     working: true

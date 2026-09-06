@@ -109,3 +109,7 @@ credentials.json
 .artifacts/
 .coverage
 .coverage.*
+# Playwright per-run outputs (screenshots + videos + traces from failed runs).
+frontend/e2e-artifacts/
+frontend/playwright-report/
+frontend/test-results/
