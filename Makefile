@@ -69,6 +69,7 @@ test-backend:
 			--cov-fail-under=0 \
 			tests/test_00_smoke.py \
 			tests/test_11_engagements.py \
+			tests/test_12_13_revisions.py \
 			tests/test_public_surface.py \
 			tests/test_csrf_surface.py \
 			tests/test_config.py \

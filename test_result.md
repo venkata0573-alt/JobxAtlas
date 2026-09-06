@@ -243,6 +243,54 @@ backend:
           .env.test) — the happy-path upload test is skipped until a real
           storage mock lands. Auth-gate tests still cover the endpoint.
 
+  - task: "§12 §13 revision ladder + disputes + S-25 fee-status"
+    implemented: true
+    working: true
+    file: "backend/tests/test_12_13_revisions.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: >
+          PASS: 38/38 green under make test-backend (serial -n 0).
+          Coverage: 4 threshold-ladder tests (amber-at-3-STAYS-off proves the
+          H-8 config path, amber-at-4 fires, red-at-5 fires + visibility -20
+          once, idempotent double-deduction guard); 4 request-revision
+          negatives (wrong role, wrong party, short justification, bad
+          status); 3 resubmit (happy + 2 negatives); 4 list/summary
+          (H-8 review_threshold==4 surfaces to UI, dispute_available flips
+          at 5, anon 401, cross-tenant 403); 5 recovery (no-penalty flat
+          response, amber needs 3, excessive needs 5, employer 403,
+          end-to-end amber lift after 3 clean approvals); 2 employer
+          abuse flag (fires at 5×3×60d, does NOT fire at 2 talents); 1 F-07
+          monotonic counter (revision_count stays 5 after talent-favourable
+          ruling); 4 dispute (blocked at 4, opens at 5 with $49, duplicate
+          400, employer 403); 5 admin rule (talent → fee owed_by_employer +
+          penalty reversed, employer → fee owed_by_talent + penalty kept,
+          admin_noscope 403, bad ruling 400, double rule 400); 6 S-25 fee-
+          status (talent payer 200, employer party 200, moderation admin
+          200, anon 401, unrelated talent 403, unknown grievance 404).
+          Findings — nothing failing:
+          - H-8 assertion path is live and green; every threshold check
+            binds to REVIEW_THRESHOLD_H8=4, not 3.
+          - S-25 confirmed as scanner-misfire empirically. Talent payer
+            and employer party both reach fee-status; only unrelated +
+            anon are denied. PROJECT_STATUS.md §3 marked S-25 as
+            "still unverified" — active-test citation now available;
+            can be marked CLOSED in SECURITY_BACKLOG.md.
+          - F-07 confirmed intended behaviour: revision_count is
+            monotonic; only profile penalty flags reverse on ruling.
+          - H-9 (parallel worker state trampling) fires hard on this
+            file if run without -n 0 — 7 tests failed under default -n
+            auto due to shared-Mongo drop-and-reseed races. Makefile
+            already enforces serial; documenting for anyone running
+            pytest directly on this file.
+          Bounded scope: §14 (dispute-fee Stripe checkout, refund,
+          audit PDF, refund-analytics) NOT covered — needs signed Stripe
+          payloads (H-7). Lands in a later session.
+
   - task: "F-11 centralise env reads — backend/config.py + frontend/src/config.js"
     implemented: true
     working: true
