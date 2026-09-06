@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
+import { BACKEND_URL } from "@/config";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import {
@@ -551,8 +552,7 @@ function MilestonesTab({ project, milestones, invoices, canFinance, canPay, onCh
     } catch (e) { toast.error(formatErr(e)); }
   };
   const downloadPdf = (invId) => {
-    const base = process.env.REACT_APP_BACKEND_URL;
-    window.open(`${base}/api/projects/workspace/${project.id}/invoices/${invId}/pdf`, "_blank");
+    window.open(`${BACKEND_URL}/api/projects/workspace/${project.id}/invoices/${invId}/pdf`, "_blank");
   };
 
   return (

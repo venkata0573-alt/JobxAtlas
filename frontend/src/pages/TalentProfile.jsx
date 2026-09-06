@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import api, { formatErr } from "@/lib/api";
+import { BACKEND_URL } from "@/config";
 import { useAuth } from "@/context/AuthContext";
 import { TID } from "@/constants/testIds";
 import { toast } from "sonner";
@@ -92,7 +93,7 @@ export default function TalentProfile() {
         <div className="flex items-center gap-5">
           <div className="w-20 h-20 hard-border bg-neutral-100 flex items-center justify-center overflow-hidden">
             {p.avatar_url ? (
-              <img src={`${process.env.REACT_APP_BACKEND_URL}${p.avatar_url}`}
+              <img src={`${BACKEND_URL}${p.avatar_url}`}
                    alt="avatar" className="w-full h-full object-cover"/>
             ) : (
               <span className="font-display font-black text-2xl text-neutral-400">
@@ -223,7 +224,7 @@ export default function TalentProfile() {
             <label className="overline block mt-4 mb-2">Company logo</label>
             <div className="flex items-center gap-4">
               {p.company_logo_url && (
-                <img src={`${process.env.REACT_APP_BACKEND_URL}${p.company_logo_url}`}
+                <img src={`${BACKEND_URL}${p.company_logo_url}`}
                      alt="logo" className="w-16 h-16 object-contain hard-border bg-neutral-50 p-1"/>
               )}
               <label className="btn-outline text-sm inline-block cursor-pointer">
@@ -248,7 +249,7 @@ export default function TalentProfile() {
             <label className="overline block mb-2">Portfolio gallery (up to 6)</label>
             <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-3">
               {(p.portfolio_images || []).map((url, x) => (
-                <img key={x} src={`${process.env.REACT_APP_BACKEND_URL}${url}`} alt=""
+                <img key={x} src={`${BACKEND_URL}${url}`} alt=""
                      className="w-full aspect-square object-cover hard-border"/>
               ))}
               {(p.portfolio_images || []).length < 6 && (

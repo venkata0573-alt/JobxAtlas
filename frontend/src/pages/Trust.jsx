@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import api from "@/lib/api";
+import { BACKEND_URL } from "@/config";
 import { ShieldCheck, Buildings, UserCheck, ChatCircleText, Handshake, MagnifyingGlass, X, DownloadSimple } from "@phosphor-icons/react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
@@ -250,7 +251,7 @@ function DrillModal({ drill, onClose, series }) {
               </p>
             )}
             <a
-              href={`${process.env.REACT_APP_BACKEND_URL}/api/trust/timeseries/details/pdf?series=${encodeURIComponent(drill.key)}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+              href={`${BACKEND_URL}/api/trust/timeseries/details/pdf?series=${encodeURIComponent(drill.key)}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
               target="_blank" rel="noreferrer noopener"
               className="inline-flex items-center gap-2 text-[11px] font-mono tracking-widest uppercase text-[#6B21A8] hover:text-[#0B1B2B] border border-[#6B21A8] px-2 py-1"
               data-testid="drill-download-pdf">

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
+import { BACKEND_URL } from "@/config";
 import { TID } from "@/constants/testIds";
 import { toast } from "sonner";
 import { MagnifyingGlass, Star, X } from "@phosphor-icons/react";
@@ -122,7 +123,7 @@ export default function BrowseTalent() {
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-start gap-3 min-w-0">
                     {t.profile?.avatar_url ? (
-                      <img src={`${process.env.REACT_APP_BACKEND_URL}${t.profile.avatar_url}`}
+                      <img src={`${BACKEND_URL}${t.profile.avatar_url}`}
                            alt={t.name} className="w-12 h-12 hard-border object-cover flex-shrink-0"/>
                     ) : (
                       <div className="w-12 h-12 hard-border bg-[#0B1B2B] text-[#6B21A8] font-display font-black text-lg flex items-center justify-center flex-shrink-0">
@@ -160,7 +161,7 @@ export default function BrowseTalent() {
                 {t.profile?.portfolio_images?.length > 0 && (
                   <div className="grid grid-cols-3 gap-1 mb-3">
                     {t.profile.portfolio_images.slice(0, 3).map((f) => (
-                      <img key={f} src={`${process.env.REACT_APP_BACKEND_URL}${f}`} alt="portfolio"
+                      <img key={f} src={`${BACKEND_URL}${f}`} alt="portfolio"
                            className="w-full h-14 object-cover hard-border"/>
                     ))}
                   </div>

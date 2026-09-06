@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
+import { BACKEND_URL } from "@/config";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { TID } from "@/constants/testIds";
@@ -318,7 +319,7 @@ export default function EngagementDetail() {
                       {d.file_ids && d.file_ids.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-2">
                           {d.file_ids.map((fid) => (
-                            <a key={fid} href={`${process.env.REACT_APP_BACKEND_URL}/api/files/${fid}`} target="_blank" rel="noreferrer"
+                            <a key={fid} href={`${BACKEND_URL}/api/files/${fid}`} target="_blank" rel="noreferrer"
                                className="hard-border bg-white px-2 py-1 text-xs font-mono inline-flex items-center gap-1 hover:bg-[#0B1B2B] hover:text-white">
                               📎 attachment
                             </a>

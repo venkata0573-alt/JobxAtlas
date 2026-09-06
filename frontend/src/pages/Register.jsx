@@ -4,11 +4,7 @@ import api, { formatErr } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { TID } from "@/constants/testIds";
 import { toast } from "sonner";
-
-// Cloudflare Turnstile site key. Falls back to Cloudflare's public "always-passes"
-// test key so local dev + preview work without config. Set REACT_APP_TURNSTILE_SITE_KEY
-// in prod .env to enforce real challenges.
-const TURNSTILE_SITE_KEY = process.env.REACT_APP_TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
+import { TURNSTILE_SITE_KEY } from "@/config";
 
 export default function Register() {
   const [f, setF] = useState({ name: "", email: "", password: "", role: "talent", company_industry: "" });

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
+import { BACKEND_URL } from "@/config";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { TID } from "@/constants/testIds";
@@ -57,8 +58,7 @@ export default function TalentDashboard() {
       try {
         const { data } = await api.get("/auth/sse-token");
         if (cancelled) return;
-        const base = process.env.REACT_APP_BACKEND_URL;
-        es = new EventSource(`${base}/api/talent/me/broadcasts/stream?token=${encodeURIComponent(data.token)}`);
+        es = new EventSource(`${BACKEND_URL}/api/talent/me/broadcasts/stream?token=${encodeURIComponent(data.token)}`);
         es.onmessage = (e) => {
           try {
             const ev = JSON.parse(e.data);

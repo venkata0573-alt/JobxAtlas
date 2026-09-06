@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import api, { formatErr } from "@/lib/api";
+import { BACKEND_URL } from "@/config";
 import { toast } from "sonner";
 import { FileText, Warning, ArrowRight, CreditCard } from "@phosphor-icons/react";
 
@@ -38,8 +39,7 @@ export default function Invoices() {
   }, []);
 
   const downloadPdf = (projectId, invId) => {
-    const base = process.env.REACT_APP_BACKEND_URL;
-    window.open(`${base}/api/projects/workspace/${projectId}/invoices/${invId}/pdf`, "_blank");
+    window.open(`${BACKEND_URL}/api/projects/workspace/${projectId}/invoices/${invId}/pdf`, "_blank");
   };
 
   const filtered = useMemo(() => {

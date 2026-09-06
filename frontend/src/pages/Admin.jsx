@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import api, { formatErr } from "@/lib/api";
+import { BACKEND_URL } from "@/config";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
@@ -1067,7 +1068,7 @@ function RefundAnalyticsCard({ analytics }) {
             </span>
           )}
           <a
-            href={`${process.env.REACT_APP_BACKEND_URL}/api/admin/revisions/refund-audit/pdf`}
+            href={`${BACKEND_URL}/api/admin/revisions/refund-audit/pdf`}
             target="_blank" rel="noreferrer noopener"
             className="hard-border bg-white text-[#6B21A8] hover:bg-[#F5F3FF] text-[11px] font-mono uppercase tracking-widest px-3 py-1 inline-flex items-center gap-1"
             data-testid="refund-audit-download">
