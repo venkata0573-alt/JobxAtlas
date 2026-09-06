@@ -1,12 +1,14 @@
 """Auth + Profile routes: /auth/register, /auth/login, /auth/logout, /auth/me,
 PUT /profile, POST /profile/suggest-rate."""
-import os, secrets
+import secrets
 from typing import Any, Dict, List, Optional
 from fastapi import Depends, HTTPException, Response, Request
 from pydantic import BaseModel, EmailStr
 
+# F-11: config is the sole env boundary.
+from config import settings
 from deps import (
-    api, db, now, new_id, hash_pw, verify_pw, set_auth_cookies,
+    api, db, logger, now, new_id, hash_pw, verify_pw, set_auth_cookies,
     get_current_user, EMPLOYER_INDUSTRIES,
 )
 
@@ -32,7 +34,7 @@ async def _send_verification_email(user_doc: dict) -> str:
         {"$set": {"email_verification_token": token,
                   "email_verification_sent_at": now().isoformat()}},
     )
-    base = os.environ.get("APP_BASE_URL") or ""
+    base = settings.urls.app_base
     verify_url = f"{base}/verify-email?token={token}"
     try:
         from mailer import send_email
@@ -58,10 +60,21 @@ class RegisterIn(BaseModel):
 
 
 async def _verify_turnstile(token: str, remote_ip: str = "") -> bool:
-    """Verify Cloudflare Turnstile token server-side. If TURNSTILE_SECRET is
-    unset, treat as pass so dev + tests can proceed."""
-    secret = os.environ.get("TURNSTILE_SECRET_KEY")
+    """Verify Cloudflare Turnstile token server-side.
+
+    S-08 (partial): TURNSTILE_SECRET_KEY is required-at-boot when
+    ENV=production (enforced in config.Settings). In dev/test it is
+    optional; if unset here, we fail-open so local dev keeps working —
+    but we log a WARN each time so the bypass isn't silent. Full S-08
+    still needs IP+email rate limiting and constant-time login response.
+    """
+    secret = settings.auth.turnstile_secret_key
     if not secret:
+        logger.warning(
+            "[S-08] TURNSTILE_SECRET_KEY unset (env=%s) — captcha check "
+            "BYPASSED for remote_ip=%s. Set the secret to enforce.",
+            settings.env, remote_ip or "-",
+        )
         return True
     if not token:
         return False
@@ -297,7 +310,7 @@ async def submit_bgv(payload: TalentBgvIn, user: dict = Depends(get_current_user
 
     # Auto-email each reference a 1-question check form. Each row gets a unique
     # token so we can accept anonymous responses without login.
-    base = os.environ.get("APP_BASE_URL") or ""
+    base = settings.urls.app_base
     from mailer import send_email
     for ref in payload.references:
         token = secrets.token_urlsafe(24)
@@ -661,7 +674,11 @@ def _drill_signature(items: List[Dict[str, Any]], series: str, ts: str) -> str:
         {"series": series, "ts": ts, "items": items},
         sort_keys=True, separators=(",", ":"),
     ).encode()
-    salt = os.environ.get("DRILL_SIGN_SECRET", "jobatlas-drill-v1").encode()
+    # S-04 (partial): fallback to "jobatlas-drill-v1" removed;
+    # DRILL_SIGN_SECRET required at boot via config.CryptoSettings.
+    # Remaining S-04 work: switch from sha256(secret+msg) to
+    # hmac.new(secret, msg, sha256) + verify-endpoint recompute.
+    salt = settings.crypto.drill_secret.encode()
     return hashlib.sha256(salt + canonical).hexdigest()
 
 
@@ -675,7 +692,7 @@ async def public_trust_timeseries_pdf(series: str = "refs", q: str = "", request
     from fastapi.responses import Response as _R
 
     # Resolve the public base URL so the QR is scannable outside the network.
-    base_url = os.environ.get("PUBLIC_BASE_URL", "")
+    base_url = settings.urls.public_base
     if not base_url and isinstance(request, Request):
         proto = request.headers.get("x-forwarded-proto", request.url.scheme)
         host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc

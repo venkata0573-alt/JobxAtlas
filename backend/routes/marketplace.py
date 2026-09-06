@@ -20,6 +20,8 @@ list and SSE state):
 from fastapi import Request
 from fastapi.responses import Response as _XmlResponse
 
+# F-11: config is the sole env boundary.
+from config import settings
 from deps import api, db, now, SEO_SKILLS, SEO_CITIES, EMPLOYER_INDUSTRIES
 
 
@@ -78,8 +80,7 @@ def _build_sitemap_xml(origin: str) -> str:
 @api.get("/sitemap.xml")
 async def sitemap_xml(request: Request):
     """Dynamically generated sitemap covering all static + SEO landing routes."""
-    import os
-    origin = os.environ.get("PUBLIC_SITE_URL")
+    origin = settings.urls.public_site
     if not origin:
         fwd_host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
         fwd_proto = request.headers.get("x-forwarded-proto", "https")

@@ -1,10 +1,3 @@
-from dotenv import load_dotenv
-from pathlib import Path
-
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / ".env")
-
-import os
 import io
 import uuid
 import logging
@@ -20,6 +13,9 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
+
+# F-11: config is the sole env boundary; imports .env at construction.
+from config import settings
 
 # Local
 from ai_service import suggest_hourly_rate
@@ -37,7 +33,9 @@ from deps import (
 )
 
 # ---------- App bootstrapping ----------
-stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or "sk_test_emergent"
+# S-05 CLOSED: fallback to "sk_test_emergent" removed. STRIPE_SECRET_KEY
+# is required at boot; a missing value fails in config.py before we reach here.
+stripe.api_key = settings.stripe.secret_key
 
 app = FastAPI(title="Job Atlas API")
 
@@ -1397,9 +1395,9 @@ async def _scan_and_record_rate_nudges(request: Optional[Request] = None) -> Dic
     if request is not None:
         fwd_host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
         fwd_proto = request.headers.get("x-forwarded-proto", "https")
-        origin = os.environ.get("PUBLIC_SITE_URL") or (f"{fwd_proto}://{fwd_host}" if fwd_host else "")
+        origin = settings.urls.public_site or (f"{fwd_proto}://{fwd_host}" if fwd_host else "")
     else:
-        origin = os.environ.get("PUBLIC_SITE_URL") or ""
+        origin = settings.urls.public_site or ""
     dashboard_url = f"{origin.rstrip('/')}/talent" if origin else "/talent"
 
     talents = await db.users.find({"role": "talent"}, {"_id": 0}).to_list(2000)
@@ -1524,7 +1522,7 @@ async def broadcast_to_shortlist(payload: ShortlistBroadcastIn, request: Request
     # Origin for email CTA
     fwd_host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
     fwd_proto = request.headers.get("x-forwarded-proto", "https")
-    origin = os.environ.get("PUBLIC_SITE_URL") or (f"{fwd_proto}://{fwd_host}" if fwd_host else "")
+    origin = settings.urls.public_site or (f"{fwd_proto}://{fwd_host}" if fwd_host else "")
     login_url = f"{origin.rstrip('/')}/login" if origin else "/login"
 
     delivered = 0
@@ -2754,18 +2752,30 @@ async def startup():
     await db.eois.create_index("id", unique=True)
     await db.eois.create_index("talent_id")
     # Seed admin
-    admin_email = os.environ.get("ADMIN_EMAIL", "admin@talenthub.io")
-    admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@2026")
+    # S-20 (partial): the "Admin@2026" default is gone. Config leaves
+    # admin_password as None when ADMIN_PASSWORD is unset; the seeder
+    # skips with a WARN rather than shipping a hardcoded password.
+    # Remaining S-20 work: force-rotation-on-first-login + refuse to
+    # re-seed in production when a superadmin already exists.
+    admin_email = settings.auth.admin_email
+    admin_password = settings.auth.admin_password
     existing = await db.users.find_one({"email": admin_email})
     if not existing:
-        await db.users.insert_one({
-            "id": new_id(), "email": admin_email, "name": "Admin",
-            "role": "admin", "password_hash": hash_pw(admin_password),
-            "created_at": now().isoformat(),
-            "profile": {}, "hours_balance": 0, "integrations": [],
-            "admin_permissions": ["superadmin"],
-        })
-        logger.info(f"Seeded admin: {admin_email} (superadmin)")
+        if not admin_password:
+            logger.warning(
+                "ADMIN_PASSWORD unset — skipping admin seeder for %s. "
+                "Set ADMIN_PASSWORD in the environment to seed the initial admin.",
+                admin_email,
+            )
+        else:
+            await db.users.insert_one({
+                "id": new_id(), "email": admin_email, "name": "Admin",
+                "role": "admin", "password_hash": hash_pw(admin_password),
+                "created_at": now().isoformat(),
+                "profile": {}, "hours_balance": 0, "integrations": [],
+                "admin_permissions": ["superadmin"],
+            })
+            logger.info(f"Seeded admin: {admin_email} (superadmin)")
     # Backfill: any admin missing admin_permissions gets superadmin (existing sole admin)
     await db.users.update_many(
         {"role": "admin", "$or": [{"admin_permissions": {"$exists": False}},
@@ -2886,7 +2896,11 @@ app.include_router(api)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    # S-02 (partial): fallback to "*" removed. CORS_ORIGINS is required
+    # at boot; config.UrlSettings splits the CSV, forbids '*' as an
+    # entry, and rejects an empty list. The remaining S-02 work (per-env
+    # origin validation) is tracked in SECURITY_BACKLOG.md.
+    allow_origins=settings.urls.cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

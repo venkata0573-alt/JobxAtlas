@@ -3,15 +3,17 @@
 `send_email` is a safe no-op when RESEND_API_KEY is missing so the rest of the
 app keeps working in dev. Non-blocking via asyncio.to_thread.
 """
-import os
 import asyncio
 import logging
 from typing import Optional
 
+# F-11: config is the sole env boundary.
+from config import settings
+
 logger = logging.getLogger("mailer")
 
-RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "").strip()
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev").strip()
+RESEND_API_KEY = (settings.mail.resend_api_key or "").strip()
+SENDER_EMAIL = settings.mail.sender_email.strip()
 
 _resend = None
 if RESEND_API_KEY:

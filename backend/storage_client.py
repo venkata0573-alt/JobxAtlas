@@ -1,11 +1,21 @@
-"""Emergent Object Storage client for Job Atlas attachments."""
-import os
+"""Object Storage client for Job Atlas attachments."""
 import requests
 from typing import Tuple
 
-STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
-STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
-EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+# F-11: config is the sole env boundary.
+from config import settings
+
+# S-27 CLOSED: fallback to integrations.emergentagent.com removed.
+#              INTEGRATION_PROXY_URL is required at boot.
+# S-15 CLOSED: STORAGE_TOKEN replaces the borrowed EMERGENT_LLM_KEY —
+#              storage no longer shares an auth secret with the LLM.
+# STORAGE_BASE preserved (thin proxy for settings.storage.proxy_url)
+# so tests that assert on it — notably the S-27 guardrail in
+# tests/test_00_smoke.py::test_storage_client_base_matches_env — keep
+# a stable attribute to check.
+STORAGE_BASE = settings.storage.proxy_url.rstrip("/")
+STORAGE_URL = STORAGE_BASE + "/objstore/api/v1/storage"
+STORAGE_TOKEN = settings.storage.token
 APP_NAME = "talenthub"
 
 _storage_key: str = ""
@@ -15,9 +25,14 @@ def init_storage(force: bool = False) -> str:
     global _storage_key
     if _storage_key and not force:
         return _storage_key
-    if not EMERGENT_KEY:
-        raise RuntimeError("EMERGENT_LLM_KEY missing")
-    r = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
+    # S-15: the `if not EMERGENT_KEY: raise RuntimeError(...)` guard is
+    # gone. Uploads must never depend on LLM config again; STORAGE_TOKEN
+    # is required at boot, so we can rely on it here.
+    r = requests.post(
+        f"{STORAGE_URL}/init",
+        json={"storage_token": STORAGE_TOKEN},
+        timeout=30,
+    )
     r.raise_for_status()
     _storage_key = r.json()["storage_key"]
     return _storage_key

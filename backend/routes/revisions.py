@@ -16,29 +16,30 @@ Endpoints exposed:
 
 The dispute fee is recorded as a payable on the *losing* side once an admin rules.
 """
-import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 from fastapi import Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
+# F-11: config is the sole env boundary.
+from config import settings
 from deps import api, db, new_id, now, get_current_user, has_admin_scope
 
 
-# ---- Config knobs (env-overridable for tests) --------------------------------
-REVIEW_FLAG_THRESHOLD   = int(os.environ.get("REVISION_REVIEW_THRESHOLD", "3"))
-PENALTY_THRESHOLD       = int(os.environ.get("REVISION_PENALTY_THRESHOLD", "5"))
-DISPUTE_FEE_USD         = float(os.environ.get("REVISION_DISPUTE_FEE_USD", "49"))
-VISIBILITY_PENALTY      = int(os.environ.get("REVISION_VISIBILITY_PENALTY", "20"))
-RATE_NUDGE_PENALTY_PCT  = float(os.environ.get("REVISION_RATE_NUDGE_PENALTY", "10"))
-EMPLOYER_FLAG_TALENTS   = int(os.environ.get("EMPLOYER_FLAG_UNIQUE_TALENTS", "3"))
-EMPLOYER_FLAG_WINDOW_D  = int(os.environ.get("EMPLOYER_FLAG_WINDOW_DAYS", "60"))
+# ---- Config knobs (sourced from backend/config.py:BusinessRules) ------------
+REVIEW_FLAG_THRESHOLD   = settings.business_rules.revision_review_threshold
+PENALTY_THRESHOLD       = settings.business_rules.revision_penalty_threshold
+DISPUTE_FEE_USD         = settings.business_rules.revision_dispute_fee_usd
+VISIBILITY_PENALTY      = settings.business_rules.revision_visibility_penalty
+RATE_NUDGE_PENALTY_PCT  = settings.business_rules.revision_rate_nudge_penalty
+EMPLOYER_FLAG_TALENTS   = settings.business_rules.employer_flag_unique_talents
+EMPLOYER_FLAG_WINDOW_D  = settings.business_rules.employer_flag_window_days
 # Talent recovery playbook: how many clean, revision-free approvals in a row
 # lift each penalty tier. Reject resets the streak to 0.
-RECOVERY_UNDER_REVIEW   = int(os.environ.get("REVISION_RECOVERY_UNDER_REVIEW", "3"))
-RECOVERY_EXCESSIVE      = int(os.environ.get("REVISION_RECOVERY_EXCESSIVE", "5"))
+RECOVERY_UNDER_REVIEW   = settings.business_rules.revision_recovery_under_review
+RECOVERY_EXCESSIVE      = settings.business_rules.revision_recovery_excessive
 # How long a recovered talent keeps the "Proven Reliable" chip.
-PROVEN_RELIABLE_DAYS    = int(os.environ.get("PROVEN_RELIABLE_DAYS", "90"))
+PROVEN_RELIABLE_DAYS    = settings.business_rules.proven_reliable_days
 
 
 # ---- Payloads ---------------------------------------------------------------
@@ -477,7 +478,7 @@ async def admin_refund_analytics(user: dict = Depends(get_current_user)):
     total_paid = sum(r["paid"] for r in series)
     total_refunded = sum(r["refunded"] for r in series)
     rolling_rate = round(total_refunded / total_paid * 100, 1) if total_paid else 0
-    alert_threshold = int(os.environ.get("REFUND_ALERT_THRESHOLD_PCT", "20"))
+    alert_threshold = settings.business_rules.refund_alert_threshold_pct
 
     return {
         "series": series,
@@ -591,7 +592,7 @@ async def pay_dispute_fee(grievance_id: str, payload: FeePayIn,
     $DISPUTE_FEE_USD arbitration fee. Idempotent — reuses the existing session
     while payment is pending."""
     import stripe as _stripe
-    _stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+    _stripe.api_key = settings.stripe.secret_key
     if not _stripe.api_key:
         raise HTTPException(500, "Stripe not configured")
 
@@ -709,7 +710,7 @@ async def mark_dispute_fee_paid(session_id: str) -> None:
     payment_intent_id = None
     try:
         import stripe as _stripe
-        _stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+        _stripe.api_key = settings.stripe.secret_key
         if _stripe.api_key:
             s = _stripe.checkout.Session.retrieve(session_id)
             payment_intent_id = s.get("payment_intent") if isinstance(s, dict) else getattr(s, "payment_intent", None)
@@ -756,7 +757,7 @@ async def admin_refund_fee(grievance_id: str, payload: RefundIn,
     if not pi_id and fee.get("stripe_session_id"):
         try:
             import stripe as _stripe
-            _stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+            _stripe.api_key = settings.stripe.secret_key
             s = _stripe.checkout.Session.retrieve(fee["stripe_session_id"])
             pi_id = s.get("payment_intent") if isinstance(s, dict) else getattr(s, "payment_intent", None)
         except Exception:
@@ -766,7 +767,7 @@ async def admin_refund_fee(grievance_id: str, payload: RefundIn,
 
     try:
         import stripe as _stripe
-        _stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+        _stripe.api_key = settings.stripe.secret_key
         if not _stripe.api_key:
             raise HTTPException(500, "Stripe not configured")
         refund = _stripe.Refund.create(
@@ -860,8 +861,13 @@ def _refund_audit_signature(rows: List[dict], period_start: str, period_end: str
         {"start": period_start, "end": period_end, "rows": rows},
         sort_keys=True, separators=(",", ":"),
     ).encode()
-    salt = os.environ.get("REFUND_AUDIT_SIGN_SECRET",
-                          os.environ.get("DRILL_SIGN_SECRET", "jobatlas-refund-v1")).encode()
+    # S-04 (partial): three-level fallback chain
+    # (REFUND_AUDIT_SIGN_SECRET → DRILL_SIGN_SECRET → "jobatlas-refund-v1")
+    # collapsed to a single required field. Both secrets now live in
+    # config.CryptoSettings and are required at boot. Remaining S-04
+    # work: HMAC (not sha256(secret+msg)) + verify-endpoint recompute
+    # with hmac.compare_digest.
+    salt = settings.crypto.refund_audit_secret.encode()
     return hashlib.sha256(salt + canonical).hexdigest()
 
 
@@ -949,7 +955,7 @@ async def admin_refund_audit_pdf(days: int = 30, request: Request = None,
         "issued_by_id": user["id"], "issued_at": now().isoformat(),
     })
 
-    base_url = os.environ.get("PUBLIC_BASE_URL", "")
+    base_url = settings.urls.public_base
     if not base_url and isinstance(request, Request):
         proto = request.headers.get("x-forwarded-proto", request.url.scheme)
         host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc

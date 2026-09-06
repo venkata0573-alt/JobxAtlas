@@ -1,13 +1,16 @@
-import os
 import json
 import re
 import logging
 from typing import List
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
+# F-11: config is the sole env boundary. LLM key stays optional —
+# silent-fail to rule-based rates is intentional per CLAUDE.md landmine list.
+from config import settings
+
 logger = logging.getLogger("ai_service")
 
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+EMERGENT_LLM_KEY = settings.llm.emergent_llm_key or ""
 
 
 async def suggest_hourly_rate(skills: List[str], years_experience: int, location: str = "Global") -> dict:

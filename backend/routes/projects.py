@@ -16,6 +16,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import Depends, HTTPException
 from pydantic import BaseModel, Field
 
+# F-11: config is the sole env boundary.
+from config import settings
 from deps import api, db, now, new_id, get_current_user, has_admin_scope
 
 
@@ -338,7 +340,6 @@ async def _maybe_fire_variance_alert(project: dict, variance: dict) -> Optional[
     """If the just-logged variance week breached the threshold on hours OR cost,
     write an alert doc + fire an email to the linked employer. Returns the
     alert doc when fired, else None."""
-    import os
     hours_var = float(variance.get("hours_variance_pct") or 0)
     cost_var  = float(variance.get("cost_variance_pct") or 0)
     if abs(hours_var) < VARIANCE_ALERT_THRESHOLD_PCT and abs(cost_var) < VARIANCE_ALERT_THRESHOLD_PCT:
@@ -362,7 +363,7 @@ async def _maybe_fire_variance_alert(project: dict, variance: dict) -> Optional[
     # Fire email (best-effort — never blocks the API response)
     try:
         from mailer import send_email
-        base = os.environ.get("APP_BASE_URL") or ""
+        base = settings.urls.app_base
         workspace_url = f"{base}/projects/{project['id']}/workspace"
         # Prefer the linked employer's email; fall back to the lead's contact_email
         to_email = None
@@ -784,8 +785,8 @@ async def create_milestone_checkout(project_id: str, milestone_id: str,
     """Create a Stripe checkout session for a single milestone. Only the linked
     employer OR an admin can pay. On success, the webhook + return_url both
     mark the milestone + invoice paid."""
-    import os, stripe
-    stripe_key = os.environ.get("STRIPE_SECRET_KEY")
+    import stripe
+    stripe_key = settings.stripe.secret_key
     if not stripe_key:
         raise HTTPException(500, "Stripe is not configured")
     stripe.api_key = stripe_key
@@ -977,10 +978,10 @@ async def create_setup_checkout(payload: SetupCheckoutIn,
     """Create a Stripe hosted checkout session in `setup` mode so employers can
     save a card themselves. On return, /billing/setup-checkout/status finalises
     the attach + sets it as the default PaymentMethod."""
-    import os, stripe
+    import stripe
     if user.get("role") != "employer":
         raise HTTPException(403, "Employers only")
-    stripe_key = os.environ.get("STRIPE_SECRET_KEY")
+    stripe_key = settings.stripe.secret_key
     if not stripe_key:
         raise HTTPException(500, "Stripe is not configured")
     stripe.api_key = stripe_key
@@ -1014,10 +1015,10 @@ async def create_setup_checkout(payload: SetupCheckoutIn,
 async def setup_checkout_status(session_id: str, user: dict = Depends(get_current_user)):
     """Called by the frontend after the Stripe setup redirect. Reads the
     SetupIntent, attaches the resulting PaymentMethod and makes it default."""
-    import os, stripe
+    import stripe
     if user.get("role") != "employer":
         raise HTTPException(403, "Employers only")
-    stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or ""
+    stripe.api_key = settings.stripe.secret_key
     if not stripe.api_key:
         raise HTTPException(500, "Stripe is not configured")
     try:
@@ -1053,10 +1054,10 @@ async def setup_checkout_status(session_id: str, user: dict = Depends(get_curren
 async def attach_payment_method(payload: BillingSetupIn, user: dict = Depends(get_current_user)):
     """Employer attaches (or replaces) their default Stripe PaymentMethod that
     the auto-collect job will use for off-session milestone charges."""
-    import os, stripe
+    import stripe
     if user.get("role") != "employer":
         raise HTTPException(403, "Employers only")
-    stripe_key = os.environ.get("STRIPE_SECRET_KEY")
+    stripe_key = settings.stripe.secret_key
     if not stripe_key:
         raise HTTPException(500, "Stripe is not configured")
     stripe.api_key = stripe_key
@@ -1099,8 +1100,8 @@ async def billing_status(user: dict = Depends(get_current_user)):
     # Try to fetch card metadata (best-effort; UI can survive without)
     last4 = None; brand = None
     try:
-        import os, stripe
-        stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or ""
+        import stripe
+        stripe.api_key = settings.stripe.secret_key
         if stripe.api_key:
             pm = stripe.PaymentMethod.retrieve(pm_id)
             card = pm.get("card") or {}
@@ -1115,11 +1116,11 @@ REMINDER_INTERVAL_DAYS = 3
 
 
 async def _slack_notify(text: str) -> None:
-    """Fire-and-forget Slack/Teams incoming webhook. Uses SLACK_WEBHOOK_URL env var
+    """Fire-and-forget Slack/Teams incoming webhook. Uses settings.slack.webhook_url
     (works with Microsoft Teams incoming webhooks too — they accept the same
-    {'text': ...} shape)."""
-    import os, json, urllib.request
-    url = os.environ.get("SLACK_WEBHOOK_URL")
+    {'text': ...} shape). Silent no-op when unset (intentional per CLAUDE.md)."""
+    import json, urllib.request
+    url = settings.slack.webhook_url
     if not url:
         return
     try:
@@ -1139,8 +1140,8 @@ async def _attempt_off_session_charge(*, invoice: dict, milestone: dict,
                                        project: dict, employer: dict) -> dict:
     """Try to auto-collect an overdue invoice using the employer's stored
     PaymentMethod. Returns a small report dict for logging."""
-    import os, stripe
-    stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or ""
+    import stripe
+    stripe.api_key = settings.stripe.secret_key
     if not stripe.api_key:
         return {"charged": False, "reason": "stripe_not_configured"}
     pm_id = employer.get("stripe_payment_method_id")
@@ -1211,7 +1212,6 @@ async def scan_overdue_invoices() -> Dict[str, Any]:
     due_date: (1) email a reminder every REMINDER_INTERVAL_DAYS days; (2) if a
     payment method is on file and the invoice is >=7 days overdue, attempt
     an off-session Stripe charge. Also mirrors to Slack when configured."""
-    import os
     from datetime import datetime as _dt, timezone as _tz
     result = {"scanned": 0, "reminders_sent": 0, "auto_collected": 0, "failed": 0}
     now_utc = _dt.now(_tz.utc)
@@ -1256,7 +1256,7 @@ async def scan_overdue_invoices() -> Dict[str, Any]:
             except Exception:
                 pass
 
-        base = os.environ.get("APP_BASE_URL") or ""
+        base = settings.urls.app_base
         workspace_url = f"{base}/projects/{project['id']}/workspace"
 
         if should_send_email and to_email:

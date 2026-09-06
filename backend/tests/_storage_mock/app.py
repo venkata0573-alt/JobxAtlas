@@ -36,11 +36,23 @@ _STORE: dict[str, tuple[bytes, str]] = {}
 
 @app.post("/objstore/api/v1/storage/init")
 async def init_storage(body: dict) -> dict:
-    """Accept any `{emergent_key: ...}` payload. Return a fixed test key.
+    """Expect a `{storage_token: ...}` payload (post-S-15). Return a
+    fixed test key.
 
-    The real service issues per-caller keys. Tests do not care about key
-    rotation semantics — they only care that storage_client can obtain a
-    key and use it on subsequent PUT/GET requests."""
+    S-15: the client used to send `{emergent_key: ...}` because storage
+    borrowed EMERGENT_LLM_KEY. Post-F-11 the field is `storage_token`
+    and comes from its own env var. This mock rejects the old field
+    name so a regression that reintroduces the coupling fails loud
+    instead of silently continuing to work against the mock.
+
+    The real service issues per-caller keys. Tests do not care about
+    key rotation semantics — they only care that storage_client can
+    obtain a key and use it on subsequent PUT/GET requests."""
+    if "storage_token" not in body:
+        raise HTTPException(
+            400,
+            f"init payload must contain 'storage_token' (S-15). Got keys: {sorted(body)}",
+        )
     return {"storage_key": _KEY}
 
 

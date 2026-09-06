@@ -3,13 +3,6 @@
 Everything that must be reusable across route modules lives here so route files
 can `from deps import ...` without creating circular imports with server.py.
 """
-from dotenv import load_dotenv
-from pathlib import Path
-
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / ".env")
-
-import os
 import uuid
 import logging
 import secrets
@@ -21,13 +14,18 @@ import jwt
 from fastapi import APIRouter, HTTPException, Request, Response
 from motor.motor_asyncio import AsyncIOMotorClient
 
+# F-11: config is the sole env boundary. Constants below are thin
+# proxies for settings.* so existing `from deps import X` imports keep
+# working without a wider sweep of consumers.
+from config import settings
 
-# ---------- Config ----------
-MONGO_URL = os.environ["MONGO_URL"]
-DB_NAME = os.environ["DB_NAME"]
-JWT_SECRET = os.environ["JWT_SECRET"]
+
+# ---------- Config (sourced from backend/config.py) ----------
+MONGO_URL = settings.mongo.url
+DB_NAME = settings.mongo.db_name
+JWT_SECRET = settings.auth.jwt_secret
 JWT_ALGO = "HS256"
-STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_WEBHOOK_SECRET = settings.stripe.webhook_secret
 
 # ---------- Clients ----------
 client = AsyncIOMotorClient(MONGO_URL)
@@ -150,7 +148,8 @@ CITY_PRETTY = {
     "sydney": "Sydney", "toronto": "Toronto", "remote": "Remote",
 }
 
-RATE_DRIFT_THRESHOLD_PCT = 15
+# F-10 CLOSED: was hardcoded here; now env-tunable via settings.
+RATE_DRIFT_THRESHOLD_PCT = settings.business_rules.rate_drift_threshold_pct
 
 
 # ---------- Admin permission scopes ----------
