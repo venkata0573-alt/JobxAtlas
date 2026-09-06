@@ -68,6 +68,10 @@ test-backend:
 			--cov-report=term-missing \
 			--cov-fail-under=0 \
 			tests/test_00_smoke.py \
+			tests/test_03_auth.py \
+			tests/test_06_marketplace.py \
+			tests/test_07_shortlist.py \
+			tests/test_08_eoi.py \
 			tests/test_11_engagements.py \
 			tests/test_12_13_revisions.py \
 			tests/test_public_surface.py \

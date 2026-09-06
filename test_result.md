@@ -243,6 +243,71 @@ backend:
           .env.test) — the happy-path upload test is skipped until a real
           storage mock lands. Auth-gate tests still cover the endpoint.
 
+  - task: "§3 auth + §8 marketplace/shortlist + §9 EOI — 98 Phase 1b tests"
+    implemented: true
+    working: true
+    file: "backend/tests/{test_03_auth, test_06_marketplace, test_07_shortlist, test_08_eoi}.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: >
+          PASS: 98/98 green under make test-backend (serial -n 0).
+          Baseline before: 148 passed / 3 S-11 ratchets / 1 CSRF skip.
+          Baseline after: 246 passed / 3 ratchets / 1 skip. Zero
+          pre-existing regressions.
+          Coverage per file (32 + 23 + 21 + 22 = 98):
+          - test_03_auth.py (32): 6 manual-step tests, 4 register
+            negatives (via direct-import to bypass Turnstile outbound
+            call — see file docstring), 2 Turnstile fail-open assertions
+            (S-08 partial: WARN fires with [S-08] tag + env + remote_ip
+            when TURNSTILE_SECRET_KEY is unset), 3 verify-email token
+            paths, 3 resend-verification (auth-required + already-verified
+            short-circuit + fresh-token-persistence), 3 login negatives,
+            1 logout cookie-clear, 2 /auth/me tests (401 anon +
+            password_hash never returned), 2 PUT /profile tests, 2
+            /profile/suggest-rate tests (asserts rule-based fallback
+            shape regardless of LLM), 2 /verification/me, 2 SSE token
+            endpoint.
+          - test_06_marketplace.py (23): 1 industries, 1 stats, 4 talent
+            browse (verified_only filter, skill filter, q search, all
+            seeded), 4 talent detail (email visibility gated on
+            engagement), 4 employers list (talent+admin allowed,
+            employer 403), 4 employer detail (PII scrubbed), 3 SEO
+            index endpoints (skills, city-skills, sitemap XML), 2 SEO
+            landing pages (/hire/{slug}, /hire-city/{slug}).
+          - test_07_shortlist.py (21): 3 add (upsert dedup verified),
+            3 list (per-employer scoping), 3 remove, 4 broadcast
+            (empty-shortlist 400, delivery count, emails=0 without
+            RESEND_API_KEY), 3 broadcast history, 3 talent inbox, 2
+            mark-read. SSE stream (/api/talent/me/broadcasts/stream)
+            NOT covered — needs a dedicated fixture; the conftest's
+            sse_token_for_talent_clean template is ready.
+          - test_08_eoi.py (22): 3 manual steps (talent posts →
+            employer sees → employer accepts → engagement created), 6
+            EOI create (auth, role, unknown employer 404, wrong-role
+            target 404, open EOI allowed), 3 list (talent scoped +
+            employer sees own+open), 6 accept (auth, role, insufficient
+            hours 400, double-accept 400, hours defaults from proposed),
+            4 withdraw (owner + cross-tenant 404 not 403 per S-11 shape).
+          Findings surfaced during writing:
+          - Password reset endpoint does NOT exist in the backend. The
+            user's task asked to "cover password reset token handling";
+            only a `forgotPasswordLink` testId placeholder exists in
+            frontend/src/constants/testIds/auth.js. Nothing to test.
+            Possible F-XX candidate: either build the endpoint or
+            remove the placeholder.
+          - User's checklist said test_11_engagements.py covers "EOI
+            withdraw" — but `grep -n eoi backend/tests/test_11_
+            engagements.py` returns zero matches. Covered here instead
+            (TestEoiWithdraw); no duplication with test_11.
+          - /api/marketplace/industries returns {industries: [...],
+            total_labelled_employers: N} — the wrapper shape is not
+            documented in FEATURES.md §8. Test asserts against the
+            wrapper. Add to F-12's §8 doc-fix list.
+
   - task: "§12 §13 revision ladder + disputes + S-25 fee-status"
     implemented: true
     working: true
