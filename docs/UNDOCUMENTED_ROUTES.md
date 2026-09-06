@@ -221,9 +221,9 @@ callers can push a CRM lead. Filed as **S-30 (new)** below.
 
 ---
 
-## 5. Proposed additions to `SECURITY_BACKLOG.md`
+## 5. Additions to `SECURITY_BACKLOG.md` (all filed 2026-09-06)
 
-### S-29 (P2, tooling) — Scanner blind spot #2: helper-delegated auth not detected
+### S-29 (P2, tooling — FILED) — Scanner blind spot #2: helper-delegated auth not detected
 
 - **Where**: `docs/scripts/route_scan.py::_collect_body_checks`
   (11 handlers currently mis-classified as `auth (no role/scope in body)`
@@ -245,23 +245,32 @@ callers can push a CRM lead. Filed as **S-30 (new)** below.
   helper counts; (inverse) helper that doesn't raise, helper called
   without `user`, helper with generic name like `load_thing`.
 
-### S-30 (P2, real mismatch) — `/api/integrations/crm/push-lead` unrestricted
+### S-30 (P2, real mismatch — FILED after severity re-check) — `/api/integrations/crm/push-lead` unrestricted
 
-- **Where**: `backend/routes/auth.py:1037` (`push_crm_lead` handler).
-- **Issue**: FEATURES.md §22 tables this as `auth (employer/admin)`.
-  Handler has `Depends(get_current_user)` but no role check — any
-  authenticated user (including talent) can push a lead to a connected
-  CRM. Not remote-exploitable without a session, but attribution
-  poisoning + writes to the employer's CRM under a talent's token.
+- **Initial concern**: could this be a cross-tenant CRM write? A talent
+  authenticating and pushing a lead into ANOTHER EMPLOYER's connected
+  CRM would be a P0 (customer-data write to a third-party system under
+  someone else's OAuth token).
+- **Severity re-check (2026-09-06)**: **NO cross-tenant write path.**
+  Handler at `auth.py:1041` looks up the CRM integration via
+  `db.crm_integrations.find_one({"user_id": user["id"], "provider":
+  payload.provider})` — the OAuth token is scoped to the CALLER's
+  session, not addressable via the payload. `CrmPushLeadIn` carries
+  `{provider, talent_id?, talent_name?, email?, note?}` — zero
+  `employer_id` / `integration_id` fields. A talent calling this
+  endpoint either 400s (no CRM connected on their own account) or
+  pushes a lead into their OWN CRM. Not a data-loss vector.
+- **Filed severity**: P2 (doc-drift + semantic role gate). See
+  SECURITY_BACKLOG.md S-30 for the entry with this evidence inline.
 - **Fix**: Add `if user.get("role") not in ("employer", "admin"): raise
   HTTPException(403, "employer or admin only")` at the top of the
   handler. Matches the shape already used by `/api/integrations/crm/
   sync-now` (auth.py:1183). One-line fix; add a Phase 1b test asserting
   a talent client gets 403.
 
-## 6. Proposed additions to the F-XX feature/correctness backlog
+## 6. Additions to the F-XX feature/correctness backlog (all filed 2026-09-06)
 
-### F-12 (P2, docs) — Undocumented features (32 routes across §21, §11, §22, §7, §1, §8)
+### F-12 (P2, docs — FILED) — Undocumented features (32 routes across §21, §11, §22, §7, §1, §8)
 
 - **Where**: `FEATURES.md` sections named in UNDOCUMENTED_ROUTES.md §2
   ("Where in FEATURES.md" column, class **(a)** rows only).
@@ -281,7 +290,7 @@ callers can push a CRM lead. Filed as **S-30 (new)** below.
 - **Fix**: One PR per section (six small PRs), each adding pipe-table
   rows. No code changes.
 
-### F-13 (P3, dead code) — Delete 4 uncalled routes
+### F-13 (P3, dead code — FILED) — Delete 4 uncalled routes
 
 - **Where**: `backend/routes/admin.py:452` (`public_customization`);
   `backend/server.py:2091` (`get_pricing_tiers`); `backend/server.py:2103`
@@ -295,11 +304,15 @@ callers can push a CRM lead. Filed as **S-30 (new)** below.
   (`/customization/public`, `/pricing/tiers`, `/pricing/quote`) once
   the routes are gone.
 
-### F-04 (existing) — Expand to include the two new no-UI hits
+### F-04 (existing — SCOPE EXTENDED 2026-09-06)
 
-F-04 currently lists 7 no-UI endpoints. This triage found **two more**
+F-04 originally listed 7 no-UI endpoints. This triage found **two more**
 (`/api/customization/public`, `/api/shortlist/broadcasts`) that fit the
-same shape. When F-04 is worked, extend its scope to cover these.
+same shape. F-04's row in SECURITY_BACKLOG.md is now updated to say
+"9 backend endpoints with no UI" with the two additions inline. F-13
+overlaps on the two `/pricing/*` endpoints — deliberate: F-04 asks
+"build UI or delete?", F-13 asks "delete outright." When F-04 is worked
+the F-13 rows may resolve as byproducts.
 
 ---
 
