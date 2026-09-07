@@ -447,6 +447,33 @@ class TestLogout:
             f"refresh_token cookie must be cleared on logout; got {set_cookie}"
         )
 
+    async def test_deletion_attributes_match_the_set_cookie(self, talent_clean_client):
+        # S-31 regression guard. delete_cookie MUST mirror every attribute
+        # used at set-time (deps.py:92-93 — Secure, SameSite=None, Path=/).
+        # Chromium and Firefox key cookies by (name, domain, path) but require
+        # a byte-identical Secure/SameSite context to accept a deletion; if
+        # the deletion Set-Cookie omits Secure the browser treats it as a
+        # *new* insecure cookie and leaves the original in place, so the
+        # user stays logged in. Without this test the bug can only be caught
+        # by rebuilding the frontend image and running Playwright — a cycle
+        # measured in minutes, not the second-scale pytest gives us.
+        r = await talent_clean_client.post("/api/auth/logout")
+        assert r.status_code == 200
+        set_cookie = r.headers.get_list("set-cookie")
+        for name in ("access_token", "refresh_token"):
+            headers = [c for c in set_cookie if c.startswith(f"{name}=")]
+            assert headers, f"no Set-Cookie for {name}; got {set_cookie}"
+            # Every deletion header for this cookie must carry the mirrored
+            # attributes — checking `any` would let a broken duplicate slip.
+            for h in headers:
+                lc = h.lower()
+                assert "path=/" in lc, f"{name} deletion missing Path=/: {h}"
+                assert "secure" in lc, f"{name} deletion missing Secure: {h}"
+                assert "samesite=none" in lc, (
+                    f"{name} deletion missing SameSite=None: {h}"
+                )
+                assert "max-age=0" in lc, f"{name} deletion missing Max-Age=0: {h}"
+
 
 # ============================================================================
 # 8. GET /auth/me — auth-required

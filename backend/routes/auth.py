@@ -209,8 +209,12 @@ async def login(payload: LoginIn, response: Response):
 
 @api.post("/auth/logout")
 async def logout(response: Response):
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/")
+    # Attributes MUST mirror set_auth_cookies (deps.py:92-93): Chromium and
+    # Firefox treat Set-Cookie deletion as a *new* cookie definition — if
+    # Secure/SameSite differ, the browser keeps the original httpOnly Secure
+    # cookie and the user stays logged in. See S-31.
+    response.delete_cookie("access_token", path="/", secure=True, samesite="none")
+    response.delete_cookie("refresh_token", path="/", secure=True, samesite="none")
     return {"ok": True}
 
 
