@@ -3,9 +3,11 @@
 # Acceptance (per plan approval):
 #   make up-test && make seed && make test-backend   # green from cold checkout
 
-COMPOSE := docker compose -f docker-compose.test.yml
+COMPOSE     := docker compose -f docker-compose.test.yml
+COMPOSE_DEV := docker compose -f docker-compose.dev.yml
 
-.PHONY: up-test down-test seed test-backend test-frontend e2e security-scan verify coverage-gaps help
+.PHONY: up-test down-test seed test-backend test-frontend e2e security-scan verify coverage-gaps help \
+        up-dev down-dev down-dev-hard seed-dev dev-logs
 
 help:
 	@echo "Phase 1a harness targets:"
@@ -18,6 +20,13 @@ help:
 	@echo "  make security-scan   Placeholder — gitleaks/bandit/pip-audit/semgrep (Phase 1d)."
 	@echo "  make coverage-gaps   Run tests with coverage and regenerate docs/COVERAGE_GAPS.md."
 	@echo "  make verify          test-backend + test-frontend + e2e + security-scan."
+	@echo ""
+	@echo "Hand-driven local dev stack (see docs/LOCAL_SETUP.md):"
+	@echo "  make up-dev          Boot the dev stack (real Stripe/Resend, local mongo + storage-mock)."
+	@echo "  make down-dev        Stop containers.  Mongo volume PRESERVED."
+	@echo "  make down-dev-hard   Stop + drop the mongo volume (nukes hand-entered data)."
+	@echo "  make seed-dev        Populate the same personas as the test stack — see docs/LOCAL_SETUP.md."
+	@echo "  make dev-logs        Tail all dev-stack container logs."
 
 up-test:
 	$(COMPOSE) up -d --build --wait
@@ -124,3 +133,43 @@ security-scan:
 	@echo "See VALIDATION_PROCESS.md §1d for the target shape."
 
 verify: test-backend test-frontend e2e security-scan
+
+# ---------------------------------------------------------------------------
+# Hand-driven dev stack (docs/LOCAL_SETUP.md).  Never merged with `verify`:
+# the test stack has to stay hermetic — no dev credentials, no real Stripe.
+# ---------------------------------------------------------------------------
+
+# Refuse to boot if .env.dev is missing.  Cheapest way to tell someone
+# "copy the example first" without a mysterious pydantic RuntimeError deep
+# in the backend container's boot sequence.
+up-dev:
+	@test -f .env.dev || { \
+	  echo ""; \
+	  echo "  .env.dev not found.  Bootstrap it once:"; \
+	  echo "    cp .env.dev.example .env.dev  &&  $$EDITOR .env.dev"; \
+	  echo "  Then re-run.  Full walkthrough: docs/LOCAL_SETUP.md"; \
+	  echo ""; \
+	  exit 1; \
+	}
+	$(COMPOSE_DEV) up -d --build --wait
+	@echo ""
+	@echo "  Open https://localhost:3000  (accept the backend cert warning once at https://localhost:8443)"
+	@echo "  For Stripe webhooks, keep this running in a separate terminal:"
+	@echo "    stripe listen --forward-to https://localhost:8443/api/stripe/webhook --skip-verify"
+	@echo "  Personas: make seed-dev  (login table: docs/LOCAL_SETUP.md §Personas)"
+	@echo ""
+
+down-dev:
+	$(COMPOSE_DEV) down
+
+# Same as down-dev + drop the mongo volume.  Loses every account and
+# transaction you clicked through.  Named `-hard` so nobody types it in
+# muscle memory.
+down-dev-hard:
+	$(COMPOSE_DEV) down -v
+
+seed-dev:
+	$(COMPOSE_DEV) exec -T backend python /app/backend/tests/seed.py
+
+dev-logs:
+	$(COMPOSE_DEV) logs -f --tail=100

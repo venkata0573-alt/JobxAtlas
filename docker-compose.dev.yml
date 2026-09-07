@@ -1,0 +1,147 @@
+# docker-compose.dev.yml — hand-driven local dev stack.
+#
+# Parallel to docker-compose.test.yml but pointed at REAL services so you can
+# click through the app with your own credentials:
+#
+#   • Real Stripe (test mode).  Webhook events reach the backend via
+#     `stripe listen --forward-to https://localhost:8443/api/stripe/webhook`
+#     running on the host.  There is NO stripe-mock in this stack.
+#   • Real Resend for outbound mail (requires a verified sender).
+#   • Real Cloudflare Turnstile (dev-scope keys or CF's published test keys).
+#   • MongoDB is a local container with a named volume so state persists
+#     across `make down-dev` / `make up-dev`.
+#   • Storage is still the in-memory `storage-mock` — no cloud-storage
+#     provider is wired to `backend/storage_client.py` today (proprietary API
+#     shape).  Uploads in dev never leave your laptop.  See
+#     docs/LOCAL_SETUP.md §"Storage".
+#
+# Dockerfiles are reused from the test stack — `backend/Dockerfile.test` and
+# `frontend/Dockerfile.test`.  They are dev-safe as long as:
+#   • STRIPE_API_BASE is unset (sitecustomize.py is a no-op — real Stripe).
+#   • COVERAGE_PROCESS_START is unset (no coverage tracer in dev).
+# Both are absent from .env.dev.example on purpose.
+#
+# Port map (deliberately distinct from the test stack so both can run at once):
+#
+#             test (compose)            dev (compose)
+#   mongo     not published             27017
+#   backend   18443 (HTTPS)             8443  (HTTPS, self-signed)
+#   frontend  13000                     3000
+#   stripe    stripe-mock:12111         real api.stripe.com (via `stripe listen`)
+#   storage   storage-mock:9000         storage-mock:9000 (same, local)
+#
+# NEVER put production credentials in .env.dev.  Stripe stays in test mode
+# (sk_test_… keys only).  If you type an `sk_live_…` value the backend will
+# still boot — Stripe SDK doesn't discriminate — but any charge you drive
+# through the UI will hit real cards.  Don't.
+
+name: atlas-dev
+
+services:
+  mongo:
+    image: mongo:7
+    volumes:
+      # Named volume — data survives `docker compose down`.  Nuke with
+      # `docker volume rm atlas-dev_atlas-dev-mongo` (or `make down-dev-hard`).
+      - atlas-dev-mongo:/data/db
+    ports:
+      # Published so you can `mongosh mongodb://localhost:27017/atlas_dev`
+      # from the host to inspect state.
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  storage-mock:
+    # Local in-memory object-storage mock.  Kept in dev because no real
+    # cloud-storage provider is wired to backend/storage_client.py yet
+    # (see docs/LOCAL_SETUP.md §"Storage").  All uploads land in this
+    # container's memory and vanish on restart — that is intentional for
+    # dev; do not point production at it.
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.test
+    volumes:
+      - .:/app
+    working_dir: /app/backend
+    environment:
+      PYTHONPATH: /app/backend
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request as u; u.urlopen('http://localhost:9000/health', timeout=2).read()"]
+      interval: 3s
+      timeout: 4s
+      retries: 30
+    command: ["uvicorn", "tests._storage_mock.app:app",
+              "--host", "0.0.0.0", "--port", "9000"]
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.test
+    env_file: .env.dev
+    depends_on:
+      mongo:
+        condition: service_healthy
+      storage-mock:
+        condition: service_healthy
+    ports:
+      # HTTPS on 8443.  Cookies are SameSite=None; Secure — the browser
+      # rejects them over plain HTTP, so HTTPS is not optional for a
+      # working login flow.
+      - "8443:8443"
+    volumes:
+      - .:/app
+    working_dir: /app/backend
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request as u, ssl; u.urlopen('https://localhost:8443/api/marketplace/industries', timeout=2, context=ssl._create_unverified_context()).read()"]
+      interval: 3s
+      timeout: 4s
+      retries: 30
+    # --reload picks up backend/ edits without a container restart.  Test
+    # stack deliberately omits this (deterministic runs); dev wants the
+    # opposite trade-off.
+    command: ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8443",
+              "--ssl-keyfile", "/certs/key.pem", "--ssl-certfile", "/certs/cert.pem",
+              "--reload", "--reload-dir", "/app/backend"]
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.test
+    environment:
+      # Browser-side URL — must match the host-published backend port.
+      REACT_APP_BACKEND_URL: https://localhost:8443
+      # Turnstile site key.  Compose interpolates from your shell / .env.dev;
+      # fall back to Cloudflare's always-passes test key so the widget
+      # renders without a real account.
+      REACT_APP_TURNSTILE_SITE_KEY: ${REACT_APP_TURNSTILE_SITE_KEY:-1x00000000000000000000AA}
+      HOST: 0.0.0.0
+      PORT: "3000"
+      # Must match the host-published port so CRA's HMR websocket
+      # handshake succeeds through the port publish.
+      WDS_SOCKET_PORT: "3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    volumes:
+      # Bind-mount just the writeable source dirs so edits trigger CRA's
+      # hot-module reload without shadowing /app/node_modules.
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/craco.config.js:/app/craco.config.js
+      - ./frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./frontend/postcss.config.js:/app/postcss.config.js
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  atlas-dev-mongo:
