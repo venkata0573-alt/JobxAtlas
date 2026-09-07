@@ -243,6 +243,58 @@ backend:
           .env.test) — the happy-path upload test is skipped until a real
           storage mock lands. Auth-gate tests still cover the endpoint.
 
+  - task: "S-31 CLOSED — logout attribute-match delete_cookie"
+    implemented: true
+    working: true
+    file: "backend/routes/auth.py + backend/tests/test_03_auth.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: >
+          CLOSED at commit 0e5fd5a (2026-09-07). One-domain change per
+          CLAUDE.md working-style rules — auth only, no touching money /
+          projects / revisions / admin surfaces in the same PR.
+          Root cause: backend/routes/auth.py:212-213 called
+          `response.delete_cookie("access_token", path="/")` with no
+          `secure=True, samesite="none"`. Because the login-time
+          set_cookie at deps.py:92-93 uses `httponly=True, secure=True,
+          samesite="none"`, and browsers key cookies by (name, domain,
+          path) but require attribute-match on Secure/SameSite to
+          accept a deletion, Chromium was treating the deletion
+          Set-Cookie as a NEW unsecured cookie — leaving the Secure
+          httpOnly cookie in the jar. User clicked Log-out, the SPA
+          navigated to /, and /auth/me still returned 200.
+          Fix (auth.py:212-217): both delete_cookie calls now mirror
+          the set_cookie attributes exactly (path=/, secure=True,
+          samesite="none"). Inline comment explains the browser
+          behaviour so a future "clean this up" refactor can't drop
+          the attributes silently.
+          Grep coverage: `grep -rn delete_cookie backend/` returned
+          exactly these two call sites — no sibling omission elsewhere.
+          Regression guard: backend/tests/test_03_auth.py::TestLogout
+          gets a second test, test_deletion_attributes_match_the_set_
+          cookie, that fetches the response's Set-Cookie list and
+          iterates every header for access_token / refresh_token,
+          asserting Path=/, Secure, SameSite=None, Max-Age=0. Iterates
+          with `for` (not `any`) so a broken duplicate can't hide.
+          Without this, the bug could only be caught by rebuilding
+          the frontend image + running Playwright — minutes vs.
+          pytest's seconds.
+          Verification:
+          - make test-backend: 313 passed / 3 pre-existing S-11
+            canaries (unchanged, unrelated to S-31) / 1 CSRF skip /
+            4 xfailed. Both TestLogout tests green.
+          - make down-test && make up-test: full stack rebuild
+            (backend image + frontend image both fresh).
+          - make e2e: 13/13 passed (up from 12/13). Flow 01 goes
+            5/5 — S-31 canary flips green. No other spec touched.
+          SECURITY_BACKLOG.md: S-31 struck through, marked CLOSED with
+          the fix commit sha, per the pattern used for S-05/S-15/S-27
+          under F-11.
+
   - task: "Phase 1c v2: E2E specs drive real UI (12/13, S-31/F-14/F-15 filed)"
     implemented: true
     working: true
