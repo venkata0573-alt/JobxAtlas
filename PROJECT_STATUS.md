@@ -49,39 +49,35 @@ Last updated: 2026-09-13 (post Phase 1c v2 + dev stack). Read alongside
 - Invariant tests: `test_public_surface.py`, `test_csrf_surface.py` (17 passed, 1 ratchet/skip).
 - ~~No application code has been modified.~~ **F-11 is the first app-code change** (see §2.F11).
 
-### 2.F11 — Config centralisation (landed 2026-09-06)
+### 2.F11 — Config centralisation reference
 
-- **Backend authority**: `backend/config.py` is the sole `os.environ`/`os.getenv`
-  reader; enforced by `test_config.py::test_no_module_outside_config_reads_os_environ`
-  (AST scan of `backend/`, excluding `config.py` and `tests/`).
-- **Frontend authority**: `frontend/src/config.js` is the sole `process.env.REACT_APP_*`
-  reader; SPA refuses to mount with a visible red banner when `REACT_APP_BACKEND_URL`
-  is unset (F-08 close).
-- **Fail-loud posture**: every required env var missing produces ONE
-  `RuntimeError` at import listing all missing vars grouped by service. No more
-  scattered `KeyError` / silent fallback / late-symptom failure modes.
-- **ENV tag required at boot** (no default). Silently defaulting to
-  "development" in a prod deploy would neuter S-08's production-Turnstile
-  enforcement — the highest-consequence config bug the module can prevent.
-- **New tests**: `backend/tests/test_config.py` — 18 tests (parametrised
-  missing-required per group + aggregation + ENV-required + CORS-wildcard
-  rejection + prod-Turnstile conditional + AST scan + H-8 non-default
-  proof + `.env.test`-values-match-settings sanity).
-- **Test baseline**: 84 → 102 collected. Post-F-11: 98 passed / 3 S-11 ratchets
-  / 1 CSRF skip. Delta = 0 pre-existing test regressions.
-- **Backlog impact**:
-  - CLOSED: S-05, S-15, S-27, F-08, F-09, F-10, H-8
-  - PARTIAL: S-02 (default removed, per-env validation still open),
-    S-04 (fallback chain collapsed, HMAC + verify recompute still open),
-    S-08 (prod required + WARN logs, rate limiting still open),
-    S-20 (password default removed + seeder skips, force-rotate + prod
-    superadmin-check still open)
+Phase-table row summarises the outcome; the details below only cover what a
+reader needs and can't derive from the code today.
+
+- **Enforcement mechanism** (survives future refactors): the AST scan
+  `backend/tests/test_config.py::test_no_module_outside_config_reads_os_environ`
+  fails if any file under `backend/` (excluding `config.py` and `tests/`)
+  reads `os.environ`/`os.getenv`. Same rule on the frontend side lives in
+  `frontend/src/config.js` (the SPA refuses to mount with a visible red
+  banner when `REACT_APP_BACKEND_URL` is unset).
+- **Failure shape**: every required env var missing produces ONE
+  `RuntimeError` at import listing all missing vars grouped by service. Not
+  a scattered `KeyError` per module.
+- **Deliberate design choice** worth remembering: `ENV` has no default.
+  Silently defaulting to "development" in a prod deploy would neuter S-08's
+  production-Turnstile enforcement — the highest-consequence config bug the
+  module can prevent, so we make missing `ENV` a boot failure like any other
+  required var.
+- **Backlog partials still open** (fully closed items are struck through in
+  the phase table above; these are the "yes but"s that need finishing):
+  - S-02 — default removed, per-env origin validation still open.
+  - S-04 — fallback chain collapsed, HMAC + verify-side recompute still open.
+  - S-08 — prod-required + WARN logs done, rate limiting + constant-time
+    login still open.
+  - S-20 — password default removed + seeder skips, force-rotate on first
+    login + prod-superadmin-check still open.
 - **Commits**: `4a85b96` (backend sweep), `6448200` (initial doc updates),
-  `22329d1` (frontend sweep), plus the step-7 doc commit adding this section.
-- **Standing rules override**: PROJECT_STATUS.md §7 says "no app code before
-  Phase 1b." F-11 was authorised as a scoped exception (see conversation
-  history 2026-09-05..06). All other §7 rules still apply — no further app
-  code before Phase 1b completes.
+  `22329d1` (frontend sweep).
 
 ---
 
@@ -91,8 +87,9 @@ Last updated: 2026-09-13 (post Phase 1c v2 + dev stack). Read alongside
 - **S-23 (P0)** `POST /api/projects/lead` — unauthenticated, trusts client `employer_id`.
 - **S-24 (P1)** `GET /api/projects/templates/{id}/team-suggestions` — leaks `_CURATED_TALENT`
   names + hourly rates to anyone.
-- **S-25 (P1)** `GET /api/grievances/{gid}/fee-status` — moderation scope only; payer may be
-  unable to poll their own fee status. **Still unverified.**
+- ~~**S-25 (P1)** `GET /api/grievances/{gid}/fee-status` — moderation scope only; payer may be
+  unable to poll their own fee status.~~ **CLOSED 2026-09-06 as scanner false positive.**
+  The handler has always enforced `user["id"] in (talent_id, employer_id) OR has_admin_scope("moderation")` — the payer path is reachable. Root cause was in `docs/scripts/route_scan.py::_collect_body_checks`, which didn't recognise `user["id"]`-based ownership patterns and classified the endpoint as moderation-only. Fix tracked and delivered as **S-28** (closed same day; scanner extended with an `ownership_checks` class + 10 new tests + 4 inverse-guard canaries).
 - **S-09** confirmed: three `/api/admin/*` routes gate on `role == "admin"` with no scope.
 - FEATURES.md drift: `/engagements/{id}/sign` documented at the wrong path; `/api/messages*`,
   `/api/accounts*`, `/api/employers/{id}`, `/api/files/{id}`, `/api/work/items/{id}`,
@@ -118,39 +115,24 @@ Last updated: 2026-09-13 (post Phase 1c v2 + dev stack). Read alongside
 
 ---
 
-## 4. The one thing to fix before Phase 1b
+## 4. Auth surface — Bearer branch still open
 
-**The harness authenticates with `Authorization: Bearer`, not the cookie.**
+The harness half is done. The backend serves HTTPS on `:18443` in the test stack (self-signed
+cert + `verify=False` in httpx), so `SameSite=None; Secure` cookies ride the loopback and the
+Playwright suite drives the real cookie path end-to-end. No Bearer opt-in fixture ever shipped.
+CSRF and cookie-flag correctness are testable now — `test_csrf_surface.py` skips only because
+the S-01 middleware itself is still open, not because the tests can't reach it.
 
-`deps.py:72-74` accepts both. The browser uses the httpOnly cookie; the tests use a bearer header.
-That means:
+The remaining open question is **S-26**: `deps.py:get_current_user` still accepts an
+`Authorization: Bearer` header alongside the cookie, even though `grep -rn "Authorization"
+frontend/src/` returns zero matches. No first-party client sends a Bearer token; the only
+inbound `Authorization: Bearer` refs are outbound integrations (HubSpot / Salesforce / Monday /
+Asana / Jira), and the SSE endpoint reads a `?token=` query param with its own inline
+`jwt.decode` — it never touches `get_current_user`.
 
-1. **No test will ever exercise the cookie path** — the path every real user takes.
-2. **CSRF cannot be tested at all.** Bearer auth is inherently CSRF-immune, so a test suite that
-   only sends bearer tokens will pass with or without the S-01 fix. The `test_csrf_surface.py`
-   ratchet is measuring a surface the tests never touch.
-3. **S-01, S-07 (token revocation), and cookie flag correctness are all untestable** as things stand.
-
-There is also a prior question: **why does the API accept bearer tokens at all?** If no first-party
-client sends one, dual auth is unnecessary attack surface, and it means an XSS that reads a token
-from anywhere gets full API access without needing the httpOnly cookie. If it exists only for the
-SSE endpoint's `?token=` query param, scope it to that route.
-
-Track as **S-26 (P0 candidate)** — recorded in `SECURITY_BACKLOG.md`. Evidence:
-
-- `grep -rn "Authorization" frontend/src/` → **zero matches**. No first-party client sends a Bearer token, so the Bearer branch of `deps.py:72-74` has no legitimate consumer.
-- The httpOnly cookie is the only defence against XSS-driven token theft. Dual auth means an XSS that reads a token from anywhere in the DOM gets full API access, defeating the point of `httpOnly`.
-- Once S-01's CSRF middleware lands it will (correctly) only enforce on cookie-authed requests. Bearer callers will slip past it silently — so the S-01 fix is incomplete until S-26 is resolved.
-- **Zero legitimate consumers on the server side.** The SSE endpoint at `server.py:2147` was previously suspected to justify Bearer, but verification (2026-08-30) shows it reads the cookie first, then a `?token=` query param, and does its own inline `jwt.decode` — it never touches `get_current_user`, so removing the Bearer branch has no effect on it. Every other `Authorization: Bearer` in backend is an **outbound** call (HubSpot/Salesforce/Monday/Asana/Jira), which is unaffected.
-
-The right fix is cookie-only: delete the Bearer branch in `deps.py:72-74`. This is a small, self-contained diff and should land **before** S-01, so the CSRF middleware has one auth path to reason about instead of two.
-
-Harness fix, before any Phase 1b test is written: run the backend over TLS in the test stack
-(self-signed cert + `verify=False` in httpx) or set `COOKIE_SECURE=false` via env in test only, so
-`SameSite=None; Secure` cookies work over the loopback. Then make the client factory **cookie-only**.
-Do NOT ship a Bearer opt-in fixture "for convenience" — that's the exact escape hatch that got us the
-untested-cookie-path problem to begin with. The SSE endpoint uses `?token=` (not Bearer), so its
-tests can use a dedicated query-param fixture without reintroducing header-based auth.
+Fix is the one-line delete of the Bearer branch, sequenced **before S-01** so the CSRF
+middleware only has to reason about the cookie path. Full argument + evidence in
+`SECURITY_BACKLOG.md` under S-26.
 
 ---
 
@@ -158,7 +140,7 @@ tests can use a dedicated query-param fixture without reintroducing header-based
 
 | # | Compromise | Risk | Action |
 | --- | --- | --- | --- |
-| H-1 | `emergentintegrations` replaced by a two-class shim in the test image | Tests run against an import surface prod doesn't have | Closes when F-01 lands. Until then, no test may assert LLM behaviour. |
+| H-1 | `emergentintegrations==0.2.0` is a **confirmed fresh-install blocker** — the package is not on PyPI and `ai_service.py` imports it at module top with no try/except, so `pip install -r backend/requirements.txt` fails on any clean checkout. The test image (`backend/Dockerfile.test`) strips it from the requirements file and installs a two-class shim (`LlmChat`, `UserMessage`) into site-packages. Because `EMERGENT_LLM_KEY` is unset in `.env.test` the LLM path is never actually taken, so the shim's emptiness is invisible in tests. | Anyone running the backend outside the test image (dev laptop, prod build, CI without the shim) fails to boot. Tests run against an import surface prod doesn't have. | Closes when F-01 lands: publish the package to a private index, OR replace the top-level import in `ai_service.py` with an optional-import guard and let the rate-suggestion path fall back to rules on `ImportError`. Until then, no test may assert LLM behaviour. |
 | H-2 | `stripe-mock` has no healthcheck (`service_started` only) | Race on slow machines | Acceptable; `test_stripe_api_base_is_the_mock` catches it. |
 | H-3 | `pytest-asyncio==1.4.0` (test image only). The original ask was to hard-pin to `1.2.0`, but 1.2.0 declares `pytest<9` and conflicts with the pinned `pytest==9.1.1` in `requirements.txt`. 1.4.0 is the earliest release that supports pytest 9. `pytest-cov==6.0.0` has the same story (5.x declares `pytest<9`). | Silent breakage on next pytest-asyncio / pytest-cov major bump | Kept as-is until we upgrade pytest itself. Revisit both pins on any pytest version bump. |
 | H-4 | `asyncio_default_test_loop_scope = session` | Cross-test state leakage through the Motor client | Acceptable for now. Per-test DB drop still isolates data. Revisit if flakes appear. |
@@ -222,7 +204,12 @@ App is local-only, never deployed. Prod-verification steps and live-exploit hotf
 
 ## 7. Standing rules
 
-- No application code changes until Phase 1b is complete, except a live-exploit hotfix.
-- One backlog item per branch, per PR. Branch name = backlog id.
+- App-code changes follow the CLAUDE.md working style: one backlog item per branch, failing
+  test first, one domain per PR, `make verify` green before merge. The old "no app code
+  before Phase 1b" freeze is lifted — Phase 1b landed and F-11/S-31 have already exercised
+  the new normal.
+- One backlog item per branch, per PR. Branch name = backlog id (e.g. `sec/S-26-drop-bearer`).
 - Every new finding gets an ID in `SECURITY_BACKLOG.md` the day it's found.
 - Every accepted compromise gets a row in §5 above with a named closing condition.
+- Every closed item is struck through in `SECURITY_BACKLOG.md` (not deleted) with the fix
+  commit sha, so `git blame` and future auditors can trace closures back to the change.
