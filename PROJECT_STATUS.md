@@ -1,7 +1,7 @@
 # PROJECT_STATUS.md — Job Atlas hardening programme
 
-Last updated: end of Phase 1a. Read alongside `SECURITY_BACKLOG.md`,
-`VALIDATION_PROCESS.md`, `CONTRACTOR_SPLIT.md`, `CLAUDE.md`.
+Last updated: 2026-09-13 (post Phase 1c v2 + dev stack). Read alongside
+`SECURITY_BACKLOG.md`, `VALIDATION_PROCESS.md`, `CONTRACTOR_SPLIT.md`, `CLAUDE.md`.
 
 ---
 
@@ -10,14 +10,15 @@ Last updated: end of Phase 1a. Read alongside `SECURITY_BACKLOG.md`,
 | Phase | Status |
 | --- | --- |
 | 0 — Repo self-describing + endpoint inventory | **Done** |
-| 0.5 — Scanner hardening + policy files | **Done** |
+| 0.5 — Scanner hardening + policy files | **Done** (extended 2026-09-06 by S-28 close — scanner recognises `user["id"]`-based ownership). |
 | 1a — Test harness | **Done** |
-| 1b — Convert FEATURES.md into tests (23 sections) | Not started |
-| 1c — Playwright E2E | Not started |
-| 1d — CI gate (`make verify`) | Partial — targets exist, no CI |
-| 2 — Fix loop (S-01…S-25, F-01…F-09) | **F-11 landed** (2026-09-06). See §2.F11 below. First app-code change; overrides §7's "no app code before Phase 1b" rule explicitly, closes F-08/F-09/F-10 + S-05/S-15/S-27 fully and lands partials on S-02/S-04/S-08/S-20. Remaining items still gated on Phase 1b coverage. |
+| 1b — Convert FEATURES.md into tests (23 sections) | **Substantially done** — §3 auth, §6 marketplace, §7 shortlist, §8 EOI, §10 hours purchase, §11 engagements, §12–13 revisions, §14 grievances/refunds, §17 milestone payments, plus test_config, test_public_surface, test_csrf_surface, test_stripe_fixtures. **321 tests collected, baseline 313 pass / 3 pre-existing S-11 canaries / 1 CSRF skip / 4 xfailed.** |
+| 1c — Playwright E2E | **Done** (v2, commit `3dcdb46`, 2026-09-06). 13 specs under `frontend/e2e/`, drive real UI (API-fallback paths removed). Reseeded per-run via `backend/tests/e2e_reset.py`. |
+| 1d — CI gate (`make verify`) | Partial — `test-backend` + `e2e` are real; `test-frontend` + `security-scan` still placeholders. No CI runner wired yet. |
+| 2 — Fix loop | **F-11 (config) landed 2026-09-06**, **S-31 (logout cookie attribute-match) landed 2026-09-07**. Closed since original PROJECT_STATUS: **S-05, S-15, S-25, S-27, S-28, S-31**. Partial: S-02, S-04, S-08, S-20. See §2.F11 and the SECURITY_BACKLOG.md strike-through rows for the full list. |
 | 3 — Standing commands | Files written, not exercised |
 | 4 — Contractor split (`F-03` → `atlas-core`) | Blocked on Phase 2 |
+| — Local dev stack (parallel to Phase 1) | **Done** 2026-09-06 (commit `8c221f8`). `docker-compose.dev.yml` + `.env.dev.example` + `docs/LOCAL_SETUP.md` + Makefile `up-dev`/`down-dev`/`seed-dev`. Real Stripe (test mode via `stripe listen`), Resend, Turnstile; local mongo (named volume, persists); storage-mock retained because no real cloud-storage integration exists. |
 
 ---
 
@@ -174,38 +175,48 @@ tests can use a dedicated query-param fixture without reintroducing header-based
 App is local-only, never deployed. Prod-verification steps and live-exploit hotfixes
 (previously items 1 and 2) are not applicable — dropped from this list.
 
-1. **Doc-only ARCH.md correctness fix (F-09).** Rename the eight env-var entries in
-   ARCHITECTURE.md §6 to the code-correct `REVISION_*` / `EMPLOYER_FLAG_UNIQUE_TALENTS` /
-   `EMPLOYER_FLAG_WINDOW_DAYS` names. Add the five undocumented ones (`APP_BASE_URL`,
-   `PUBLIC_BASE_URL`, `PUBLIC_SITE_URL`, `INTEGRATION_PROXY_URL`, `SENDER_EMAIL`).
-   No code change; unblocks a future deploy from stepping on the trap.
-2. **Fix the harness to be cookie-only** (§4). Terminate TLS in the test stack or
-   allow non-secure cookies via env in test only. Client factory sends the cookie and
-   nothing else. Do not ship a Bearer opt-in fixture — "for convenience" is exactly
-   how the untested-cookie-path problem comes back. SSE tests use a dedicated
-   `?token=` fixture (the endpoint reads its own query param at `server.py:2147`;
-   it never touched the Bearer branch). Nothing in 1b is trustworthy until this lands —
-   the whole cookie/CSRF surface is unexercised today.
-3. **Phase 1b begins.** One FEATURES.md section per session, Sonnet, template in
-   `VALIDATION_PROCESS.md` §1b. Ordering — **§11 → §12 → §13 → §10 → §14 → §17 →
-   §3/§6/§7/§8**. §11 (engagements) first because it touches auth, ownership, and
-   state transitions. **§12 (revision ladder) and §13 (dispute/fee) must land
-   before §3/§6/§7/§8 rather than after** — the F-11 sweep confirmed the ladder
-   has zero coverage in the active harness (H-8 finding, §5), so any feature test
-   built on top would depend on unverified behaviour. Add signed-payload Stripe
-   fixtures before reaching §10/§14/§17.
-4. ~~Hard-pin `pytest-asyncio==1.2.0`~~ Already pinned to `1.4.0` — see §5 H-3. `-rs` added to `make verify`.
-5. **Verify S-25** against `EngagementDetail.jsx` — quick grep to confirm the payer
-   path is actually reachable. Documents whether S-25 is a scanner miss (as suspected)
-   or was a real bug hiding behind the misdiagnosis.
-6. **Phase 1c** Playwright, then **1d** CI gate. Nothing merges red from that point.
-7. **Phase 2** fix loop: `S-05 → S-02 → S-26 → S-01 → S-07 → S-03 → S-04 → S-08 → S-06`,
-   then P1 by number. **S-26 lands before S-01**, not after — removing Bearer
-   acceptance in `deps.py:72-74` is a small self-contained diff, and doing it first
-   means the S-01 CSRF middleware has one auth path to reason about instead of two.
-   Verified 2026-08-30: no server-side code depends on inbound Bearer (SSE uses its
-   own `?token=` decode; all other `Authorization: Bearer` refs are outbound).
-8. **F-03** (split `server.py`), then extract `atlas-core`, then hire.
+**Delivered since the previous revision** (2026-09-05 → 2026-09-13):
+- ~~Doc-only ARCH.md fix (F-09)~~ CLOSED under F-11 — §6 no longer lists raw env var names.
+- ~~Harness cookie-only fix~~ Done — backend serves HTTPS on `:18443` in the test stack,
+  Playwright drives the browser cookie path end-to-end. Bearer opt-in fixture never shipped.
+- ~~Phase 1b~~ Substantially done — see §1 for the section list.
+- ~~S-25 verification~~ CLOSED 2026-09-06 as a scanner false positive; scanner blind
+  spot filed and fixed as S-28.
+- ~~Phase 1c~~ Done (v2). 13 specs green.
+- ~~S-31~~ CLOSED 2026-09-07 (commit `0e5fd5a`) — logout cookie attribute-mismatch.
+- **New capability**: hand-driven dev stack landed (`docker-compose.dev.yml` + `docs/LOCAL_SETUP.md`),
+  parallel to the test stack, targeting real services.
+
+**Still to go, in order:**
+
+1. **S-26** — delete the `Authorization: Bearer` branch in `deps.py:get_current_user`. Small
+   self-contained diff. Do this **before S-01** so the CSRF middleware only has to reason about
+   the cookie path. Verified 2026-08-30 that no server-side code depends on inbound Bearer.
+2. **S-01** — register the CSRF default-deny middleware. `security/csrf_exempt.yml` already
+   lists the one legitimate exemption (Stripe webhook). Once this lands, remove the skip on
+   `backend/tests/test_csrf_surface.py`.
+3. **Phase 1d** — wire `security-scan`: pin gitleaks + bandit + pip-audit + semgrep into the
+   Makefile target and CI. Add a GitHub Actions workflow (or equivalent) so `make verify` runs
+   on every PR. Until then the two placeholder legs of `verify` (test-frontend, security-scan)
+   silently pass.
+4. **P0 fix loop, remaining**: `S-07` (token revocation + refresh rotation) → `S-03` (webhook
+   idempotency + TOCTOU fix per S-03(a)(b)(c)) → `S-04` (HMAC + verify recompute) → `S-08`
+   (rate limiting on auth surface) → `S-06` (envelope-encrypt third-party tokens at rest).
+5. **P1 backlog** by number (`S-09`, `S-10`, `S-11`, `S-12`, `S-13`, `S-14`, `S-16`, `S-23`,
+   `S-24`, `S-26` if not yet done). Notable: S-11 has three canary tests in
+   `backend/tests/test_11_engagements.py::TestDeliverables*` that flip green when the
+   `load_owned` helper lands.
+6. **F-01** — replace `emergentintegrations` top-level import in `ai_service.py` with an
+   optional guard so a fresh `pip install -r backend/requirements.txt` succeeds outside the
+   test image.
+7. **F-03** — split `server.py` (currently 2,906 lines) by domain. Zero behaviour change, suite
+   green. Prerequisite for the contractor split.
+8. **Extract `atlas-core`**, publish the wheel, generate `atlas-contracts/openapi.json`, stand
+   up the Prism mock. Then hire against a first work package (F-04 admin UI is the natural
+   starting point).
+9. **Cloud-storage integration** — the dev-stack storage-mock papers over the gap; production
+   needs a real S3/R2/GCS/Supabase target behind the existing three-function
+   `storage_client.py` shape. Neutral-tier, shareable as a backend plugin work package.
 
 ---
 

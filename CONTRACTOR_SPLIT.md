@@ -1,6 +1,6 @@
 # CONTRACTOR_SPLIT.md — hiring without handing over the business
 
-Right now the answer to "can I give a contractor part of this?" is **no**: `server.py` is 2,892
+Right now the answer to "can I give a contractor part of this?" is **no**: `server.py` is 2,906
 lines containing auth, Stripe, pricing constants, the penalty-ladder rules, the curated-talent
 list, and the admin seeder in one file. Any contractor who touches anything sees everything.
 
@@ -16,7 +16,7 @@ Be honest about this first — it changes what you have to protect.
 | Tier | Contents | Share? |
 | --- | --- | --- |
 | **Crown jewels** | Penalty/recovery ladder + thresholds (§6), pricing/`PACKAGES`, commission + payout math, `_CURATED_TALENT`, CRM sync logic, Stripe account wiring, admin scope model | Never |
-| **Sensitive** | Auth, `deps.py`, webhook handler, encryption/KMS, refund + audit-signature paths | Never |
+| **Sensitive** | Auth, `deps.py`, `config.py`, webhook handler, encryption/KMS, refund + audit-signature paths, `security/*.yml` | Never |
 | **Neutral** | Projects workspace, RACI/variance/risks, calendar, referrals, SEO pages, work-provider adapters, the entire React SPA, native shell | Shareable per work package |
 | **Public anyway** | API shape (the SPA reveals it), UI, copy | Already public |
 
@@ -29,8 +29,8 @@ absolutely; be pragmatic about the rest.
 
 ```
 atlas-core/            PRIVATE — never shared with any contractor
-  deps.py, auth, payments, webhook, rules/ (penalty ladder, pricing, commission),
-  crypto/, admin scopes, seeder
+  deps.py, config.py, auth, payments, webhook, rules/ (penalty ladder, pricing, commission),
+  crypto/, admin scopes, seeder, security/csrf_exempt.yml + security/public_routes.yml
   → published as a private wheel: atlas-core==0.x  (CodeArtifact / GH Packages / Gemfury)
 
 atlas-contracts/       SHARED — the only thing most contractors need
@@ -103,7 +103,9 @@ and controls rather than partition. Do not try to fake a split there — you wil
 
 ## Sequence
 
-1. Land P0 security fixes (`S-01`…`S-08`). Don't invite anyone into a CSRF-open codebase.
+1. Land the remaining P0/P1 security fixes. Post-F-11 (2026-09-06) and S-31 (2026-09-07) the still-open
+   ship-blockers are **S-01, S-02 (partial), S-03, S-04 (partial), S-06, S-07, S-08 (partial)**;
+   S-05 is closed. Don't invite anyone into a CSRF-open codebase.
 2. Land `F-03`: split `server.py` by domain, zero behaviour change, suite green.
 3. Extract `atlas-core` (rules + auth + payments + crypto) and publish the wheel.
 4. Generate `openapi.json` into `atlas-contracts`; stand up the Prism mock.
@@ -118,9 +120,33 @@ and controls rather than partition. Do not try to fake a split there — you wil
 | Package | Source of truth | Tier | Pattern |
 | --- | --- | --- | --- |
 | Missing admin UI: Scheduler tab, rate-nudge trigger, scan-overdue, save-as-template | F-04, FEATURES.md §21 | Neutral | Frontend + contracts |
-| Playwright E2E suite for §3, 6, 7, 8, 11 | VALIDATION_PROCESS.md 1c | Neutral | Frontend |
+| ~~Playwright E2E suite for §3, 6, 7, 8, 11~~ | ~~VALIDATION_PROCESS.md 1c~~ | — | **Delivered — 13 specs under `frontend/e2e/`, Phase 1c v2 (commit `3dcdb46`).** |
 | Capacitor store submission: icons, splash, screenshots, push endpoint | NATIVE_APP_GUIDE.md | Neutral | Mobile |
 | Work-provider adapters → async httpx + retries + real error surfacing | S-13, `work_integrations.py` | Neutral | Backend plugin |
 | Mongo indexes + pagination caps on all list endpoints | S-12 | Neutral | Backend plugin |
 | Projects workspace polish (variance, risks, RACI tabs) | FEATURES.md §16 | Neutral | Frontend |
-| Anything in auth, payments, revisions, admin scopes, `deps.py` | — | Crown/Sensitive | **You only** |
+| Real cloud-storage integration (`storage_client.py` → S3/R2/GCS/Supabase, keep the 3-function shape) | `backend/storage_client.py` + `docs/LOCAL_SETUP.md §Storage` | Neutral | Backend plugin |
+| Anything in auth, payments, revisions, admin scopes, `deps.py`, `config.py`, `security/*.yml` | — | Crown/Sensitive | **You only** |
+
+---
+
+## Shareable artifacts already in the repo
+
+These are safe to hand to a contractor working against the mock, without giving them any part of
+the moat:
+
+- **`security/csrf_exempt.yml` + `security/public_routes.yml`** — the policy files that
+  `test_csrf_surface.py` / `test_public_surface.py` ratchet against. Read-only reference for a
+  contractor working on any non-GET endpoint.
+- **`docs/scripts/`** — parameterised, CI-runnable scanners: `route_scan.py` (AST route inventory),
+  `features_scan.py` (FEATURES.md drift), `render_inventory.py` (regenerate `ENDPOINT_INVENTORY.md`),
+  `coverage_gaps.py`, `diff.py`. Plus `docs/scripts/tests/test_scanner.py` (22 tests, S-28 canary).
+- **`docker-compose.dev.yml` + `.env.dev.example` + `docs/LOCAL_SETUP.md`** — hand-driven dev
+  stack against real services (Stripe test mode, Resend, Turnstile). Persona login table, cert
+  trust step, `stripe listen` walkthrough. A frontend contractor can bring this up locally
+  without ever seeing the backend source, because the compose file only references the two
+  Dockerfiles and the seed script.
+- **`backend/tests/seed.py`** — fixed synthetic personas + engagements + grievances. Idempotent.
+  Any contractor writing tests against the mock can trust these ids.
+- **`docs/ENDPOINT_INVENTORY.md`** — AST-derived, regeneratable. Safe reference; reveals nothing
+  the SPA doesn't already reveal.
