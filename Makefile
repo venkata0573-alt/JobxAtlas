@@ -91,6 +91,8 @@ test-backend:
 			tests/test_csrf_surface.py \
 			tests/test_config.py \
 			tests/test_f01_optional_import.py \
+			tests/test_s26_no_bearer.py \
+			tests/test_s26_sse_still_works.py \
 			../docs/scripts/tests/ \
 			-v
 

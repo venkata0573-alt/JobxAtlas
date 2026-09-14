@@ -65,11 +65,12 @@ def create_token(user_id: str, kind: str = "access") -> str:
 
 
 async def get_current_user(request: Request) -> dict:
+    # S-26 CLOSED: cookie-only. The legacy `Authorization: Bearer` branch
+    # is gone — no first-party client sends one (`grep -rn "Authorization"
+    # frontend/src/` returns nothing), and the SSE `/talent/me/broadcasts/stream`
+    # endpoint reads a `?token=` query param with its own inline jwt.decode
+    # rather than going through here. Regression guard: tests/test_s26_no_bearer.py.
     token = request.cookies.get("access_token")
-    if not token:
-        auth = request.headers.get("Authorization", "")
-        if auth.startswith("Bearer "):
-            token = auth[7:]
     if not token:
         raise HTTPException(401, "Not authenticated")
     try:

@@ -60,27 +60,27 @@ Methodology notes:
 | POST | `/api/auth/resend-verification` | routes/auth.py:188 | get_current_user |  |  |
 | POST | `/api/auth/login` | routes/auth.py:199 | — (public) |  | **NO-AUTH** |
 | POST | `/api/auth/logout` | routes/auth.py:210 | — (public) |  | **NO-AUTH** |
-| GET | `/api/auth/me` | routes/auth.py:217 | get_current_user |  |  |
-| PUT | `/api/profile` | routes/auth.py:222 | get_current_user |  |  |
-| POST | `/api/profile/suggest-rate` | routes/auth.py:229 | get_current_user |  |  |
-| POST | `/api/verification/company` | routes/auth.py:270 | get_current_user | body: role != 'employer' |  |
-| POST | `/api/verification/bgv` | routes/auth.py:291 | get_current_user | body: role != 'talent' |  |
-| GET | `/api/reference-check/{token}` | routes/auth.py:365 | — (public) |  | **NO-AUTH** |
-| POST | `/api/reference-check/{token}` | routes/auth.py:388 | — (public) |  | **NO-AUTH** |
-| GET | `/api/trust/stats` | routes/auth.py:426 | — (public) |  | **NO-AUTH** |
-| GET | `/api/trust/timeseries` | routes/auth.py:456 | — (public) |  | **NO-AUTH** |
-| GET | `/api/trust/timeseries/details` | routes/auth.py:537 | — (public) |  | **NO-AUTH** |
-| GET | `/api/trust/timeseries/details/pdf` | routes/auth.py:685 | — (public) |  | **NO-AUTH** |
-| POST | `/api/trust/verify-drill` | routes/auth.py:743 | — (public) |  | **NO-AUTH** |
-| GET | `/api/trust/verify-drill/{signature}` | routes/auth.py:760 | — (public) |  | **NO-AUTH** |
-| GET | `/api/admin/reference-checks/{talent_id}` | routes/auth.py:901 | get_current_user | has_admin_scope(user, 'moderation'); has_admin_scope(user, 'support') |  |
-| GET | `/api/verification/me` | routes/auth.py:915 | get_current_user |  |  |
-| POST | `/api/integrations/crm/connect` | routes/auth.py:989 | get_current_user | body: role not in ('employer', 'admin') |  |
-| GET | `/api/integrations/crm` | routes/auth.py:1015 | get_current_user |  |  |
-| DELETE | `/api/integrations/crm/{provider}` | routes/auth.py:1023 | get_current_user |  |  |
-| POST | `/api/integrations/crm/push-lead` | routes/auth.py:1037 | get_current_user |  |  |
-| POST | `/api/integrations/crm/sync-now` | routes/auth.py:1183 | get_current_user | body: role not in ('employer', 'admin') |  |
-| GET | `/api/integrations/crm/sync-log` | routes/auth.py:1192 | get_current_user |  |  |
+| GET | `/api/auth/me` | routes/auth.py:221 | get_current_user |  |  |
+| PUT | `/api/profile` | routes/auth.py:226 | get_current_user |  |  |
+| POST | `/api/profile/suggest-rate` | routes/auth.py:233 | get_current_user |  |  |
+| POST | `/api/verification/company` | routes/auth.py:274 | get_current_user | body: role != 'employer' |  |
+| POST | `/api/verification/bgv` | routes/auth.py:295 | get_current_user | body: role != 'talent' |  |
+| GET | `/api/reference-check/{token}` | routes/auth.py:369 | — (public) |  | **NO-AUTH** |
+| POST | `/api/reference-check/{token}` | routes/auth.py:392 | — (public) |  | **NO-AUTH** |
+| GET | `/api/trust/stats` | routes/auth.py:430 | — (public) |  | **NO-AUTH** |
+| GET | `/api/trust/timeseries` | routes/auth.py:460 | — (public) |  | **NO-AUTH** |
+| GET | `/api/trust/timeseries/details` | routes/auth.py:541 | — (public) |  | **NO-AUTH** |
+| GET | `/api/trust/timeseries/details/pdf` | routes/auth.py:689 | — (public) |  | **NO-AUTH** |
+| POST | `/api/trust/verify-drill` | routes/auth.py:747 | — (public) |  | **NO-AUTH** |
+| GET | `/api/trust/verify-drill/{signature}` | routes/auth.py:764 | — (public) |  | **NO-AUTH** |
+| GET | `/api/admin/reference-checks/{talent_id}` | routes/auth.py:905 | get_current_user | has_admin_scope(user, 'moderation'); has_admin_scope(user, 'support') |  |
+| GET | `/api/verification/me` | routes/auth.py:919 | get_current_user |  |  |
+| POST | `/api/integrations/crm/connect` | routes/auth.py:993 | get_current_user | body: role not in ('employer', 'admin') |  |
+| GET | `/api/integrations/crm` | routes/auth.py:1019 | get_current_user |  |  |
+| DELETE | `/api/integrations/crm/{provider}` | routes/auth.py:1027 | get_current_user |  |  |
+| POST | `/api/integrations/crm/push-lead` | routes/auth.py:1041 | get_current_user |  |  |
+| POST | `/api/integrations/crm/sync-now` | routes/auth.py:1187 | get_current_user | body: role not in ('employer', 'admin') |  |
+| GET | `/api/integrations/crm/sync-log` | routes/auth.py:1196 | get_current_user |  |  |
 | GET | `/api/seo/skills` | routes/marketplace.py:29 | — (public) |  | **NO-AUTH** |
 | GET | `/api/seo/city-skills` | routes/marketplace.py:34 | — (public) |  | **NO-AUTH** |
 | GET | `/api/sitemap.xml` | routes/marketplace.py:80 | — (public) |  | **NO-AUTH** |
@@ -218,14 +218,14 @@ route without listing it here trips `backend/tests/test_public_surface.py`.
 | GET | `/api/auth/verify-email` | routes/auth.py:170 | verify_email | Public email-verification token consumption; FEATURES §3. |
 | POST | `/api/auth/login` | routes/auth.py:199 | login | Public login; bcrypt + Turnstile. FEATURES §3. |
 | POST | `/api/auth/logout` | routes/auth.py:210 | logout | Idempotent cookie clear; FEATURES §3. |
-| GET | `/api/reference-check/{token}` | routes/auth.py:365 | reference_check_get | Public referee form; gated by emailed one-time token in path. FEATURES §15. |
-| POST | `/api/reference-check/{token}` | routes/auth.py:388 | reference_check_post | Public referee submit; same one-time token gate. FEATURES §15. |
-| GET | `/api/trust/stats` | routes/auth.py:426 | public_trust_stats | Public /trust page metrics. FEATURES §4. |
-| GET | `/api/trust/timeseries` | routes/auth.py:456 | public_trust_timeseries | Public /trust page timeseries. FEATURES §4. |
-| GET | `/api/trust/timeseries/details` | routes/auth.py:537 | public_trust_timeseries_details | Public /trust drill-through. FEATURES §4. |
-| GET | `/api/trust/timeseries/details/pdf` | routes/auth.py:685 | public_trust_timeseries_pdf | Public signed PDF export; writes a drill_receipts row. FEATURES §4. |
-| POST | `/api/trust/verify-drill` | routes/auth.py:743 | public_verify_drill | Public tamper-check POST; FEATURES §4 (also listed as no-UI in FEATURES 'Dead ends'). |
-| GET | `/api/trust/verify-drill/{signature}` | routes/auth.py:760 | public_verify_drill_lookup | Public signature lookup driven by QR code in the PDF. FEATURES §4. |
+| GET | `/api/reference-check/{token}` | routes/auth.py:369 | reference_check_get | Public referee form; gated by emailed one-time token in path. FEATURES §15. |
+| POST | `/api/reference-check/{token}` | routes/auth.py:392 | reference_check_post | Public referee submit; same one-time token gate. FEATURES §15. |
+| GET | `/api/trust/stats` | routes/auth.py:430 | public_trust_stats | Public /trust page metrics. FEATURES §4. |
+| GET | `/api/trust/timeseries` | routes/auth.py:460 | public_trust_timeseries | Public /trust page timeseries. FEATURES §4. |
+| GET | `/api/trust/timeseries/details` | routes/auth.py:541 | public_trust_timeseries_details | Public /trust drill-through. FEATURES §4. |
+| GET | `/api/trust/timeseries/details/pdf` | routes/auth.py:689 | public_trust_timeseries_pdf | Public signed PDF export; writes a drill_receipts row. FEATURES §4. |
+| POST | `/api/trust/verify-drill` | routes/auth.py:747 | public_verify_drill | Public tamper-check POST; FEATURES §4 (also listed as no-UI in FEATURES 'Dead ends'). |
+| GET | `/api/trust/verify-drill/{signature}` | routes/auth.py:764 | public_verify_drill_lookup | Public signature lookup driven by QR code in the PDF. FEATURES §4. |
 | GET | `/api/seo/skills` | routes/marketplace.py:29 | seo_skills | SEO skill index. Public marketing surface. |
 | GET | `/api/seo/city-skills` | routes/marketplace.py:34 | seo_city_skills | SEO city×skill index. Public marketing surface. |
 | GET | `/api/sitemap.xml` | routes/marketplace.py:80 | sitemap_xml | Public sitemap for crawlers. |

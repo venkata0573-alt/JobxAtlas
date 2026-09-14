@@ -12,12 +12,13 @@ on the host, `/app/` inside the container (Dockerfile.test:23 copies `frontend/`
 ## Hard invariants — never break these
 1. Every app-level PK is `str(uuid.uuid4())` via `new_id()` (`deps.py`). Never expose Mongo `_id`.
 2. Every read projects `{"_id": 0}`.
-3. Auth is the httpOnly `access_token` cookie set at login (`deps.py:set_auth_cookies`). Never move
-   a token into localStorage or a URL. **Known deviation: S-26 (open).** `deps.py:get_current_user`
-   still accepts an `Authorization: Bearer` header alongside the cookie — no first-party frontend
-   sends one (`grep -rn "Authorization" frontend/src/` returns nothing), so the branch is legacy
-   attack surface. Do not send Bearer tokens from any new code; the branch is scheduled to be
-   removed under S-26 before S-01's CSRF middleware lands.
+3. Auth is the httpOnly `access_token` cookie set at login (`deps.py:set_auth_cookies`).
+   `deps.py:get_current_user` reads the cookie and nothing else — S-26 removed the legacy
+   `Authorization: Bearer` branch (regression guard: `backend/tests/test_s26_no_bearer.py`).
+   Never move a token into localStorage or a URL. The single legitimate `?token=` query-param
+   use is the SSE `/talent/me/broadcasts/stream` endpoint, which does its own inline
+   `jwt.decode` scoped to that route (regression guard: `backend/tests/test_s26_sse_still_works.py`)
+   — do not generalise that pattern.
 4. Route modules import from `deps` only. `routes/*` → `server.py` imports must stay **inside handler
    bodies** (cycle break, see `admin.py:129,188,197`). Never hoist them to module level.
 5. `routes/engagements.py` is a placeholder — its docstring lists endpoints that BELONG there but
