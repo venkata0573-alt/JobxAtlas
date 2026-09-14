@@ -15,7 +15,7 @@ Last updated: 2026-09-13 (post Phase 1c v2 + dev stack). Read alongside
 | 1b — Convert FEATURES.md into tests (23 sections) | **Substantially done** — §3 auth, §6 marketplace, §7 shortlist, §8 EOI, §10 hours purchase, §11 engagements, §12–13 revisions, §14 grievances/refunds, §17 milestone payments, plus test_config, test_public_surface, test_csrf_surface, test_stripe_fixtures. **321 tests collected, baseline 313 pass / 3 pre-existing S-11 canaries / 1 CSRF skip / 4 xfailed.** |
 | 1c — Playwright E2E | **Done** (v2, commit `3dcdb46`, 2026-09-06). 13 specs under `frontend/e2e/`, drive real UI (API-fallback paths removed). Reseeded per-run via `backend/tests/e2e_reset.py`. |
 | 1d — CI gate (`make verify`) | **Done** — `.github/workflows/verify.yml` runs on every push + PR to main. Two parallel jobs: `test` (backend suite + Playwright e2e) and `security` (gitleaks hard gate + bandit / pip-audit / semgrep report-only). `security-scan` Makefile target invokes the same tools locally. `test-frontend` was the placeholder — it now loud-fails with an "add Jest tests" message and is deliberately removed from `verify` composition (an always-pass leg is worse than no leg). |
-| 2 — Fix loop | **F-11 (config) landed 2026-09-06**, **S-31 (logout cookie attribute-match) landed 2026-09-07**, **F-01 (optional emergentintegrations import) landed 2026-09-13 (commit `9ba2368`)**. Closed since original PROJECT_STATUS: **S-05, S-15, S-25, S-27, S-28, S-31, F-01, F-08, F-10**. Partial: S-02, S-04, S-08, S-20. See §2.F11 and the SECURITY_BACKLOG.md strike-through rows for the full list. |
+| 2 — Fix loop | **F-11 (config) landed 2026-09-06**, **S-31 (logout cookie attribute-match) landed 2026-09-07**, **F-01 (optional emergentintegrations import) landed 2026-09-13 (commit `9ba2368`)**, **S-26 (Bearer branch removed) landed 2026-09-14 (commit `cabf1d0`)**. Closed since original PROJECT_STATUS: **S-05, S-15, S-25, S-26, S-27, S-28, S-31, F-01, F-08, F-10**. Partial: S-02, S-04, S-08, S-20. See §2.F11 and the SECURITY_BACKLOG.md strike-through rows for the full list. |
 | 3 — Standing commands | Files written, not exercised |
 | 4 — Contractor split (`F-03` → `atlas-core`) | Blocked on Phase 2 |
 | — Local dev stack (parallel to Phase 1) | **Done** 2026-09-06 (commit `8c221f8`). `docker-compose.dev.yml` + `.env.dev.example` + `docs/LOCAL_SETUP.md` + Makefile `up-dev`/`down-dev`/`seed-dev`. Real Stripe (test mode via `stripe listen`), Resend, Turnstile; local mongo (named volume, persists); storage-mock retained because no real cloud-storage integration exists. |
@@ -115,24 +115,22 @@ reader needs and can't derive from the code today.
 
 ---
 
-## 4. Auth surface — Bearer branch still open
+## 4. Auth surface — cookie-only
 
-The harness half is done. The backend serves HTTPS on `:18443` in the test stack (self-signed
-cert + `verify=False` in httpx), so `SameSite=None; Secure` cookies ride the loopback and the
-Playwright suite drives the real cookie path end-to-end. No Bearer opt-in fixture ever shipped.
-CSRF and cookie-flag correctness are testable now — `test_csrf_surface.py` skips only because
-the S-01 middleware itself is still open, not because the tests can't reach it.
+Backend serves HTTPS on `:18443` in the test stack (self-signed cert + `verify=False` in httpx),
+so `SameSite=None; Secure` cookies ride the loopback and the Playwright suite drives the real
+cookie path end-to-end. No Bearer opt-in fixture ever shipped.
 
-The remaining open question is **S-26**: `deps.py:get_current_user` still accepts an
-`Authorization: Bearer` header alongside the cookie, even though `grep -rn "Authorization"
-frontend/src/` returns zero matches. No first-party client sends a Bearer token; the only
-inbound `Authorization: Bearer` refs are outbound integrations (HubSpot / Salesforce / Monday /
-Asana / Jira), and the SSE endpoint reads a `?token=` query param with its own inline
-`jwt.decode` — it never touches `get_current_user`.
+**S-26 CLOSED (commit `cabf1d0`, 2026-09-14).** `deps.get_current_user` no longer accepts an
+`Authorization: Bearer` header — cookie-only. Regression guards:
+`backend/tests/test_s26_no_bearer.py` (Bearer-only request → 401) +
+`test_s26_sse_still_works.py` (SSE endpoint's inline decode unaffected). The one legitimate
+`?token=` query-param use is the SSE `/talent/me/broadcasts/stream` endpoint, which is scoped
+to that route only.
 
-Fix is the one-line delete of the Bearer branch, sequenced **before S-01** so the CSRF
-middleware only has to reason about the cookie path. Full argument + evidence in
-`SECURITY_BACKLOG.md` under S-26.
+`test_csrf_surface.py` still skips because the S-01 middleware itself is not registered yet.
+Once S-01 lands, the CSRF middleware only has to reason about one auth path — that was the
+point of sequencing S-26 first.
 
 ---
 
@@ -171,16 +169,12 @@ App is local-only, never deployed. Prod-verification steps and live-exploit hotf
 
 **Still to go, in order:**
 
-1. **S-26** — delete the `Authorization: Bearer` branch in `deps.py:get_current_user`. Small
-   self-contained diff. Do this **before S-01** so the CSRF middleware only has to reason about
-   the cookie path. Verified 2026-08-30 that no server-side code depends on inbound Bearer.
+1. ~~**S-26** — delete the `Authorization: Bearer` branch in `deps.py:get_current_user`.~~
+   **DONE — commit `cabf1d0` (2026-09-14).**
 2. **S-01** — register the CSRF default-deny middleware. `security/csrf_exempt.yml` already
    lists the one legitimate exemption (Stripe webhook). Once this lands, remove the skip on
-   `backend/tests/test_csrf_surface.py`.
-3. **Phase 1d** — wire `security-scan`: pin gitleaks + bandit + pip-audit + semgrep into the
-   Makefile target and CI. Add a GitHub Actions workflow (or equivalent) so `make verify` runs
-   on every PR. Until then the two placeholder legs of `verify` (test-frontend, security-scan)
-   silently pass.
+   `backend/tests/test_csrf_surface.py`. Now unblocked by S-26 (one auth path to reason about).
+3. ~~**Phase 1d** — wire `security-scan` + CI runner.~~ **DONE** — see §1 phase-table row.
 4. **P0 fix loop, remaining**: `S-07` (token revocation + refresh rotation) → `S-03` (webhook
    idempotency + TOCTOU fix per S-03(a)(b)(c)) → `S-04` (HMAC + verify recompute) → `S-08`
    (rate limiting on auth surface) → `S-06` (envelope-encrypt third-party tokens at rest).

@@ -31,10 +31,10 @@ the `PROJECT_STATUS.md §2.F11` closure log; **open** is the residual.
 
 ### Snapshot
 
-- **Closed**: 8 items (S-05, S-15, S-25, S-27, S-28, S-31, F-08, F-10).
+- **Closed**: 10 items (S-05, S-15, S-25, S-26, S-27, S-28, S-31, F-01, F-08, F-10).
 - **Partial**: 4 items (S-02, S-04, S-08, S-20) — the F-11 sweep did half
   the fix; the other half is called out inline.
-- **Open**: 32 items (21 S- + 11 F-).
+- **Open**: 30 items (20 S- + 10 F-).
 
 ### Closed
 
@@ -48,6 +48,8 @@ the `PROJECT_STATUS.md §2.F11` closure log; **open** is the residual.
 | S-31 | `0e5fd5a` (2026-09-07) | Logout cookie attribute-match | `response.delete_cookie` in `/api/auth/logout` now mirrors the set-time attributes (`path="/"`, `secure=True`, `samesite="none"`), so Chromium recognises the deletion as attribute-matching and evicts the httpOnly Secure cookie. Regression guard: `test_03_auth.py::TestLogout::test_deletion_attributes_match_the_set_cookie`. |
 | F-08 | F-11 (`22329d1`) | SPA env-var config boundary | `frontend/src/config.js` is the sole `process.env.REACT_APP_*` reader; SPA renders a red banner and throws on missing `REACT_APP_BACKEND_URL`. 13 sites swept across 10 files. |
 | F-10 | F-11 (`4a85b96`) | Rate-drift threshold env-tunable | `settings.business_rules.rate_drift_threshold_pct: int = Field(default=15, alias="RATE_DRIFT_THRESHOLD_PCT")` in `config.BusinessRules`. Was hardcoded at `deps.py:153`. |
+| F-01 | commit `9ba2368` (2026-09-13) | emergentintegrations optional | `ai_service.py` wraps the import in `try/except ImportError`; suggest_hourly_rate falls back to rule-based rates. Package removed from `requirements.txt`; Dockerfile.test shim removed. Regression guard: `test_f01_optional_import.py`. |
+| S-26 | commit `cabf1d0` (2026-09-14) | Bearer branch removed; cookie-only | `deps.get_current_user` reads the `access_token` cookie and nothing else. SSE endpoint's own `?token=` inline decode is scoped to that one route and unaffected. Regression guards: `test_s26_no_bearer.py`, `test_s26_sse_still_works.py`. |
 
 `F-09` and `F-11` don't appear as backlog rows — `F-09` closed via F-11's
 sweep (per `PROJECT_STATUS.md §2.F11`); `F-11` is a work-package label,
@@ -86,7 +88,7 @@ not a backlog item.
 | S-16 | No global 401/403 handling in the SPA. Expired session silently renders empty pages. |
 | S-23 | `POST /api/projects/lead` unauthenticated and trusts client-supplied `employer_id`. Lead forgery, attribution poisoning, unbounded ops-queue spam. |
 | S-24 | `GET /api/projects/templates/{id}/team-suggestions` returns `_CURATED_TALENT` names + hourly rates to any unauthenticated caller. Scrapeable supply pool + sell-rate/margin math. |
-| S-26 | `deps.py::get_current_user` accepts `Authorization: Bearer` alongside the cookie; no first-party client sends one (verified: `grep -rn "Authorization" frontend/src/` returns nothing). Scheduled to land **before S-01** so the CSRF middleware only has to reason about one auth path. |
+| ~~S-26~~ | ~~`deps.py::get_current_user` accepts `Authorization: Bearer` alongside the cookie~~. **CLOSED — commit `cabf1d0` (2026-09-14).** Bearer branch deleted; cookie-only. Regression guards in `backend/tests/test_s26_no_bearer.py` and `test_s26_sse_still_works.py` (SSE endpoint's own inline decode unaffected). |
 
 **P2 — hardening**:
 
@@ -118,16 +120,17 @@ not a backlog item.
 
 ### Fix order (from PROJECT_STATUS.md §6, cross-checked against backlog state)
 
-1. **S-26** — delete the Bearer branch in `deps.py::get_current_user`. Small
-   self-contained diff. **Before S-01** so the CSRF middleware only reasons
-   about one auth path.
+1. ~~**S-26** — delete the Bearer branch in `deps.py::get_current_user`.~~
+   **DONE — commit `cabf1d0` (2026-09-14).** Cookie-only. Regression guards
+   in `test_s26_no_bearer.py` + `test_s26_sse_still_works.py`.
 2. **S-01** — register the CSRF default-deny middleware; wire it against the
    existing `security/csrf_exempt.yml` (single entry: Stripe webhook). Remove
-   the skip on `test_csrf_surface.py`.
-3. **Phase 1d** — wire `make security-scan` to real tools (gitleaks + bandit
-   + pip-audit + semgrep) and add a CI runner so `make verify` runs on every
-   PR. Today the `security-scan` and `test-frontend` legs of `verify` are
-   placeholders that always pass.
+   the skip on `test_csrf_surface.py`. Now unblocked by S-26 — one auth path
+   to reason about.
+3. ~~**Phase 1d** — wire `make security-scan` + CI runner.~~ **DONE** — see
+   `PROJECT_STATUS.md §1`. Real `make security-scan` runs gitleaks (hard) +
+   bandit / pip-audit / semgrep (report-only). CI merge gate lives at
+   `.github/workflows/verify.yml`.
 4. **P0 fix loop**, remaining: `S-07` (token revocation + refresh rotation) →
    `S-03` (webhook idempotency + all three sub-defects) → `S-04` (HMAC +
    verify recompute) → `S-08` (rate limiting + constant-time login) → `S-06`

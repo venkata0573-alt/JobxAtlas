@@ -200,7 +200,7 @@ Walk of `GET /api/talent/me/broadcasts` as a representative authenticated call.
 3. **Router match** — the shared `api = APIRouter(prefix="/api")` from `deps.py` resolves the path.
 4. **Cookie extraction + JWT decode** — the handler declares `user: dict = Depends(get_current_user)`. `deps.py::get_current_user`:
    - Read `access_token` cookie.
-   - **Fallback: `Authorization: Bearer <token>` header** — this is S-26 legacy attack surface. No first-party client sends a Bearer token (verified: `grep -rn "Authorization" frontend/src/` returns nothing). The branch is scheduled to be removed before S-01's CSRF middleware lands.
+   - **Cookie-only.** S-26 CLOSED (commit `cabf1d0`) — the legacy `Authorization: Bearer` fallback branch is gone. `grep -rn "Authorization" frontend/src/` returns nothing, so no first-party client is affected. Any outbound HubSpot / Salesforce / Monday / Asana / Jira `Authorization: Bearer` usage is server → third-party and unaffected. The single legitimate `?token=` query-param use is the SSE `/talent/me/broadcasts/stream` endpoint, which does its own inline `jwt.decode` scoped to that route — see §5.6.
    - No token → 401 "Not authenticated".
    - `jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])`. HS256, 12h expiry for access tokens / 7d for refresh (both set in `deps.py::create_token`).
    - Enforce `type == "access"`. Refresh tokens can't authenticate directly.
@@ -557,4 +557,4 @@ Written down so the next engineer doesn't have to re-derive them.
 13. **The rate-nudge scanner and manual `POST /profile/suggest-rate` interpolate talent-controlled `skills` and `location` straight into the LLM prompt** in `ai_service.py::suggest_hourly_rate`. Prompt injection lets talent inflate their own rate. S-10.
 14. **`_scheduler = None` is a module-level default in `server.py`** placed after the startup handler that assigns it — both statements are module-level, so the `None` runs first at import time and the startup handler overwrites it on boot. This is what makes the shutdown handler safe when startup didn't complete. Confusing but not a bug.
 15. **Late imports of `logger` inside `projects.py` handlers** are redundant — `logger` is already imported at module top via `deps`. Harmless.
-16. **The `Authorization: Bearer` branch in `deps.py::get_current_user` still exists** even though no first-party client sends one (`grep -rn "Authorization" frontend/src/` returns nothing). S-26 — scheduled to be removed before S-01 lands.
+16. **The `Authorization: Bearer` branch in `deps.py::get_current_user` was removed** — S-26 CLOSED (commit `cabf1d0`, 2026-09-14). Cookie-only. The SSE `/talent/me/broadcasts/stream` endpoint's `?token=` query-param path stays (does its own inline `jwt.decode`) but is not a general Bearer route; do not generalise it. Regression guards: `backend/tests/test_s26_no_bearer.py` + `test_s26_sse_still_works.py`.
