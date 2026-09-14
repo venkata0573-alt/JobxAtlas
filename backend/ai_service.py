@@ -2,7 +2,22 @@ import json
 import re
 import logging
 from typing import List
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+# F-01: emergentintegrations is not on PyPI, so a bare top-level import
+# used to fail every `pip install -r backend/requirements.txt` from a
+# fresh checkout. Wrap it: when the package is absent, `_HAS_LLM` stays
+# False and `suggest_hourly_rate` routes to the same rule-based fallback
+# that fires when EMERGENT_LLM_KEY is unset. No new silent-fail path —
+# we log once at import so the degradation is visible.
+try:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore[import-not-found]
+    _HAS_LLM = True
+    _MISSING_LLM_REASON = ""
+except ImportError as _e:
+    LlmChat = None  # type: ignore[assignment,misc]
+    UserMessage = None  # type: ignore[assignment,misc]
+    _HAS_LLM = False
+    _MISSING_LLM_REASON = str(_e)
 
 # F-11: config is the sole env boundary. LLM key stays optional —
 # silent-fail to rule-based rates is intentional per CLAUDE.md landmine list.
@@ -10,14 +25,21 @@ from config import settings
 
 logger = logging.getLogger("ai_service")
 
+if not _HAS_LLM:
+    logger.info(
+        "[ai_service] emergentintegrations not installed (%s) — rate "
+        "suggestions will use the rule-based fallback (F-01).",
+        _MISSING_LLM_REASON,
+    )
+
 EMERGENT_LLM_KEY = settings.llm.emergent_llm_key or ""
 
 
 async def suggest_hourly_rate(skills: List[str], years_experience: int, location: str = "Global") -> dict:
     """Ask Claude Sonnet to suggest a market-aligned hourly rate."""
-    if not EMERGENT_LLM_KEY:
+    if not _HAS_LLM or not EMERGENT_LLM_KEY:
         return {"low": 25, "mid": 45, "high": 80, "currency": "USD",
-                "rationale": "Default fallback (no LLM key configured)."}
+                "rationale": "Default fallback (no LLM configured)."}
 
     system = (
         "You are a global talent-market pricing analyst. Given a candidate's skills, "

@@ -32,28 +32,20 @@ RUN mkdir -p /certs \
 # requirements.txt on purpose — it is a test-only dep and doesn't need to
 # ship with the app.
 #
-# `emergentintegrations==0.2.0` in requirements.txt is not on PyPI (CLAUDE.md
-# landmine, backlog F-01). We strip it here and install a minimal shim below
-# so `from emergentintegrations.llm.chat import LlmChat, UserMessage` resolves
-# at import time. With EMERGENT_LLM_KEY empty in .env.test the LLM path is
-# never actually taken (ai_service.py:15 early-returns), so the shim only
-# needs to satisfy the top-level import.
+# F-01 CLOSED: `emergentintegrations==0.2.0` used to be in requirements.txt
+# without being on PyPI, so we stripped it here and injected a two-class
+# shim into site-packages to satisfy the top-level import in ai_service.py.
+# The shim + strip are now unnecessary: ai_service.py wraps the import in a
+# try/except and routes to the rule-based fallback when the package is
+# absent. Regression guard: tests/test_f01_optional_import.py.
 COPY backend/requirements.txt /tmp/requirements.txt
-RUN grep -v -E '^emergentintegrations==' /tmp/requirements.txt > /tmp/requirements-filtered.txt \
-    && pip install --no-cache-dir -r /tmp/requirements-filtered.txt \
 # pytest-asyncio: 1.2.0 was requested but declares `pytest<9` and conflicts
 # with the pytest==9.1.1 already pinned in requirements.txt. 1.4.0 is the
 # earliest release that supports pytest 9. Pin exactly for reproducibility.
 # pytest-cov: 5.x also declares pytest<9. 6.0.0 supports pytest 9. Same story.
-                                     pytest-asyncio==1.4.0 \
-                                     pytest-cov==6.0.0
-
-# Stub package — test image only.
-RUN mkdir -p /usr/local/lib/python3.11/site-packages/emergentintegrations/llm \
-    && touch /usr/local/lib/python3.11/site-packages/emergentintegrations/__init__.py \
-    && touch /usr/local/lib/python3.11/site-packages/emergentintegrations/llm/__init__.py \
-    && printf 'class LlmChat: pass\nclass UserMessage: pass\n' \
-       > /usr/local/lib/python3.11/site-packages/emergentintegrations/llm/chat.py
+RUN pip install --no-cache-dir -r /tmp/requirements.txt \
+                                pytest-asyncio==1.4.0 \
+                                pytest-cov==6.0.0
 
 # Test-only Stripe injection — see backend/tests/sitecustomize.py header.
 # Installed into site-packages so it is on sys.path regardless of what the

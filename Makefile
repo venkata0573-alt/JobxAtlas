@@ -90,6 +90,7 @@ test-backend:
 			tests/test_public_surface.py \
 			tests/test_csrf_surface.py \
 			tests/test_config.py \
+			tests/test_f01_optional_import.py \
 			../docs/scripts/tests/ \
 			-v
 
