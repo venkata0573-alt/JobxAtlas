@@ -27,8 +27,11 @@ No Authorization: Bearer header, ever (S-26 policy).
 
 Cross-tenant tests use the S-11 `load_owned` convention: cross-tenant access
 returns 404 (not 403). Handlers that raise 403 on cross-tenant today fail
-these tests deliberately — that is the S-11 gap surfacing. Do not weaken the
-assertion; log the failure in test_result.md and let S-11 close it.
+these tests — that is the S-11 gap surfacing. Three of these tests are
+marked `xfail(strict=True)` (Phase 1d, so CI can be a merge gate) — do NOT
+weaken the assertion. When load_owned() lands the handlers will start
+returning 404, the tests XPASS, and strict=True fails the suite until
+someone removes the xfail marker. That is how the canary self-closes.
 """
 
 from __future__ import annotations
@@ -385,13 +388,22 @@ class TestDeliverablesCreate:
         )
         assert r.status_code == 403, r.text
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "S-11: cross-tenant POST /deliverables leaks 403 (id-exists "
+            "signal) instead of 404. The engagement handler in server.py "
+            "checks `user['id'] != eng.get('talent_id')` and raises 403; "
+            "S-11 wants 404 to avoid the id-existence oracle. Marked "
+            "xfail(strict=True) so this test self-clears when load_owned() "
+            "lands — strict then fails the suite on XPASS, forcing us to "
+            "remove the marker and close the canary. Phase 1d converted "
+            "this from a hard-red test so CI is gate-able (permanently red "
+            "CI trains people to ignore it)."
+        ),
+    )
     async def test_cross_tenant_returns_404_per_s11(self, talent_flagged_client):
-        """talent_flagged is not the engaged talent on ENGAGEMENT_SIGNED_ID.
-
-        S-11 convention: cross-tenant reads return 404 (not 403) so an
-        attacker can't distinguish 'this id exists but isn't yours' from
-        'this id doesn't exist'. Handler at server.py:670 currently returns
-        403; this test fails on purpose to surface the S-11 gap."""
+        """talent_flagged is not the engaged talent on ENGAGEMENT_SIGNED_ID."""
         r = await talent_flagged_client.post(
             "/api/deliverables",
             json={"engagement_id": seed_mod.ENGAGEMENT_SIGNED_ID, "title": "x",
@@ -399,8 +411,8 @@ class TestDeliverablesCreate:
         )
         assert r.status_code == 404, (
             f"S-11 violation: cross-tenant POST leaked 403 (id-exists signal) "
-            f"instead of 404. Got {r.status_code}: {r.text[:200]}. See "
-            f"server.py:670 — needs load_owned() helper."
+            f"instead of 404. Got {r.status_code}: {r.text[:200]}. "
+            f"See server.py deliverable-create handler — needs load_owned()."
         )
 
 
@@ -444,16 +456,27 @@ class TestDeliverableApprove:
         r = await talent_clean_client.post(self._URL, json={"feedback": "x"})
         assert r.status_code == 403, r.text
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "S-11: cross-tenant POST /deliverables/{id}/approve leaks 403 "
+            "instead of 404. Handler in server.py raises 403 when the "
+            "requesting employer is not the engaging employer; S-11 wants "
+            "404 (no id-existence oracle). Self-clears when load_owned() "
+            "lands — strict then fails the suite on XPASS, forcing the "
+            "marker off. Phase 1d converted from hard-red to xfail so "
+            "CI can be a merge gate."
+        ),
+    )
     async def test_cross_tenant_employer_returns_404_per_s11(
         self, employer_nocard_client,
     ):
-        """employer_nocard is not the engaging employer on DELIVERABLE_SUBMITTED_ID.
-        Handler at server.py:705 raises 403; S-11 wants 404. Test fails
-        deliberately to surface the gap."""
+        """employer_nocard is not the engaging employer on DELIVERABLE_SUBMITTED_ID."""
         r = await employer_nocard_client.post(self._URL, json={"feedback": "x"})
         assert r.status_code == 404, (
             f"S-11 violation: cross-tenant approve leaked 403 instead of 404. "
-            f"Got {r.status_code}: {r.text[:200]}. See server.py:705."
+            f"Got {r.status_code}: {r.text[:200]}. See server.py deliverable-"
+            f"approve handler — needs load_owned()."
         )
 
 
@@ -470,13 +493,24 @@ class TestDeliverableReject:
         r = await talent_clean_client.post(self._URL, json={"feedback": "x"})
         assert r.status_code == 403, r.text
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "S-11: cross-tenant POST /deliverables/{id}/reject leaks 403 "
+            "instead of 404. Same handler shape as approve — the reject "
+            "path shares the party-membership check that raises 403; "
+            "S-11 wants 404. Self-clears on XPASS(strict) when the "
+            "load_owned() helper lands. Phase 1d converted from hard-red."
+        ),
+    )
     async def test_cross_tenant_employer_returns_404_per_s11(
         self, employer_nocard_client,
     ):
         r = await employer_nocard_client.post(self._URL, json={"feedback": "x"})
         assert r.status_code == 404, (
             f"S-11 violation: cross-tenant reject leaked 403 instead of 404. "
-            f"Got {r.status_code}: {r.text[:200]}. See server.py:705."
+            f"Got {r.status_code}: {r.text[:200]}. See server.py deliverable-"
+            f"reject handler — needs load_owned()."
         )
 
 

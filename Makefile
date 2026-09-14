@@ -104,8 +104,18 @@ coverage-gaps: test-backend
 	    -o /app/docs/scripts/.artifacts/coverage.json"
 	python3 docs/scripts/coverage_gaps.py
 
+# No frontend unit tests exist yet. This target used to be a silent-pass
+# placeholder that quietly claimed the frontend was tested; that's actively
+# misleading (a placeholder-that-passes is worse than no target). It now
+# fails loudly. When Jest tests land under frontend/src/__tests__/, replace
+# the exit with `cd frontend && CI=true yarn test --watchAll=false` and
+# re-add this target to the `verify` composition.
 test-frontend:
-	@echo "test-frontend: no frontend unit tests yet — Phase 1c will add them."
+	@echo "test-frontend: no frontend unit tests present."
+	@echo "  Add tests under frontend/src/__tests__/ (Jest via craco test),"
+	@echo "  wire this target to run 'cd frontend && CI=true yarn test --watchAll=false',"
+	@echo "  and re-add test-frontend to the 'verify' composition."
+	@exit 1
 
 e2e:
 	# Phase 1c: Playwright end-to-end suite lives under frontend/e2e/.
@@ -127,13 +137,45 @@ e2e:
 	$(COMPOSE) exec -T backend python /app/backend/tests/seed.py
 	cd frontend && npx playwright test
 
-# Phase 1d proper wires these tools into CI. Today this target reports what's
-# missing rather than silently passing.
+# Security scans. gitleaks is a hard gate; bandit/pip-audit/semgrep are
+# report-only for now (they emit high-noise findings that need triage before
+# they can gate CI). Same tools run in .github/workflows/verify.yml — this
+# target lets developers run the same checks locally before pushing.
+#
+# Install prerequisites once:
+#   brew install gitleaks   (or: https://github.com/gitleaks/gitleaks#installing)
+#   pip install bandit pip-audit semgrep
+#
+# The `-` prefix on the report-only tools tells make to ignore their exit
+# code; only a missing prerequisite or a gitleaks finding fails the target.
 security-scan:
-	@echo "security-scan: not yet wired. Phase 1d will pin gitleaks + bandit + pip-audit + semgrep."
-	@echo "See VALIDATION_PROCESS.md §1d for the target shape."
+	@command -v gitleaks >/dev/null 2>&1 || { \
+	  echo "security-scan: gitleaks not on PATH. Install: brew install gitleaks"; \
+	  exit 2; }
+	@command -v bandit >/dev/null 2>&1 || { \
+	  echo "security-scan: bandit not on PATH. Install: pip install bandit"; \
+	  exit 2; }
+	@command -v pip-audit >/dev/null 2>&1 || { \
+	  echo "security-scan: pip-audit not on PATH. Install: pip install pip-audit"; \
+	  exit 2; }
+	@command -v semgrep >/dev/null 2>&1 || { \
+	  echo "security-scan: semgrep not on PATH. Install: pip install semgrep"; \
+	  exit 2; }
+	@echo "→ gitleaks (fails hard on any leak)"
+	gitleaks detect --no-banner --redact
+	@echo "→ bandit (report-only; medium+high severity)"
+	-bandit -r backend/ -ll
+	@echo "→ pip-audit (report-only)"
+	-pip-audit --requirement backend/requirements.txt
+	@echo "→ semgrep (report-only; OWASP top-ten + python rulesets)"
+	-semgrep --config p/owasp-top-ten --config p/python backend/
 
-verify: test-backend test-frontend e2e security-scan
+# verify composition post-Phase 1d:
+#  - test-backend  : real (backend pytest suite, 323 collected, must be green)
+#  - e2e           : real (Playwright, 13 specs)
+#  - security-scan : real (gitleaks hard gate; bandit/pip-audit/semgrep report-only)
+# test-frontend is deliberately NOT in verify — see its target comment for why.
+verify: test-backend e2e security-scan
 
 # ---------------------------------------------------------------------------
 # Hand-driven dev stack (docs/LOCAL_SETUP.md).  Never merged with `verify`:

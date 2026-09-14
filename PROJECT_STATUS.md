@@ -14,7 +14,7 @@ Last updated: 2026-09-13 (post Phase 1c v2 + dev stack). Read alongside
 | 1a — Test harness | **Done** |
 | 1b — Convert FEATURES.md into tests (23 sections) | **Substantially done** — §3 auth, §6 marketplace, §7 shortlist, §8 EOI, §10 hours purchase, §11 engagements, §12–13 revisions, §14 grievances/refunds, §17 milestone payments, plus test_config, test_public_surface, test_csrf_surface, test_stripe_fixtures. **321 tests collected, baseline 313 pass / 3 pre-existing S-11 canaries / 1 CSRF skip / 4 xfailed.** |
 | 1c — Playwright E2E | **Done** (v2, commit `3dcdb46`, 2026-09-06). 13 specs under `frontend/e2e/`, drive real UI (API-fallback paths removed). Reseeded per-run via `backend/tests/e2e_reset.py`. |
-| 1d — CI gate (`make verify`) | Partial — `test-backend` + `e2e` are real; `test-frontend` + `security-scan` still placeholders. No CI runner wired yet. |
+| 1d — CI gate (`make verify`) | **Done** — `.github/workflows/verify.yml` runs on every push + PR to main. Two parallel jobs: `test` (backend suite + Playwright e2e) and `security` (gitleaks hard gate + bandit / pip-audit / semgrep report-only). `security-scan` Makefile target invokes the same tools locally. `test-frontend` was the placeholder — it now loud-fails with an "add Jest tests" message and is deliberately removed from `verify` composition (an always-pass leg is worse than no leg). |
 | 2 — Fix loop | **F-11 (config) landed 2026-09-06**, **S-31 (logout cookie attribute-match) landed 2026-09-07**, **F-01 (optional emergentintegrations import) landed 2026-09-13 (commit `9ba2368`)**. Closed since original PROJECT_STATUS: **S-05, S-15, S-25, S-27, S-28, S-31, F-01, F-08, F-10**. Partial: S-02, S-04, S-08, S-20. See §2.F11 and the SECURITY_BACKLOG.md strike-through rows for the full list. |
 | 3 — Standing commands | Files written, not exercised |
 | 4 — Contractor split (`F-03` → `atlas-core`) | Blocked on Phase 2 |
@@ -209,6 +209,13 @@ App is local-only, never deployed. Prod-verification steps and live-exploit hotf
   before Phase 1b" freeze is lifted — Phase 1b landed and F-11/S-31 have already exercised
   the new normal.
 - One backlog item per branch, per PR. Branch name = backlog id (e.g. `sec/S-26-drop-bearer`).
+- **No merge to main without `make verify` passing** (enforced by
+  `.github/workflows/verify.yml`, Phase 1d). Green means backend suite +
+  Playwright e2e + gitleaks all pass; bandit / pip-audit / semgrep are
+  report-only for now (their baselines need triage before they gate).
+  Configure GitHub branch protection on `main` to require the `verify` check;
+  the workflow name is `verify`, the required contexts are `verify / test`
+  and `verify / security`.
 - Every new finding gets an ID in `SECURITY_BACKLOG.md` the day it's found.
 - Every accepted compromise gets a row in §5 above with a named closing condition.
 - Every closed item is struck through in `SECURITY_BACKLOG.md` (not deleted) with the fix

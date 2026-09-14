@@ -100,9 +100,18 @@ Two Docker Compose stacks, deliberately separate compose projects so they can ru
 - Coverage gaps: `make coverage-gaps` regenerates `docs/scripts/.artifacts/coverage.json` and
   runs the gap report — the pytest-inline coverage from `test-backend` alone reads ~1% because
   it only sees pytest imports, not the running backend process.
-- `make verify` = `test-backend` + `test-frontend` (placeholder — no frontend unit tests yet) +
-  `e2e` + `security-scan` (placeholder — Phase 1d wires gitleaks + bandit + pip-audit + semgrep).
-  Today "verify green" means test-backend green + e2e green; the two placeholders always pass.
+- `make verify` = `test-backend` + `e2e` + `security-scan` (Phase 1d landed).
+  `security-scan` runs gitleaks (hard gate) + bandit + pip-audit + semgrep
+  (report-only until each ruleset's baseline is triaged); install prerequisites
+  with `brew install gitleaks && pip install bandit pip-audit semgrep`.
+  `test-frontend` is deliberately NOT in `verify` — it exit-1s with an
+  "add Jest tests" message because no frontend unit tests exist yet, and
+  an always-pass leg is worse than no leg. Re-add it to `verify` when tests
+  under `frontend/src/__tests__/` land.
+- **CI merge gate**: `.github/workflows/verify.yml` runs on every push and PR
+  to `main`. Two parallel jobs (`test`, `security`) — both must pass.
+  Playwright HTML report + `coverage.json` upload as artifacts on failure.
+  Branch protection: require both `verify / test` and `verify / security`.
 
 ### Dev stack — real services, hand-driven
 - Compose file: `docker-compose.dev.yml` (project `atlas-dev`).
