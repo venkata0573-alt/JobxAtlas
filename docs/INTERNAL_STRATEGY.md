@@ -104,7 +104,7 @@ not a backlog item.
 
 | ID | Issue |
 | --- | --- |
-| F-01 | `emergentintegrations==0.2.0` fresh-install blocker. Test image ships a shim; anyone running outside that image fails to boot. |
+| ~~F-01~~ | ~~`emergentintegrations==0.2.0` fresh-install blocker~~. **CLOSED — commit `9ba2368` (2026-09-13).** `ai_service.py` wraps the import in `try/except ImportError` and routes to the rule-based fallback; package removed from `requirements.txt`; Dockerfile.test shim removed. |
 | F-02 | Dead `routes/engagements.py` (40 lines); real endpoints live in `server.py`. Either finish the extraction or delete the file. |
 | F-03 | Split `server.py` (2,906 lines) by domain. Prerequisite for the contractor split in §2. |
 | F-04 | Missing admin UI: Scheduler tab, rate-nudge trigger, scan-overdue, save-as-template. |
@@ -133,9 +133,10 @@ not a backlog item.
    verify recompute) → `S-08` (rate limiting + constant-time login) → `S-06`
    (envelope-encrypt third-party tokens at rest).
 5. **P1 backlog** by number.
-6. **F-01** — replace `emergentintegrations` top-level import in
+6. ~~**F-01** — replace `emergentintegrations` top-level import in
    `ai_service.py` with an optional guard so `pip install -r
-   backend/requirements.txt` succeeds outside the test image.
+   backend/requirements.txt` succeeds outside the test image.~~ **DONE —
+   commit `9ba2368` (2026-09-13).**
 7. **F-03** — split `server.py`. Prerequisite for the contractor split.
 8. **Extract `atlas-core`**, publish the wheel, generate
    `atlas-contracts/openapi.json`, stand up the Prism mock. Then hire against

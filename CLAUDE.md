@@ -59,15 +59,18 @@ on the host, `/app/` inside the container (Dockerfile.test:23 copies `frontend/`
   Python-level `payment_status != "paid"` check and both `$inc`. This is **S-03(c)** in the backlog;
   the xfail `test_concurrent_replay_may_double_credit` documents it empirically. If you touch either
   branch, gate every `$inc` on the update result, not on the snapshot read.
-- **`emergentintegrations==0.2.0` is a fresh-install blocker** (F-01, confirmed). The package is
-  not on PyPI and not shipped alongside `requirements.txt`; `ai_service.py` imports it at module
-  top with no try/except. `pip install -r backend/requirements.txt` therefore fails from a fresh
-  checkout. The test image (`backend/Dockerfile.test`) strips it from the requirements file and
-  installs a two-class shim (`LlmChat`, `UserMessage`) into site-packages so imports resolve;
-  because `EMERGENT_LLM_KEY` is unset in `.env.test` the LLM path is never taken and the shim's
-  emptiness is invisible. Anyone trying to run the backend outside the test image has to reproduce
-  the shim manually. Close criterion: publish the real package, or replace the top-level import
-  with an optional-import guard and let the rate-suggestion path fall back to rules.
+- **`emergentintegrations` is an optional import.** F-01 CLOSED (commit `9ba2368`,
+  2026-09-13). `ai_service.py` wraps `from emergentintegrations.llm.chat import ...` in
+  `try/except ImportError` and sets `_HAS_LLM = False` on failure; `suggest_hourly_rate`
+  gates on `not _HAS_LLM or not EMERGENT_LLM_KEY` and routes to the existing rule-based
+  fallback. The package is no longer in `backend/requirements.txt`, and the two-class
+  shim previously injected by `backend/Dockerfile.test` has been removed. `pip install -r
+  backend/requirements.txt` from a fresh checkout now succeeds; the test image and any
+  other clean container boot cleanly. Regression guard: `backend/tests/test_f01_optional_import.py`
+  simulates the package absent via a `sys.meta_path` blocker and asserts clean import +
+  rate-shaped fallback. If you set `EMERGENT_LLM_KEY` in a live dev/prod environment
+  where you've also installed a real `emergentintegrations` package, the LLM path fires
+  normally — no behaviour change for that case.
 - **Silent-fail dependencies are mixed now.** Post-F-11 the picture is:
   - **Turnstile — fails CLOSED in production** (`config.py` refuses to boot without the key when
     `ENV=production`) and fails OPEN with a `[S-08]` WARN log in dev/test. Not silent anymore.

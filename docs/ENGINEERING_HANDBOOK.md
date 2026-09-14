@@ -418,7 +418,7 @@ One line per significant file. Full inventory: `docs/ENDPOINT_INVENTORY.md`.
 - `backend/routes/projects.py` — projects, milestones, invoices, auto-collect, overdue scanner.
 - `backend/routes/revisions.py` — revision ladder, disputes, dispute-fee, refund, audit PDF.
 - `backend/routes/engagements.py` — **shell file, dead**. Docstring lists endpoints that live in `server.py`.
-- `backend/ai_service.py` — LLM rate suggest. Imports `emergentintegrations` (F-01 fresh-install blocker — test image ships a shim).
+- `backend/ai_service.py` — LLM rate suggest. Imports `emergentintegrations` behind a `try/except ImportError` (F-01 closed, commit `9ba2368`); routes to the rule-based fallback when the package is absent.
 - `backend/mailer.py` — Resend wrapper; silent no-op when `RESEND_API_KEY` unset.
 - `backend/storage_client.py` — object-storage client (dev = local mock; no real cloud provider wired).
 - `backend/work_integrations.py` — Monday/Asana/Trello/ClickUp/Jira/Confluence adapters. Six sync `requests` sites.
@@ -440,7 +440,7 @@ One line per significant file. Full inventory: `docs/ENDPOINT_INVENTORY.md`.
 **Repo root**
 - `docker-compose.test.yml` — hermetic test stack (mocks, tmpfs mongo).
 - `docker-compose.dev.yml` — dev stack (real Stripe test-mode + Resend + Turnstile).
-- `backend/Dockerfile.test` — reused by both stacks. Bakes `sitecustomize.py` into site-packages, generates a self-signed cert into `/certs`, installs the `emergentintegrations` shim.
+- `backend/Dockerfile.test` — reused by both stacks. Bakes `sitecustomize.py` into site-packages and generates a self-signed cert into `/certs`. Post-F-01 the `emergentintegrations` shim is no longer injected — the runtime import is optional.
 - `frontend/Dockerfile.test` — reused by both stacks. Runs `yarn start` (dev server, HMR-capable).
 - `Makefile` — every target listed in §5.
 - `.env.example` — template for the test/prod-style env.
@@ -498,7 +498,7 @@ switch.
 Full list in `CLAUDE.md`. Short recap of the two most likely to bite:
 
 - The two hours-crediting paths (webhook and polling) look symmetric but the webhook branch has S-03(c) — see §3.
-- `emergentintegrations==0.2.0` is a fresh-install blocker (F-01). If you `pip install -r backend/requirements.txt` outside the test image, boot dies. The test image strips + shims it.
+- `emergentintegrations` is now an optional import (F-01 closed, commit `9ba2368`) — `ai_service.py` wraps it in `try/except ImportError` and falls back to rule-based rates. A fresh `pip install -r backend/requirements.txt` succeeds; no shim needed.
 
 ---
 

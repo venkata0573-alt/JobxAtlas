@@ -91,7 +91,7 @@ One line per significant file. Full inventory in `docs/ENDPOINT_INVENTORY.md`.
 - `backend/routes/projects.py` — projects, milestones, invoices, auto-collect.
 - `backend/routes/revisions.py` — revision ladder, disputes, refund, audit PDF.
 - `backend/routes/engagements.py` — **shell file, dead**. Endpoints live in `server.py`.
-- `backend/ai_service.py` — LLM rate suggest. Imports `emergentintegrations` (F-01 fresh-install blocker — test image shims it).
+- `backend/ai_service.py` — LLM rate suggest. Imports `emergentintegrations` behind a `try/except ImportError` (F-01 closed, commit `9ba2368`); falls back to rule-based rates when the package isn't installed.
 - `backend/mailer.py` — Resend wrapper; silent no-op when key unset.
 - `backend/storage_client.py` — object-storage client (dev = local mock; no real provider wired).
 - `backend/work_integrations.py` — Monday/Asana/Trello/ClickUp/Jira/Confluence adapters.
